@@ -129,10 +129,11 @@ def main() -> int:
     assert offline_metrics["accepted_seconds"] == 100
     for metrics in (replay_start_metrics, replay_metrics, stale_metrics, offline_retry_metrics):
         assert metrics["accepted_seconds"] == 0, metrics
-    assert int(offline_retry_metrics["sqlite_writer"]["tasks"]) == 0, offline_retry_metrics
+    assert int(offline_retry_metrics["postgres_writer"]["tasks"]) == 0, offline_retry_metrics
     print(json.dumps({"rows": tuple(map(int, time_rows)), "credit_rows": int(credit_rows), "isolated_users": 100}, ensure_ascii=True))
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

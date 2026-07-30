@@ -553,8 +553,8 @@ def main() -> int:
             "pid": server_pid,
             "listener_pids": all_listener_pids(18877),
             "command_line": snapshot_processes([server_pid]).get(server_pid, {}).get("cmdline", ""),
-            "postgres_only": bool((h.get("sqlite_writer") or {}).get("postgres_only") is True and (h.get("sqlite_writer") or {}).get("enabled") is False),
-            "sqlite_writer": h.get("sqlite_writer"),
+            "postgres_only": bool(isinstance(h.get("postgres"), dict) and (h.get("postgres_writer") or {}).get("retired") is True),
+            "postgres_writer": h.get("postgres_writer"),
             "dashboard_status": h.get("dashboard_status"),
             "worker_pid": h.get("worker_pid"),
             "logical_cpu": psutil.cpu_count(logical=True),
@@ -617,7 +617,11 @@ def main() -> int:
         result["production_8877_health"] = None
         try:
             live = requests.get("http://127.0.0.1:8877/health?view=dashboard-v1", timeout=5).json()
-            result["production_8877_health"] = {"ok": live.get("ok"), "pid": live.get("pid"), "postgres_only": (live.get("sqlite_writer") or {}).get("postgres_only")}
+            result["production_8877_health"] = {
+                "ok": live.get("ok"),
+                "pid": live.get("pid"),
+                "postgres_only": bool(isinstance(live.get("postgres"), dict) and (live.get("postgres_writer") or {}).get("retired") is True),
+            }
         except Exception as exc:
             result["production_8877_health"] = {"error": str(exc)}
         result["finished_utc"] = utc_now()
@@ -631,3 +635,4 @@ if __name__ == "__main__":
         os.environ.setdefault(f"FUTURE_DB_{domain}_BACKEND", "postgres")
     os.environ.setdefault("FUTURE_POSTGRES_ONLY", "1")
     raise SystemExit(main())
+

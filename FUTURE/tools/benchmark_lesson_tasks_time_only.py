@@ -87,7 +87,7 @@ def main() -> int:
     rows_35, warm_35 = measured(process, lambda: phase(35))
     assert len(cold_rows) == len(warm_rows) == 100 and len(rows_50) == 50 and len(rows_35) == 35
     for metrics in (cold, warm, warm_50, warm_35):
-        if metrics["sqlite_writer"]["tasks"] != 0:
+        if metrics["postgres_writer"]["tasks"] != 0:
             raise RuntimeError(f"Task GET unexpectedly wrote state: {metrics}")
     print(json.dumps({"cold_100": cold, "warm_100": warm, "warm_50": warm_50, "warm_35": warm_35}, ensure_ascii=True, indent=2))
     return 0
@@ -95,3 +95,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

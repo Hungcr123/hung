@@ -86,7 +86,7 @@ def main() -> int:
         return 0
     phase("VOCAB_IMAGE_SAME", lambda _index: "Eyebrow")
     phase("VOCAB_IMAGE_DISTRIBUTED", lambda index: WORDS[index])
-    writer_before = requests.get(f"{BASE}/health?view=dashboard-v1", timeout=10).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health?view=dashboard-v1", timeout=10).json().get("postgres_writer", {})
     cpu_before = sum(process.cpu_times()[:2])
     io_before = process.io_counters()
     started = time.perf_counter()
@@ -105,13 +105,13 @@ def main() -> int:
         time.sleep(0.5)
     time.sleep(1.2)
     wait_for_writer_quiescence()
-    writer_after = requests.get(f"{BASE}/health?view=dashboard-v1", timeout=10).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health?view=dashboard-v1", timeout=10).json().get("postgres_writer", {})
     io_after = process.io_counters()
     print("VOCAB_IMAGE_BACKGROUND", json.dumps({
         "wall_ms": round((time.perf_counter() - started) * 1000, 3),
         "server_cpu_ms": round(max(0.0, sum(process.cpu_times()[:2]) - cpu_before) * 1000, 3),
         "cached_rows": cached_rows,
-        "sqlite_writer": {
+        "postgres_writer": {
             key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
             for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
         },
@@ -128,3 +128,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

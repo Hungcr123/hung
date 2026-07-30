@@ -117,10 +117,7 @@ def read_server_data_folder_link_payload(folder: Path) -> dict:
             if isinstance(cached_payload, dict) and clean_path_value(cached_payload.get("target", "")):
                 return cached_payload
         marker = folder / SERVER_DATA_FOLDER_LINK_FILE
-        if str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
-            text = marker.read_text(encoding="utf-8-sig", errors="replace").strip() if marker.is_file() else ""
-        else:
-            text = (server_database_read_document_text(marker, "") or "").strip()
+        text = (server_database_read_document_text(marker, "") or "").strip()
         if not text.startswith("{"):
             return {}
         payload = json.loads(text)

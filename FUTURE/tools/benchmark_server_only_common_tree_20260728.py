@@ -406,9 +406,9 @@ def main() -> int:
         health = requests.get(BASE + "/health?view=dashboard-v1", timeout=10).json()
         result["server"] = {
             "pid": int(health.get("pid") or 0),
-            "postgres_only": bool((health.get("sqlite_writer") or {}).get("postgres_only") is True),
+            "postgres_only": bool((health.get("postgres_writer") or {}).get("postgres_only") is True),
             "warm_ready": bool(health.get("warm_ready")),
-            "sqlite_writer": health.get("sqlite_writer"),
+            "postgres_writer": health.get("postgres_writer"),
             "pg_dsn_present": bool(os.environ.get("FUTURE_PG_DSN")),
         }
         if not result["server"]["postgres_only"]:
@@ -432,3 +432,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

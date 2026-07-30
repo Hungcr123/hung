@@ -88,22 +88,9 @@ def main() -> int:
         if stopped_pid:
             print(f"Stopped recorded old Future server PID {stopped_pid}.", flush=True)
     try:
-        postgres_only = str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}
-        # Added 2026-07-26: keep PostgreSQL-only startup from touching the legacy
-        # SQLite structure database during boot.
-        if postgres_only:
-            structure_info = {
-                "database": "postgresql:future_server2.assets",
-                "journal_mode": "postgresql",
-                "synchronous": 0,
-                "assets": 0,
-                "raw_bytes": 0,
-                "migration_complete": True,
-            }
-        else:
-            structure_info = initialize_structure_database()
-            if not structure_info.get("migration_complete") or int(structure_info.get("assets", 0) or 0) <= 0:
-                raise RuntimeError("Structure asset migration is incomplete; legacy fallback is disabled.")
+        structure_info = initialize_structure_database()
+        if not structure_info.get("migration_complete"):
+            raise RuntimeError("PostgreSQL Structure asset migration is incomplete.")
         SERVER_STATE["structure_database"] = structure_info
         structure_backend = "PostgreSQL" if clean(structure_info.get("database", "")).lower().startswith("postgresql:") else "unknown"
         print(

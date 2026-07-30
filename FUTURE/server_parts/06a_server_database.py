@@ -1,5 +1,5 @@
 # Loaded by FUTURE.server_app into the shared Future server runtime namespace.
-# PostgreSQL is authoritative for all mutable server state; legacy SQLite paths are retired.
+# PostgreSQL is authoritative for all mutable server state; legacy local-database paths are retired.
 
 SERVER_DATABASE_INIT_LOCK = threading.Lock()
 SERVER_DATABASE_READY = False
@@ -20,7 +20,7 @@ SERVER_DATABASE_LESSON_FILE_ALIAS_CACHE: dict[str, str] = {}
 SERVER_DATABASE_FOLDER_LINK_CACHE_LOCK = threading.RLock()
 SERVER_DATABASE_FOLDER_LINK_CACHE: dict[str, dict] = {}
 # Added 2026-07-23: virtual Lesson Vault placement cache.  It is a rebuildable
-# accelerator; SQLite rows remain authoritative for folders and entries.
+# accelerator; PostgreSQL rows remain authoritative for folders and entries.
 SERVER_DATABASE_VAULT_CACHE_LOCK = threading.RLock()
 SERVER_DATABASE_VAULT_FOLDER_CACHE: dict[str, dict] = {}
 SERVER_DATABASE_VAULT_ENTRY_CACHE: dict[str, dict] = {}
@@ -1084,6 +1084,7 @@ def server_database_document_local_only(path: Path | str) -> bool:
 def server_database_document_postgres_authoritative(path: Path | str) -> bool:
     """Return whether a document path has an explicit PostgreSQL document owner."""
     routes = (
+        ("SYSTEM_DOCUMENTS", "FUTURE.postgres.repositories.system_documents", "is_system_document"),
         ("QM_CITY_DOCUMENTS", "FUTURE.postgres.repositories.qm_city_documents", "is_qm_city_document"),
         ("LEADERBOARD_DOCUMENTS", "FUTURE.postgres.repositories.leaderboard_documents", "is_leaderboard_document"),
         ("QMDICT_DOCUMENTS", "FUTURE.postgres.repositories.qmdict_documents", "is_qmdict_document"),
@@ -1110,7 +1111,6 @@ def server_database_load_document_cache(connection=None) -> int:
 
 
 def server_database_document_entry(path: Path | str) -> dict[str, object] | None:
-    postgres_only = str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}
     if postgres_backend_mode("SYSTEM_DOCUMENTS") == "postgres":
         try:
             from FUTURE.postgres.repositories import system_documents as pg_system_documents
@@ -1163,8 +1163,6 @@ def server_database_document_entry(path: Path | str) -> dict[str, object] | None
             stt_debug_log("postgres_leaderboard_document_read_failed", path=str(path), error=str(exc))
             # Added 2026-07-30: QM City leaderboard/social state is PostgreSQL-authoritative in production.
             raise
-    if not postgres_only:
-        initialize_server_database()
     path_key, _resolved = server_database_document_key(path)
     with SERVER_DATABASE_DOCUMENT_CACHE_LOCK:
         entry = SERVER_DATABASE_DOCUMENT_CACHE.get(path_key)
@@ -1237,7 +1235,7 @@ def server_database_store_document_now(path: Path | str, text: str, encoding: st
         mtime_ns = max(int(target.stat().st_mtime_ns), time.time_ns() if authoritative else 0)
     except Exception:
         mtime_ns = time.time_ns() if authoritative else 0
-    # Added 2026-07-20: unchanged SQLite documents need neither SHA-256 nor a durable rewrite.
+    # Added 2026-07-20: unchanged PostgreSQL documents need neither SHA-256 nor a durable rewrite.
     with SERVER_DATABASE_DOCUMENT_CACHE_LOCK:
         cached = SERVER_DATABASE_DOCUMENT_CACHE.get(path_key)
         if (
@@ -1980,7 +1978,7 @@ def server_database_vault_reload_cache() -> int:
 
 
 def server_database_vault_operation(payload: dict, actor_username: str = "") -> dict:
-    """Apply a browser Vault operation as one SQLite transaction only."""
+    """Apply a browser Vault operation through the PostgreSQL repository."""
     if not SERVER_DATABASE_VAULT_ENABLED:
         return {}
     viewer = normalize_username(actor_username)
@@ -2028,24 +2026,38 @@ def server_database_vault_operation(payload: dict, actor_username: str = "") -> 
     now = utc_timestamp()
     result = {}
     from FUTURE.postgres.repositories import vault as pg_vault
-    folder_id = _server_database_vault_id("vault-folder")
-    row = pg_vault.create_virtual_folder(
+    if action == "create_folder":
+        folder_id = _server_database_vault_id("vault-folder")
+        row = pg_vault.create_virtual_folder(
+            user,
+            destination_raw,
+            clean(payload.get("display_name", "") or payload.get("name", "")) or "New folder",
+            folder_id,
+            now,
+        )
+        if not _server_database_vault_patch_created_folder(row, destination_raw, int(row.get("revision", 1) or 1)):
+            server_database_reload_vault_user_cache(user)
+        return {
+            "path": clean_path_value(f"{destination_raw}/{row.get('display_name', '')}"),
+            "name": clean(row.get("display_name", "")),
+            "type": "folder",
+            "vault_folder_id": folder_id,
+            "vault_revision": max(1, int(row.get("revision", 1) or 1)),
+            "virtual": True,
+        }
+    result = pg_vault.mutate_vault(
+        action,
         user,
+        source_raw,
         destination_raw,
-        clean(payload.get("display_name", "") or payload.get("name", "")) or "New folder",
-        folder_id,
+        old_entry or {},
+        old_folder or {},
+        clean(payload.get("display_name", "") or payload.get("name", "")),
+        reorder_direction,
         now,
     )
-    if not _server_database_vault_patch_created_folder(row, destination_raw, int(row.get("revision", 1) or 1)):
-        server_database_reload_vault_user_cache(user)
-    return {
-        "path": clean_path_value(f"{destination_raw}/{row.get('display_name', '')}"),
-        "name": clean(row.get("display_name", "")),
-        "type": "folder",
-        "vault_folder_id": folder_id,
-        "vault_revision": max(1, int(row.get("revision", 1) or 1)),
-        "virtual": True,
-    }
+    server_database_reload_vault_user_cache(user)
+    return result
 
 
 # Added 2026-07-21: folder-link roots are canonical SQLite rows; propagated child markers remain rollback-only.
@@ -2437,7 +2449,7 @@ def server_database_record_vocabulary_transaction(
 
 def server_database_period_scopes(username: str, buckets: dict, resets: dict | None = None) -> dict:
     normalized_user = normalize_username(username)
-    # Updated 2026-07-29: PostgreSQL-only recovery must not depend on a local SQLite file existing.
+    # Updated 2026-07-29: recovery must not depend on a local database file existing.
     from FUTURE.postgres.repositories import vocabulary as pg_vocabulary
     return pg_vocabulary.period_scopes(normalized_user, buckets, resets)
 

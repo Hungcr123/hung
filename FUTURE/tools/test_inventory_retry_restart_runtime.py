@@ -54,7 +54,7 @@ def stable_writer_tasks(timeout: float = 5.0) -> int:
     previous = None
     stable = 0
     while time.monotonic() < deadline:
-        current = int((health().get("sqlite_writer") or {}).get("tasks", 0) or 0)
+        current = int((health().get("postgres_writer") or {}).get("tasks", 0) or 0)
         if current == previous:
             stable += 1
             if stable >= 3:
@@ -132,3 +132,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

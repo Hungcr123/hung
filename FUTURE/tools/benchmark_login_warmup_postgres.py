@@ -361,11 +361,15 @@ def health(base: str) -> dict[str, Any]:
 def process_sample(process: psutil.Process) -> dict[str, Any]:
     with process.oneshot():
         memory = process.memory_info()
-        sqlite_handles = 0
+        local_database_handles = 0
         try:
-            sqlite_handles = sum(1 for item in process.open_files() if item.path.lower().endswith((".db", ".db-wal", ".db-shm")) and "server2" in item.path.lower())
+            local_database_handles = sum(
+                1
+                for item in process.open_files()
+                if item.path.lower().endswith((".db", ".db-wal", ".db-shm")) and "server2" in item.path.lower()
+            )
         except (psutil.AccessDenied, psutil.NoSuchProcess):
-            sqlite_handles = -1
+            local_database_handles = -1
         return {
             "pid": process.pid,
             "cpu_seconds": round(cpu_seconds(process), 6),
@@ -373,7 +377,7 @@ def process_sample(process: psutil.Process) -> dict[str, Any]:
             "vms_bytes": int(memory.vms),
             "threads": int(process.num_threads()),
             "status": process.status(),
-            "sqlite_server2_handles": sqlite_handles,
+            "local_server2_database_handles": local_database_handles,
         }
 
 
@@ -771,7 +775,7 @@ def write_outputs(prefix: str, output_dir: Path, raw: dict[str, Any], records: l
         f"- mode: {raw['mode']}",
         f"- server_pid: {raw['environment']['server_pid']}",
         f"- postgres_only: {raw['environment']['postgres_only']}",
-        f"- sqlite_writer_enabled: {raw['environment']['sqlite_writer_enabled']}",
+        f"- retired_local_writer: {raw['environment']['retired_local_writer']}",
         f"- users: {', '.join(raw['users'])}",
         f"- total_requests: {summary['total_requests']}",
         f"- errors: {summary['errors']}",
@@ -839,8 +843,12 @@ def main() -> int:
     fixture_password = os.environ.get("FUTURE_LOGIN_BENCH_FIXTURE_PASSWORD", "codexloginbench-local-only")
     process = server_process(args.port)
     before_health = health(args.base)
-    sqlite_writer = before_health.get("sqlite_writer") if isinstance(before_health, dict) else {}
-    postgres_only = bool(isinstance(sqlite_writer, dict) and sqlite_writer.get("postgres_only") is True and sqlite_writer.get("enabled") is False)
+    postgres_writer = before_health.get("postgres_writer") if isinstance(before_health, dict) else {}
+    postgres_only = bool(
+        isinstance(before_health.get("postgres"), dict)
+        and isinstance(postgres_writer, dict)
+        and postgres_writer.get("retired") is True
+    )
     if not postgres_only:
         raise RuntimeError("Server health does not prove PostgreSQL-only runtime")
 
@@ -920,9 +928,9 @@ def main() -> int:
         "cpu_physical": psutil.cpu_count(logical=False),
         "ram_total_bytes": psutil.virtual_memory().total,
         "postgres": after_health.get("postgres") if isinstance(after_health, dict) else {},
-        "sqlite_writer_enabled": sqlite_writer.get("enabled") if isinstance(sqlite_writer, dict) else None,
+        "retired_local_writer": postgres_writer.get("retired") if isinstance(postgres_writer, dict) else None,
         "postgres_only": postgres_only,
-        "sqlite_handles": process_after.get("sqlite_server2_handles"),
+        "local_database_handles": process_after.get("local_server2_database_handles"),
         "env_flags_redacted": {
             key: ("<set>" if any(token in key.upper() for token in ("DSN", "PASS", "TOKEN", "SECRET", "PASSWORD")) else value)
             for key, value in os.environ.items()
@@ -1008,3 +1016,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

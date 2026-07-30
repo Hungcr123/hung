@@ -247,12 +247,12 @@ def main() -> int:
         raise RuntimeError("One or more Space_V writes failed")
     if any(row[4].get("response_schema") != "space-v-progress-compact-v1" for row in unique_rows + duplicate_rows):
         raise RuntimeError("Accepted/duplicate Space_V writes did not use compact ACKs")
-    if phases["duplicate_retry_same_payload"]["sqlite_writer"]["tasks"] != 0 or phases["duplicate_retry_same_payload"]["server_revision_delta"] != 0:
+    if phases["duplicate_retry_same_payload"]["postgres_writer"]["tasks"] != 0 or phases["duplicate_retry_same_payload"]["server_revision_delta"] != 0:
         raise RuntimeError("Duplicate Space_V retry created durable writes")
-    if phases["stale_retry_older_checkpoint"]["sqlite_writer"]["tasks"] != 0 or phases["stale_retry_older_checkpoint"]["server_revision_delta"] != 0:
+    if phases["stale_retry_older_checkpoint"]["postgres_writer"]["tasks"] != 0 or phases["stale_retry_older_checkpoint"]["server_revision_delta"] != 0:
         raise RuntimeError(
             "Stale Space_V retry created durable writes: "
-            f"writer={phases['stale_retry_older_checkpoint']['sqlite_writer']} "
+            f"writer={phases['stale_retry_older_checkpoint']['postgres_writer']} "
             f"revision_delta={phases['stale_retry_older_checkpoint']['server_revision_delta']}"
         )
     if phases["same_row_contention"]["final_saved_at"] != phases["same_row_contention"]["expected_saved_at"]:
@@ -263,3 +263,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

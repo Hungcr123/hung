@@ -151,8 +151,8 @@ def main() -> int:
         "prefix": args.prefix,
         "username": args.username,
         "server_pid": process.pid,
-        "postgres_only": (before_health.get("sqlite_writer") or {}).get("postgres_only") is True,
-        "sqlite_writer_enabled": (before_health.get("sqlite_writer") or {}).get("enabled"),
+        "postgres_only": (before_health.get("postgres_writer") or {}).get("postgres_only") is True,
+        "postgres_writer_enabled": (before_health.get("postgres_writer") or {}).get("enabled"),
         "cpu_ms": total_cpu_ms,
         "rss_delta_bytes": after_rss - before_rss,
         "postgres_delta": pg_delta(before_health, after_health),
@@ -189,3 +189,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

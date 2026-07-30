@@ -1186,12 +1186,6 @@ def _space_pdf_ai_json_clone(value: object) -> dict:
 
 
 def _space_pdf_ai_json_file_stamp(path: Path) -> tuple[int, int]:
-    if str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
-        try:
-            stat = path.stat()
-            return int(stat.st_mtime_ns), int(stat.st_size)
-        except Exception:
-            return 0, 0
     _resolved, mtime_ns, size, _sha256 = server_database_document_signature(path)
     return mtime_ns, size
 

@@ -143,7 +143,7 @@ def main() -> int:
         keyboard_users = before_restart["keyboard"].get("users", {})
         battles = before_restart["battle"].get("battles", {})
         passed = bool(
-            health_before.get("sqlite_writer", {}).get("postgres_only")
+            health_before.get("postgres_writer", {}).get("postgres_only")
             and USER_A in training_users
             and USER_A in world_players
             and USER_A in keyboard_users
@@ -164,8 +164,8 @@ def main() -> int:
             },
             "resources": {"http_port": isolated.HTTP_PORT, "postgres_port": isolated.PG_PORT, "database": isolated.TEST_DATABASE},
             "copied_registry_rows": copied_registry_rows,
-            "health_before": {"ready": health_before.get("ready"), "warm_ready": health_before.get("warm_ready"), "sqlite_writer": health_before.get("sqlite_writer")},
-            "health_after": {"ready": health_after.get("ready"), "warm_ready": health_after.get("warm_ready"), "sqlite_writer": health_after.get("sqlite_writer")},
+            "health_before": {"ready": health_before.get("ready"), "warm_ready": health_before.get("warm_ready"), "postgres_writer": health_before.get("postgres_writer")},
+            "health_after": {"ready": health_after.get("ready"), "warm_ready": health_after.get("warm_ready"), "postgres_writer": health_after.get("postgres_writer")},
             "route_reads": {path: body.get("ok") for path, body in reads.items()},
             "mutations": {"move": moved.get("ok"), "keyboard": keyboard.get("ok"), "reset": reset.get("ok"), "invite": invited.get("ok"), "respond": responded.get("ok")},
             "before_restart": {"training_user": USER_A in training_users, "world_player": USER_A in world_players, "keyboard_user": USER_A in keyboard_users, "battle_count": len(battles), "legacy_files": before_restart["legacy_files"]},
@@ -185,3 +185,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -91,7 +91,7 @@ def load_lessons(space: str = "space_w") -> list[dict]:
 
 
 def writer_state() -> dict:
-    return requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    return requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
 
 
 def source_delta(before: dict, after: dict, key: str) -> dict:
@@ -238,3 +238,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

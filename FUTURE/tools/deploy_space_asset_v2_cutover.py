@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 
 from future_space_pdf_package import validate_space_pdf_package
 from future_space_picture_package import validate_space_picture_package
-from future_space_pdf_registry import initialize_space_pdf_registry_schema, register_space_pdf_package
+from FUTURE.tools.legacy.sqlite_space_pdf_registry import initialize_space_pdf_registry_schema, register_space_pdf_package
 
 
 def _sha256(path: Path) -> str:
@@ -156,3 +156,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

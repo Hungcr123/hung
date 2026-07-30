@@ -222,8 +222,8 @@ def run_mode(mode: str, include_test: bool, warmup_users: str, warmup_prefixes: 
         "cpu_ms_at_warm_ready": cpu_ms,
         "rss_bytes_at_warm_ready": int(sample.get("rss_bytes", 0) or 0),
         "threads_at_warm_ready": int(sample.get("threads", 0) or 0),
-        "postgres_only": bool(health_payload.get("postgres_only") or ((health_payload.get("sqlite_writer") or {}).get("postgres_only"))),
-        "sqlite_writer": health_payload.get("sqlite_writer"),
+        "postgres_only": bool(health_payload.get("postgres_only") or ((health_payload.get("postgres_writer") or {}).get("postgres_only"))),
+        "postgres_writer": health_payload.get("postgres_writer"),
         "warmup_log": parse_warmup_log(stdout_text),
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
@@ -260,3 +260,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

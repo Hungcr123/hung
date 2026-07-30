@@ -219,7 +219,7 @@ def production_health() -> dict:
     try:
         response = requests.get(f"{PRODUCTION_BASE}/health", timeout=5)
         payload = response.json()
-        return {"status": response.status_code, "ok": bool(payload.get("ok")), "writer_queue": (payload.get("sqlite_writer") or {}).get("queue_depth")}
+        return {"status": response.status_code, "ok": bool(payload.get("ok")), "writer_queue": (payload.get("postgres_writer") or {}).get("queue_depth")}
     except Exception as exc:
         return {"status": 0, "ok": False, "error": type(exc).__name__}
 
@@ -285,3 +285,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

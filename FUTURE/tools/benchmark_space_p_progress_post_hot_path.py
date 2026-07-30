@@ -296,10 +296,10 @@ def main() -> int:
             f"unique={phases['unique_100_users_mixed_pls'].get('response_schemas')} "
             f"duplicate={phases['duplicate_retry_same_payload'].get('response_schemas')}"
         )
-    if phases["duplicate_retry_same_payload"]["sqlite_writer"]["tasks"] != 0:
+    if phases["duplicate_retry_same_payload"]["postgres_writer"]["tasks"] != 0:
         raise RuntimeError("Duplicate paragraph retry created SQLite writes")
-    if phases["stale_retry_older_checkpoint"]["sqlite_writer"]["tasks"] != 0:
-        raise RuntimeError(f"Stale paragraph retry created SQLite writes: {phases['stale_retry_older_checkpoint']['sqlite_writer']}")
+    if phases["stale_retry_older_checkpoint"]["postgres_writer"]["tasks"] != 0:
+        raise RuntimeError(f"Stale paragraph retry created SQLite writes: {phases['stale_retry_older_checkpoint']['postgres_writer']}")
     if phases["same_row_contention"]["final_saved_at"] != phases["same_row_contention"]["expected_saved_at"]:
         raise RuntimeError("Same-row paragraph contention lost the newest checkpoint")
     print(json.dumps({"space_p_progress_post_hot_path": phases}, ensure_ascii=True, separators=(",", ":")))
@@ -308,3 +308,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

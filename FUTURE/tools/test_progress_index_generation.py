@@ -37,9 +37,10 @@ def main() -> int:
     assert 'server_database_bump_user_generation("progress", username)' in vocab_source
     assert 'server_database_bump_user_generation("progress", affected_user)' in register_source
     assert 'result.pop("reattached_users", None)' in register_source
-    print("progress_index_generation=ok sqlite_authoritative=true legacy_stats=0 invalidation=true")
+    print("progress_index_generation=ok postgres_authoritative=true legacy_stats=0 invalidation=true")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -474,8 +474,8 @@ def system_cpu_percent(before, after) -> float:
     return round(max(0.0, min(100.0, (1.0 - idle / total) * 100.0)), 3)
 
 
-def sqlite_writer() -> dict:
-    return requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+def postgres_writer() -> dict:
+    return requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
 
 
 def writer_delta(before: dict, after: dict) -> dict:
@@ -524,7 +524,7 @@ def wait_for_writer_quiescence(timeout: float = 15.0) -> None:
     previous = None
     stable = 0
     while time.monotonic() < deadline:
-        current = sqlite_writer()
+        current = postgres_writer()
         key = (int(current.get("tasks", 0) or 0), int(current.get("batches", 0) or 0), int(current.get("queue_depth", 0) or 0))
         if key == previous and not key[2]:
             stable += 1
@@ -569,7 +569,7 @@ def wait_for_server_idle(process: psutil.Process, timeout: float = 180.0) -> dic
         health = requests.get(f"{BASE}/health", timeout=15).json()
         queues = (health.get("workload") or {}).get("queues") or {}
         queue_busy = any(int(row.get("pending", 0) or 0) or int(row.get("active", 0) or 0) for row in queues.values() if isinstance(row, dict))
-        writer = health.get("sqlite_writer") or {}
+        writer = health.get("postgres_writer") or {}
         cpu_delta = max(0.0, current_cpu - previous_cpu)
         rss_delta = abs(current_rss - previous_rss)
         last = {"cpu_ms_last_second": round(cpu_delta * 1000, 3), "rss": current_rss, "rss_delta": rss_delta, "queue_busy": queue_busy, "writer_depth": int(writer.get("queue_depth", 0) or 0)}
@@ -585,7 +585,7 @@ def wait_for_server_idle(process: psutil.Process, timeout: float = 180.0) -> dic
 
 
 def run_phase(name: str, duration: float, active_users: list[MixedUser], think_min: float, think_max: float, server_pid: int, login_successes: int = 0, login_failures: int = 0) -> dict:
-    writer_before = sqlite_writer()
+    writer_before = postgres_writer()
     process_before = process_snapshot(server_pid)
     system_before = psutil.cpu_times()
     disk_before = psutil.disk_io_counters()
@@ -628,7 +628,7 @@ def run_phase(name: str, duration: float, active_users: list[MixedUser], think_m
     system_after = psutil.cpu_times()
     disk_after = psutil.disk_io_counters()
     process_after = process_snapshot(server_pid)
-    writer_after = sqlite_writer()
+    writer_after = postgres_writer()
     wal_after = wal_path.stat().st_size if wal_path.exists() else 0
     errors = [row for row in rows if row.get("error")]
     return {
@@ -650,7 +650,7 @@ def run_phase(name: str, duration: float, active_users: list[MixedUser], think_m
             "disk_read_ops": max(0, int(disk_after.read_count - disk_before.read_count)),
             "disk_write_ops": max(0, int(disk_after.write_count - disk_before.write_count)),
         },
-        "sqlite_writer": writer_delta(writer_before, writer_after),
+        "postgres_writer": writer_delta(writer_before, writer_after),
         "wal_size_delta": wal_after - wal_before,
     }
 
@@ -864,3 +864,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

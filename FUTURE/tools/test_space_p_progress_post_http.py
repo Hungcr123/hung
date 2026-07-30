@@ -43,7 +43,7 @@ def main() -> int:
     operation_id = str(record.get("syncOperationId") or record.get("sync_operation_id") or "").strip()
     if not operation_id:
         raise RuntimeError("The seeded paragraph row has no durable operation ID")
-    writer_before = requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
     legacy_before = LEGACY_WAL.stat().st_size if LEGACY_WAL.exists() else 0
     response = requests.post(
         f"{BASE}/space-p/progress?client_source=codex_retry_http&response=compact-v1",
@@ -53,7 +53,7 @@ def main() -> int:
     )
     response.raise_for_status()
     payload = response.json()
-    writer_after = requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
     revision_after, stored = database_row()
     legacy_after = LEGACY_WAL.stat().st_size if LEGACY_WAL.exists() else 0
     if payload.get("response_schema") != "space-p-progress-compact-v1":
@@ -72,3 +72,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

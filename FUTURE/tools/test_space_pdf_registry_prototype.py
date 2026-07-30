@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 
 from future_space_pdf_package import build_space_pdf_package, duplicate_space_pdf_as_new
 from future_space_picture_package import build_space_picture_package
-from future_space_pdf_registry import (
+from FUTURE.tools.legacy.sqlite_space_pdf_registry import (
     deactivate_space_pdf_replica,
     initialize_space_pdf_registry_schema,
     register_space_pdf_package,
@@ -167,3 +167,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -229,9 +229,9 @@ def main() -> int:
 
     if any(row[4].get("response_schema") != "space-w-progress-compact-v1" for row in unique_rows + duplicate_rows):
         raise RuntimeError("Accepted/duplicate Space_W writes did not use compact ACKs")
-    if phases["duplicate_retry_same_payload"]["sqlite_writer"]["tasks"] != 0:
+    if phases["duplicate_retry_same_payload"]["postgres_writer"]["tasks"] != 0:
         raise RuntimeError("Duplicate Space_W retry created SQLite writes")
-    if phases["stale_retry_older_checkpoint"]["sqlite_writer"]["tasks"] != 0:
+    if phases["stale_retry_older_checkpoint"]["postgres_writer"]["tasks"] != 0:
         raise RuntimeError("Stale Space_W retry created SQLite writes")
     if phases["same_row_contention"]["final_saved_at"] != phases["same_row_contention"]["expected_saved_at"]:
         raise RuntimeError("Same-row contention lost the newest Space_W checkpoint")
@@ -241,3 +241,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

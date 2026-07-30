@@ -23,7 +23,7 @@ def main() -> int:
     function = source[start:end]
     assert "clone_space_progress_payload" not in function
     assert "space_w_progress_semantic_identity(existing)" in function
-    assert "sqlite_authoritative=True" in function
+    assert "postgres_authoritative=True" in function
     assert "syncOperationId" in function
     assert "remember_space_progress_store(" not in function
     assert app.normalize_paragraph_progress_space("space_l") == "Space_L"
@@ -68,3 +68,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

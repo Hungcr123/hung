@@ -185,14 +185,11 @@ def atomic_write_text(path: Path, text: str, encoding: str = "utf-8", sync_datab
     database_sync_check = globals().get("server_database_document_requires_sync")
     database_store = globals().get("server_database_store_document_now")
     database_local_only = globals().get("server_database_document_local_only")
-    postgres_only = str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}
     postgres_authoritative = globals().get("server_database_document_postgres_authoritative")
-    should_sync_database = not postgres_only or (
-        callable(postgres_authoritative) and bool(postgres_authoritative(target))
-    )
+    should_sync_database = callable(postgres_authoritative) and bool(postgres_authoritative(target))
     if sync_database and should_sync_database and callable(database_sync_check) and callable(database_store) and database_sync_check(target):
         stored = database_store(target, text, encoding, authoritative=True)
-        if stored and (postgres_only or (callable(database_local_only) and database_local_only(target))):
+        if stored and (callable(database_local_only) and database_local_only(target)):
             return
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = target.with_name(f".tmp-{os.getpid()}-{threading.get_ident()}-{uuid.uuid4().hex}.tmp")

@@ -95,8 +95,8 @@ def main() -> int:
         "status": health_status,
         "elapsed_ms": health_elapsed,
         "ok": health_status == 200 and bool(health.get("ok")),
-        "postgres_only": bool(health.get("postgres_only") or (health.get("sqlite_writer") or {}).get("postgres_only")),
-        "sqlite_writer": health.get("sqlite_writer"),
+        "postgres_only": bool(health.get("postgres_only") or (health.get("postgres_writer") or {}).get("postgres_only")),
+        "postgres_writer": health.get("postgres_writer"),
     }
     if test_password:
         provision_test_user(TEST_USER, test_password)
@@ -117,3 +117,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

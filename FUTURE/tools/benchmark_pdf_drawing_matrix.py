@@ -49,7 +49,7 @@ def percentile(values: list[float], fraction: float) -> float:
 
 
 def measured(process: psutil.Process, callback) -> tuple[list[dict], dict]:
-    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     before_cpu = sum(process.cpu_times()[:2])
     before_io = process.io_counters()
     wal_path = Path(str(DATABASE) + "-wal")
@@ -59,7 +59,7 @@ def measured(process: psutil.Process, callback) -> tuple[list[dict], dict]:
     wall_ms = (time.perf_counter() - started) * 1000
     after_cpu = sum(process.cpu_times()[:2])
     after_io = process.io_counters()
-    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     after_wal = wal_path.stat().st_size if wal_path.exists() else 0
     latencies = [float(row.get("latency_ms", 0.0)) for row in rows]
     cpu_ms = max(0.0, (after_cpu - before_cpu) * 1000)
@@ -77,7 +77,7 @@ def measured(process: psutil.Process, callback) -> tuple[list[dict], dict]:
         "response_bytes": sum(int(row.get("response_bytes", 0)) for row in rows),
         "wal_size_delta": after_wal - before_wal,
         "sqlite_busy_or_lock_errors": sum(1 for row in rows if row.get("status") in {409, 423, 429, 500, 503} or "lock" in str(row.get("error", "")).lower()),
-        "sqlite_writer": {
+        "postgres_writer": {
             key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
             for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
         },
@@ -286,3 +286,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

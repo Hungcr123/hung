@@ -2867,7 +2867,7 @@ def postgres_upsert_user_row(row: dict) -> dict:
 
     return postgres_execute(_write)
 
-# Added 2026-07-26: PostgreSQL-only startup needs user discovery without opening the legacy server2.db.
+# Added 2026-07-26: PostgreSQL-only startup needs user discovery without opening a legacy local database.
 def postgres_list_registered_users() -> list[str]:
     def _read(connection):
         with connection.cursor() as cursor:
@@ -3343,7 +3343,7 @@ def postgres_delete_auth_sessions(username: str = "", token_hashes: list[str] | 
 
     return int(postgres_execute(_write) or 0)
 
-# Added 2026-07-25: migrate chat messages with SQLite IDs and operation-id idempotency preserved.
+# Added 2026-07-25: migrate chat messages while preserving IDs and operation-id idempotency.
 def postgres_upsert_chat_message_row(row: dict) -> dict:
     message_id = max(1, space_w_int(row.get("id", 0), 0))
     username = normalize_username(row.get("username", ""))
@@ -3870,7 +3870,7 @@ def postgres_lesson_task_payload(row: dict) -> tuple[dict, str, str]:
     source_sha256 = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
     return payload, encoded, source_sha256
 
-# Added 2026-07-25: migrate and validate Space Task state rows without changing the default SQLite path.
+# Added 2026-07-25: migrate and validate Space Task state rows without changing the default PostgreSQL path.
 def postgres_upsert_lesson_task_state_row(row: dict) -> dict:
     payload, encoded, source_sha256 = postgres_lesson_task_payload(row)
     username = normalize_username(payload.get("username", ""))
@@ -3999,7 +3999,7 @@ def postgres_delete_lesson_task_record(username: str) -> bool:
     return bool(postgres_execute(_write))
 
 # Added 2026-07-27: PostgreSQL-only Lesson Task builds need a cheap learning
-# state presence probe without touching the disabled SQLite connection.
+# state presence probe without touching a disabled local database connection.
 def postgres_user_has_lesson_state(username: str) -> bool:
     normalized = normalize_username(username)
     if not normalized:

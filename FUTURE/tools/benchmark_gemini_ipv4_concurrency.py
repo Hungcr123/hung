@@ -66,7 +66,7 @@ def main() -> int:
     def sample_writer() -> None:
         while not stop_sample.wait(0.02):
             try:
-                writer = requests.get(f"{BASE}/health?view=dashboard-v1", timeout=3).json().get("sqlite_writer", {})
+                writer = requests.get(f"{BASE}/health?view=dashboard-v1", timeout=3).json().get("postgres_writer", {})
                 samples.append({
                     "depth": int(writer.get("queue_depth", 0) or 0),
                     "active": str(writer.get("active_source") or ""),
@@ -179,3 +179,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

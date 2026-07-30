@@ -108,16 +108,16 @@ def main() -> int:
         rows, metrics = measured(process, run)
         background_settle = None
         if settle:
-            writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+            writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
             cpu_before = sum(process.cpu_times()[:2])
             io_before = process.io_counters()
             time.sleep(settle)
             wait_for_writer_quiescence()
-            writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+            writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
             io_after = process.io_counters()
             background_settle = {
                 "server_cpu_ms": round(max(0.0, sum(process.cpu_times()[:2]) - cpu_before) * 1000, 3),
-                "sqlite_writer": {
+                "postgres_writer": {
                     key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
                     for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
                 },
@@ -179,3 +179,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

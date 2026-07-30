@@ -41,7 +41,7 @@ def wait_ready(timeout: float = 90.0) -> dict:
     while time.monotonic() < deadline:
         try:
             latest = health()
-            writer = latest.get("sqlite_writer", {}) if isinstance(latest, dict) else {}
+            writer = latest.get("postgres_writer", {}) if isinstance(latest, dict) else {}
             if latest.get("ok") and latest.get("warm_ready") and int(writer.get("queue_depth", 0) or 0) == 0:
                 return latest
         except requests.RequestException:
@@ -55,7 +55,7 @@ def wait_writer_idle(timeout: float = 30.0) -> dict:
     latest = {}
     while time.monotonic() < deadline:
         latest = health()
-        writer = latest.get("sqlite_writer", {}) if isinstance(latest, dict) else {}
+        writer = latest.get("postgres_writer", {}) if isinstance(latest, dict) else {}
         if int(writer.get("queue_depth", 0) or 0) == 0 and not str(writer.get("active_source", "") or ""):
             return writer
         time.sleep(0.05)
@@ -157,3 +157,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

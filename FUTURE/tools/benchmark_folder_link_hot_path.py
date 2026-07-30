@@ -138,8 +138,8 @@ def main() -> int:
         "write_ops": max(0, int(io_after.write_count - io_before.write_count)),
         "write_bytes": max(0, int(io_after.write_bytes - io_before.write_bytes)),
         "wal_growth": max(0, wal_after - wal_before),
-        "sqlite_writer_tasks": max(0, int(writer_after.get("tasks", 0) or 0) - int(writer_before.get("tasks", 0) or 0)),
-        "sqlite_writer_batches": max(0, int(writer_after.get("batches", 0) or 0) - int(writer_before.get("batches", 0) or 0)),
+        "postgres_writer_tasks": max(0, int(writer_after.get("tasks", 0) or 0) - int(writer_before.get("tasks", 0) or 0)),
+        "postgres_writer_batches": max(0, int(writer_after.get("batches", 0) or 0) - int(writer_before.get("batches", 0) or 0)),
         "sqlite_busy_errors": max(0, int(writer_after.get("busy_errors", 0) or 0) - int(writer_before.get("busy_errors", 0) or 0)),
     }
     text = json.dumps(result, ensure_ascii=False, indent=2)
@@ -151,3 +151,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

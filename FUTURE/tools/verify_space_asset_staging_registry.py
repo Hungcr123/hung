@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from future_space_pdf_registry import initialize_space_pdf_registry_schema, register_space_pdf_package
+from FUTURE.tools.legacy.sqlite_space_pdf_registry import initialize_space_pdf_registry_schema, register_space_pdf_package
 
 
 def main() -> int:
@@ -80,3 +80,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

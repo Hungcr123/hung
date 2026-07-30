@@ -8,18 +8,20 @@ from pathlib import Path
 import FUTURE.server_app as app
 
 EXCLUDED_SYSTEM_DOCUMENT_NAMES = {
-    "_future_settings.json",
     "_future_frontend_reload.json",
     "_future_cloudflare_email_routing.json",
     "_future_cloudflare_email_routing_inbox.json",
 }
 
+POSTGRES_SYSTEM_DOCUMENT_NAMES = {
+    "_future_settings.json",
+}
+
 
 def is_system_document(path: Path | str) -> bool:
-    # Added 2026-07-25: these system/config docs are policy-excluded from
-    # generic PostgreSQL document runtime because they mix deployment secrets,
-    # ephemeral reload state, and large externally synchronized inbox JSON.
-    return False
+    # Added 2026-07-30: Server settings are authoritative in PostgreSQL so
+    # tunnel/domain configuration survives a PostgreSQL-only restart.
+    return Path(path).name.lower() in POSTGRES_SYSTEM_DOCUMENT_NAMES
 
 def is_policy_excluded_system_document(path: Path | str) -> bool:
     return Path(path).name.lower() in EXCLUDED_SYSTEM_DOCUMENT_NAMES

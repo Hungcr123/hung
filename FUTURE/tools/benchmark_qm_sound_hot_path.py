@@ -78,7 +78,7 @@ def wait_for_writer_quiescence(timeout: float = 8.0) -> None:
     previous = None
     stable = 0
     while time.monotonic() < deadline:
-        writer = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+        writer = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
         current = (int(writer.get("tasks", 0) or 0), int(writer.get("batches", 0) or 0))
         if current == previous:
             stable += 1
@@ -92,7 +92,7 @@ def wait_for_writer_quiescence(timeout: float = 8.0) -> None:
 
 
 def measured(process: psutil.Process, callback) -> tuple[list[tuple], dict]:
-    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     cpu_before = cpu_seconds(process)
     io_before = process.io_counters()
     started = time.perf_counter()
@@ -100,7 +100,7 @@ def measured(process: psutil.Process, callback) -> tuple[list[tuple], dict]:
     wall_ms = (time.perf_counter() - started) * 1000
     cpu_ms = max(0.0, (cpu_seconds(process) - cpu_before) * 1000)
     io_after = process.io_counters()
-    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     latencies = [float(row[0]) for row in rows]
     return rows, {
         "requests": len(rows),
@@ -122,7 +122,7 @@ def measured(process: psutil.Process, callback) -> tuple[list[tuple], dict]:
             "read_bytes": max(0, int(io_after.read_bytes - io_before.read_bytes)),
             "write_bytes": max(0, int(io_after.write_bytes - io_before.write_bytes)),
         },
-        "sqlite_writer": {
+        "postgres_writer": {
             key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
             for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
         },
@@ -197,3 +197,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

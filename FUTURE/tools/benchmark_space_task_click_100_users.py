@@ -58,7 +58,7 @@ def distributed_lessons() -> dict[str, list[str]]:
 
 
 def health_writer() -> dict:
-    return requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    return requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
 
 
 def wait_writer_idle(timeout: float = 30.0) -> None:
@@ -140,7 +140,7 @@ def measured(proc: psutil.Process, callback) -> tuple[list[dict], dict]:
         "response_bytes": sum(int(row.get("response_bytes", 0) or 0) for row in rows),
         "errors": sum(int(row.get("status", 0) or 0) >= 400 for row in rows),
         "wal_growth": wal_after - wal_before,
-        "sqlite_writer": {
+        "postgres_writer": {
             key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
             for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
         },
@@ -281,7 +281,7 @@ def main() -> int:
             "requests": 0,
             "route_counts": {},
             "server_cpu_ms_attributable": 0,
-            "sqlite_writer_tasks": 0,
+            "postgres_writer_tasks": 0,
             "note": "Tree-preloaded Space Task card focus is local-only; actual lesson open persists last-file.",
         },
         "naive_spam": naive_metrics,
@@ -294,3 +294,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

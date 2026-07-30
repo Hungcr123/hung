@@ -386,7 +386,7 @@ def main() -> int:
     before_io = process.io_counters()
     wal_path = Path(str(DATABASE) + "-wal")
     before_wal = wal_path.stat().st_size if wal_path.exists() else 0
-    writer_before = requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
     writer_samples: list[dict] = []
     resource_samples: list[dict] = []
     writer_sample_stop = threading.Event()
@@ -398,7 +398,7 @@ def main() -> int:
         while not writer_sample_stop.wait(sample_interval):
             now = time.perf_counter()
             try:
-                writer = requests.get(f"{BASE}/health", timeout=5).json().get("sqlite_writer", {})
+                writer = requests.get(f"{BASE}/health", timeout=5).json().get("postgres_writer", {})
                 writer_samples.append({
                     "at": now,
                     "depth": max(0, int(writer.get("queue_depth", 0) or 0)),
@@ -458,7 +458,7 @@ def main() -> int:
     after_cpu = sum(process.cpu_times()[:2])
     after_io = process.io_counters()
     after_wal = wal_path.stat().st_size if wal_path.exists() else 0
-    writer_after = requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
     errors = [row for row in rows if row.get("error")]
     connection = sqlite3.connect(DATABASE)
     profiles = {
@@ -493,7 +493,7 @@ def main() -> int:
             "write_bytes": max(0, after_io.write_bytes - before_io.write_bytes),
         },
         "wal_size_delta": after_wal - before_wal,
-        "sqlite_writer": {
+        "postgres_writer": {
             "samples": len(writer_samples),
             "observer_health_requests": len(writer_samples) + 2,
             "observer_sample_interval_seconds": max(0.1, float(args.sample_interval or 0.2)),
@@ -518,3 +518,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

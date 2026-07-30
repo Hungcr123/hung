@@ -56,7 +56,7 @@ def health(base: str = BASE, timeout: float = 5.0) -> dict:
 
 def compact_health(base: str = BASE, timeout: float = 5.0) -> dict:
     payload = health(base, timeout)
-    writer = payload.get("sqlite_writer") if isinstance(payload.get("sqlite_writer"), dict) else {}
+    writer = payload.get("postgres_writer") if isinstance(payload.get("postgres_writer"), dict) else {}
     return {
         "ok": bool(payload.get("ok")),
         "pid": int(payload.get("pid", 0) or 0),
@@ -258,3 +258,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

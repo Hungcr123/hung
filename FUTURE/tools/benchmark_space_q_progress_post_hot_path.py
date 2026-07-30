@@ -256,12 +256,12 @@ def main() -> int:
             f"unique={phases['unique_100_users'].get('response_schemas')} "
             f"duplicate={phases['duplicate_retry_same_payload'].get('response_schemas')}"
         )
-    if phases["duplicate_retry_same_payload"]["sqlite_writer"]["tasks"] != 0:
+    if phases["duplicate_retry_same_payload"]["postgres_writer"]["tasks"] != 0:
         raise RuntimeError("Duplicate Space_Q retry created SQLite writes")
-    if phases["stale_retry_older_checkpoint"]["sqlite_writer"]["tasks"] != 0:
+    if phases["stale_retry_older_checkpoint"]["postgres_writer"]["tasks"] != 0:
         raise RuntimeError(
             "Stale Space_Q retry created SQLite writes: "
-            f"writer={phases['stale_retry_older_checkpoint']['sqlite_writer']} "
+            f"writer={phases['stale_retry_older_checkpoint']['postgres_writer']} "
             f"revision_delta={phases['stale_retry_older_checkpoint']['server_revision_delta']}"
         )
     if phases["same_row_contention"]["final_saved_at"] != phases["same_row_contention"]["expected_saved_at"]:
@@ -272,3 +272,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

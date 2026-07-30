@@ -85,7 +85,7 @@ def main() -> int:
     wait_for_writer_quiescence()
     single_rows, single = measured(process, lambda: [tree_request(0) for _ in range(10)])
     for metrics in (full, not_modified, sequential_304, single):
-        if metrics["sqlite_writer"]["tasks"] != 0:
+        if metrics["postgres_writer"]["tasks"] != 0:
             raise RuntimeError(f"Tree preload unexpectedly wrote SQLite state: {metrics}")
     print(json.dumps({
         "full_100": full,
@@ -101,3 +101,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

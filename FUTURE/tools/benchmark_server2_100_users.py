@@ -56,7 +56,7 @@ def clean(value) -> str:
 
 
 def measured(process: psutil.Process, callback):
-    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     before = cpu_seconds(process)
     io_before = process.io_counters()
     rss_before = int(process.memory_info().rss)
@@ -82,7 +82,7 @@ def measured(process: psutil.Process, callback):
     cpu_ms = max(0.0, (cpu_seconds(process) - before) * 1000)
     io_after = process.io_counters()
     rss_after = int(process.memory_info().rss)
-    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     latencies = [row[0] for row in rows]
     ordered = sorted(latencies)
     return rows, {
@@ -103,7 +103,7 @@ def measured(process: psutil.Process, callback):
             "after": rss_after,
             "delta": rss_after - rss_before,
         },
-        "sqlite_writer": {
+        "postgres_writer": {
             key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
             for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
         },
@@ -123,7 +123,7 @@ def wait_for_writer_quiescence(timeout: float = 5.0) -> None:
     stable = 0
     previous = None
     while time.monotonic() < deadline:
-        writer = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+        writer = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
         current = (
             int(writer.get("tasks", 0) or 0),
             int(writer.get("batches", 0) or 0),
@@ -392,3 +392,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

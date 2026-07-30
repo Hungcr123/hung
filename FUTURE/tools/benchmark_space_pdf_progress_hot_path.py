@@ -59,7 +59,7 @@ def database_state() -> dict:
 
 
 def writer_metrics() -> dict:
-    return requests.get(f"{BASE}/health", timeout=15).json().get("sqlite_writer", {})
+    return requests.get(f"{BASE}/health", timeout=15).json().get("postgres_writer", {})
 
 
 def metric_delta(before: dict, after: dict) -> dict:
@@ -180,3 +180,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -42,7 +42,7 @@ def process() -> psutil.Process:
 
 
 def metrics(proc: psutil.Process, callback) -> tuple[list[dict], dict]:
-    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_before = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     before_cpu = sum(proc.cpu_times()[:2])
     before_io = proc.io_counters()
     wal = Path(str(DATABASE) + "-wal")
@@ -52,7 +52,7 @@ def metrics(proc: psutil.Process, callback) -> tuple[list[dict], dict]:
     wall_ms = (time.perf_counter() - started) * 1000
     after_cpu = sum(proc.cpu_times()[:2])
     after_io = proc.io_counters()
-    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("sqlite_writer", {})
+    writer_after = requests.get(f"{BASE}/health", timeout=10).json().get("postgres_writer", {})
     after_wal = wal.stat().st_size if wal.exists() else 0
     latencies = sorted(float(row["latency_ms"]) for row in rows)
     return rows, {
@@ -67,7 +67,7 @@ def metrics(proc: psutil.Process, callback) -> tuple[list[dict], dict]:
         "request_bytes": sum(row["request_bytes"] for row in rows),
         "response_bytes": sum(row["response_bytes"] for row in rows),
         "wal_size_delta": after_wal - before_wal,
-        "sqlite_writer": {
+        "postgres_writer": {
             key: round(float(writer_after.get(key, 0) or 0) - float(writer_before.get(key, 0) or 0), 3)
             for key in ("batches", "tasks", "queue_wait_ms", "begin_wait_ms", "commit_ms", "busy_errors")
         },
@@ -173,3 +173,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

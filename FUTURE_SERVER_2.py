@@ -27,7 +27,7 @@ def _ensure_port_scoped_runtime_root() -> None:
     runtime_root = repo_root / "programe_cache" / f"future_whisper_server_{port}"
     os.environ["FUTURE_RUNTIME_ROOT"] = str(runtime_root)
 
-_POSTGRES_ONLY_DOMAINS = (
+_POSTGRES_DOMAINS = (
     "AI_HISTORY_DOCUMENTS",
     "ANNOUNCEMENTS",
     "APPEND_EVENTS",
@@ -57,20 +57,19 @@ _POSTGRES_ONLY_DOMAINS = (
 )
 
 
-def _configure_manual_postgres_only_startup() -> None:
-    # Added 2026-07-26: direct Explorer/manual starts must use the same
-    # PostgreSQL-only production defaults as the safe restart script.
-    os.environ.setdefault("FUTURE_POSTGRES_ONLY", "1")
+def _configure_manual_postgres_startup() -> None:
+    # Added 2026-07-26: direct Explorer/manual starts use the same
+    # PostgreSQL production defaults as the safe restart script.
     os.environ.pop("FUTURE_DB_BACKEND", None)
     os.environ.pop("FUTURE_POSTGRES_BACKEND", None)
     os.environ.pop("FUTURE_DISABLE_AUTH_LIMITS_FOR_BENCHMARK", None)
     os.environ.pop("FUTURE_TEST_PASSWORD", None)
     os.environ.setdefault("FUTURE_PG_DSN", "postgresql://future_server2_app@127.0.0.1:5432/future_server2")
-    for domain in _POSTGRES_ONLY_DOMAINS:
+    for domain in _POSTGRES_DOMAINS:
         os.environ.setdefault(f"FUTURE_DB_{domain}_BACKEND", "postgres")
 
 
-_configure_manual_postgres_only_startup()
+_configure_manual_postgres_startup()
 _ensure_port_scoped_runtime_root()
 
 def _ensure_postgres_service_running() -> None:

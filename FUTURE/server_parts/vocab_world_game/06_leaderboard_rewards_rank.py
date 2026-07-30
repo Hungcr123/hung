@@ -1489,24 +1489,21 @@ def write_vocab_leaderboard_rank_state(state: dict) -> None:
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     with VOCAB_LEADERBOARD_RUNTIME_METRICS_LOCK:
         VOCAB_LEADERBOARD_RUNTIME_METRICS["rank_serialize_count"] += 1
-    if str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"} or postgres_backend_mode("LEADERBOARD_DOCUMENTS") == "postgres":
-        try:
-            from FUTURE.postgres.repositories import leaderboard_documents as pg_leaderboard_documents
-            if pg_leaderboard_documents.is_leaderboard_document(VOCAB_LEADERBOARD_RANK_FILE):
-                pg_leaderboard_documents.upsert_text(
-                    VOCAB_LEADERBOARD_RANK_FILE,
-                    encoded,
-                    "utf-8",
-                    utc_timestamp(),
-                    0,
-                )
-            else:
-                atomic_write_text(VOCAB_LEADERBOARD_RANK_FILE, encoded, encoding="utf-8")
-        except Exception as exc:
-            stt_debug_log("postgres_vocab_leaderboard_rank_write_failed", path=str(VOCAB_LEADERBOARD_RANK_FILE), error=str(exc))
-            raise
-    else:
-        atomic_write_text(VOCAB_LEADERBOARD_RANK_FILE, encoded, encoding="utf-8")
+    try:
+        from FUTURE.postgres.repositories import leaderboard_documents as pg_leaderboard_documents
+        if pg_leaderboard_documents.is_leaderboard_document(VOCAB_LEADERBOARD_RANK_FILE):
+            pg_leaderboard_documents.upsert_text(
+                VOCAB_LEADERBOARD_RANK_FILE,
+                encoded,
+                "utf-8",
+                utc_timestamp(),
+                0,
+            )
+        else:
+            atomic_write_text(VOCAB_LEADERBOARD_RANK_FILE, encoded, encoding="utf-8")
+    except Exception as exc:
+        stt_debug_log("postgres_vocab_leaderboard_rank_write_failed", path=str(VOCAB_LEADERBOARD_RANK_FILE), error=str(exc))
+        raise
     with VOCAB_LEADERBOARD_RUNTIME_METRICS_LOCK:
         VOCAB_LEADERBOARD_RUNTIME_METRICS["rank_write_count"] += 1
     VOCAB_LEADERBOARD_RANK_STATE_RAM_CACHE["stamp"] = vocab_leaderboard_rank_file_stamp()

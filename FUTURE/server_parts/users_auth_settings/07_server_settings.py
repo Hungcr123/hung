@@ -691,16 +691,9 @@ def public_server_settings(payload: dict | None = None) -> dict:
     }
 
 
-# Added 2026-07-20: public settings are immutable bytes until the SQLite settings document changes.
+# Added 2026-07-20: public settings are immutable bytes until the PostgreSQL document changes.
 def public_server_settings_response_cache_row() -> dict:
-    if str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
-        try:
-            stat = SETTINGS_FILE.stat()
-            signature = f"{int(stat.st_mtime_ns)}:{int(stat.st_size)}"
-        except Exception:
-            signature = "missing"
-    else:
-        signature = server_database_document_signature(SETTINGS_FILE)
+    signature = server_database_document_signature(SETTINGS_FILE)
     cache = globals().setdefault("PUBLIC_SERVER_SETTINGS_RESPONSE_CACHE", {})
     lock = globals().setdefault("PUBLIC_SERVER_SETTINGS_RESPONSE_CACHE_LOCK", threading.RLock())
     with lock:
@@ -724,16 +717,7 @@ def public_server_settings_response_cache_row() -> dict:
 
 def load_server_settings() -> dict:
     with SETTINGS_LOCK:
-        if str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
-            try:
-                if SETTINGS_FILE.is_file():
-                    payload = json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig"))
-                else:
-                    payload = None
-            except Exception:
-                payload = None
-        else:
-            payload = server_database_read_document_json(SETTINGS_FILE, None)
+        payload = server_database_read_document_json(SETTINGS_FILE, None)
         if not isinstance(payload, dict):
             result = normalize_server_settings(DEFAULT_SETTINGS)
             apply_cpu_guard_settings(result.get("cpu_guard_enabled", True), result.get("cpu_queue_threshold_percent", WORKLOAD_CPU_HIGH_PERCENT))
@@ -768,10 +752,7 @@ def save_server_settings(payload: dict) -> dict:
     apply_cpu_guard_settings(result.get("cpu_guard_enabled", True), result.get("cpu_queue_threshold_percent", WORKLOAD_CPU_HIGH_PERCENT))
     with SETTINGS_LOCK:
         SERVER_DATA_ROOT.mkdir(parents=True, exist_ok=True)
-        if str(os.environ.get("FUTURE_POSTGRES_ONLY", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
-            atomic_write_text(SETTINGS_FILE, json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8", sync_database=False)
-        else:
-            atomic_write_json(SETTINGS_FILE, result, indent=2)
+        atomic_write_json(SETTINGS_FILE, result, indent=2)
     invalidate_top_response = globals().get("invalidate_vocab_leaderboard_response_cache")
     if callable(invalidate_top_response):
         invalidate_top_response()

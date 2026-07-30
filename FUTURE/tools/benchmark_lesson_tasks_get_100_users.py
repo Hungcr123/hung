@@ -75,7 +75,7 @@ def main() -> int:
     idle_samples = 0
     deadline = time.time() + 10.0
     while time.time() < deadline and idle_samples < 3:
-        writer = requests.get(f"{common.BASE}/health", timeout=10).json().get("sqlite_writer", {})
+        writer = requests.get(f"{common.BASE}/health", timeout=10).json().get("postgres_writer", {})
         if int(writer.get("queue_depth", 0) or 0) == 0:
             idle_samples += 1
         else:
@@ -193,3 +193,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

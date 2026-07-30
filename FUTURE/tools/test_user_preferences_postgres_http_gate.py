@@ -310,7 +310,7 @@ def main() -> int:
             "server_restart_readback": True,
             "postgres_deadlock_deltas": [item["pg_stat_delta"].get("deadlocks", 0) for item in phases],
             "postgres_rollback_deltas": [item["pg_stat_delta"].get("xact_rollback", 0) for item in phases],
-            "sqlite_authoritative_unchanged": sqlite_unchanged,
+            "postgres_authoritative_unchanged": sqlite_unchanged,
             "production_flag_global": os.environ.get("FUTURE_DB_USER_PREFERENCES_BACKEND", "") or "off",
         }
         if not sqlite_unchanged:
@@ -332,3 +332,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

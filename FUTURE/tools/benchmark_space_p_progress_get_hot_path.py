@@ -135,7 +135,7 @@ def main() -> int:
         raise RuntimeError("One or more paragraph conditional reads did not return 304")
     if any(not row[3] for row in hung_rows):
         raise RuntimeError("One or more real hung paragraph rows did not resolve")
-    if any(phase["sqlite_writer"]["tasks"] for phase in phases.values()):
+    if any(phase["postgres_writer"]["tasks"] for phase in phases.values()):
         raise RuntimeError("Paragraph GET created SQLite writer tasks")
     print(json.dumps({"space_p_progress_get_hot_path": phases}, ensure_ascii=True, separators=(",", ":")))
     return 0
@@ -143,3 +143,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
