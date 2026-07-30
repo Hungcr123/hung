@@ -1,0 +1,2124 @@
+          }}
+          const entries = Number(payload.entry_count || 0);
+          const folders = Number(payload.folder_count || 0);
+          try {{
+            localStorage.setItem("future_server_data_manifest_refreshed_at", String(Date.now()));
+            if (payload.signature) localStorage.setItem("future_server_data_manifest_signature", String(payload.signature));
+          }} catch (error) {{}}
+          if (serverDataManifestState) {{
+            serverDataManifestState.textContent = `Manifest refreshed: ${{entries.toLocaleString()}} items in ${{folders.toLocaleString()}} folders.`;
+          }}
+        }} catch (error) {{
+          if (serverDataManifestState) serverDataManifestState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          serverDataManifestRefresh.disabled = false;
+        }}
+      }});
+    }}
+    if (cloudflareHostnameInput) {{
+      cloudflareHostnameInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved Cloudflare domain.";
+      }});
+      cloudflareHostnameInput.addEventListener("blur", () => {{
+        cloudflareHostnameInput.value = normalizeCloudflareHostname(cloudflareHostnameInput.value);
+      }});
+    }}
+    if (cloudflareTunnelNameInput) {{
+      cloudflareTunnelNameInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved Cloudflare tunnel.";
+      }});
+      cloudflareTunnelNameInput.addEventListener("blur", () => {{
+        cloudflareTunnelNameInput.value = normalizeCloudflareTunnelName(cloudflareTunnelNameInput.value);
+      }});
+    }}
+    if (hostedClientSecretInput) {{
+      hostedClientSecretInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = hostedClientSecretInput.value
+          ? "Unsaved obfuscation password."
+          : "Unsaved.";
+      }});
+    }}
+    if (rewardSettingsGrid) {{
+      rewardSettingsGrid.addEventListener("input", () => {{
+        if (rewardSettingsState) rewardSettingsState.textContent = "Unsaved reward settings.";
+      }});
+    }}
+    [qmCityMinEnglishInput, qmCityInvalidRunInput, qmCitySkinsInput].forEach((node) => {{
+      if (!node) return;
+      node.addEventListener("input", () => {{
+        if (qmCityState) qmCityState.textContent = "Unsaved QM-City settings.";
+      }});
+    }});
+    if (qmCityMinEnglishInput) {{
+      qmCityMinEnglishInput.addEventListener("blur", () => {{
+        qmCityMinEnglishInput.value = String(normalizeQmCityPercent(qmCityMinEnglishInput.value));
+      }});
+    }}
+    if (qmCityInvalidRunInput) {{
+      qmCityInvalidRunInput.addEventListener("blur", () => {{
+        qmCityInvalidRunInput.value = String(normalizeQmCityInvalidRun(qmCityInvalidRunInput.value));
+      }});
+    }}
+    const saveQmCityNpcSettings = async (reason = "manual") => {{
+      if (qmCityNpcSave) qmCityNpcSave.disabled = true;
+      if (qmCityNpcEnabledToggle) qmCityNpcEnabledToggle.disabled = true;
+      if (qmCityNpcMixToggle) qmCityNpcMixToggle.disabled = true;
+      if (qmCityNpcState) qmCityNpcState.textContent = reason === "toggle"
+        ? `Saving QM-City NPC mode ${{qmCityNpcMode}}...`
+        : "Saving NPC city settings...";
+      try {{
+        const npc = collectQmCityNpcSettings();
+        const response = await fetch("/settings", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ qm_city_npc: npc }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not save NPC city settings.");
+        }}
+        const savedNpc = renderQmCityNpcSettings(payload.qm_city_npc || npc);
+        if (qmCityNpcState) {{
+          const sync = payload.qm_city_npc_mode_sync || payload.qmCityNpcModeSync || {{}};
+          const scheduled = Number(sync.scheduled_retire || sync.scheduledRetire || 0) || 0;
+          const cleared = Number(sync.cleared_retire || sync.clearedRetire || 0) || 0;
+          const removed = Number(sync.removed || 0) || 0;
+          const label = savedNpc.mode === "mixed" ? "Mixed racers + residents" : savedNpc.mode === "city" ? "City residents only" : "Top racers";
+          const suffix = scheduled || cleared || removed ? ` | removed ${{removed}} | retire scheduled ${{scheduled}} | restored ${{cleared}}` : "";
+          qmCityNpcState.textContent = `Saved: ${{payload.updated_at || "now"}} | ${{label}} | spawn ${{savedNpc.spawn_chance_percent}}% | racers ${{savedNpc.min_active}}-${{savedNpc.max_active}} | answer ${{savedNpc.answer_correct_percent}}% | steal ${{savedNpc.steal_correct_percent}}%${{suffix}}`;
+        }}
+        return savedNpc;
+      }} catch (error) {{
+        if (qmCityNpcState) qmCityNpcState.textContent = String(error && error.message ? error.message : error);
+        throw error;
+      }} finally {{
+        if (qmCityNpcSave) qmCityNpcSave.disabled = false;
+        if (qmCityNpcEnabledToggle) qmCityNpcEnabledToggle.disabled = false;
+        if (qmCityNpcMixToggle) qmCityNpcMixToggle.disabled = false;
+      }}
+    }};
+    if (qmCityNpcEnabledToggle) {{
+      qmCityNpcEnabledToggle.addEventListener("click", () => {{
+        qmCityNpcMode = qmCityNpcMode === "city" ? "top" : "city";
+        qmCityNpcEnabled = qmCityNpcMode !== "city";
+        renderQmCityNpcToggle();
+        void saveQmCityNpcSettings("toggle").catch(() => {{}});
+      }});
+    }}
+    if (qmCityNpcMixToggle) {{
+      qmCityNpcMixToggle.addEventListener("click", () => {{
+        qmCityNpcMode = "mixed";
+        qmCityNpcEnabled = true;
+        renderQmCityNpcToggle();
+        void saveQmCityNpcSettings("toggle").catch(() => {{}});
+      }});
+    }}
+    [qmCityNpcSpawnChanceInput, qmCityNpcMinActiveInput, qmCityNpcMaxActiveInput, qmCityNpcOnlineMinInput, qmCityNpcOnlineMaxInput, qmCityNpcAnswerInput, qmCityNpcStealInput, qmCityNpcInviteInput, qmCityNpcInviteMinInput, qmCityNpcInviteMaxInput].forEach((node) => {{
+      if (!node) return;
+      node.addEventListener("input", () => {{
+        if (qmCityNpcState) qmCityNpcState.textContent = "Unsaved NPC city settings.";
+      }});
+      node.addEventListener("blur", () => renderQmCityNpcSettings(collectQmCityNpcSettings()));
+    }});
+    if (qmCityNpcSave) {{
+      qmCityNpcSave.addEventListener("click", async () => {{
+        await saveQmCityNpcSettings("manual").catch(() => {{}});
+      }});
+    }}
+    if (qmCitySave) {{
+      qmCitySave.addEventListener("click", async () => {{
+        qmCitySave.disabled = true;
+        if (qmCityState) qmCityState.textContent = "Saving QM-City settings...";
+        try {{
+          const percent = normalizeQmCityPercent(qmCityMinEnglishInput ? qmCityMinEnglishInput.value : 50);
+          const invalidRun = normalizeQmCityInvalidRun(qmCityInvalidRunInput ? qmCityInvalidRunInput.value : 4);
+          const skins = qmCitySkinsFromText(qmCitySkinsInput ? qmCitySkinsInput.value : "");
+          const response = await fetch("/settings", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{
+              qm_city_chat_min_english_percent: percent,
+              qm_city_chat_invalid_run_limit: invalidRun,
+              qm_city_skins: skins,
+            }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not save QM-City settings.");
+          }}
+          const savedPercent = normalizeQmCityPercent(payload.qm_city_chat_min_english_percent);
+          const savedRun = normalizeQmCityInvalidRun(payload.qm_city_chat_invalid_run_limit);
+          const savedSkins = normalizeQmCitySkins(payload.qm_city_skins || skins);
+          if (qmCityMinEnglishInput) qmCityMinEnglishInput.value = String(savedPercent);
+          if (qmCityInvalidRunInput) qmCityInvalidRunInput.value = String(savedRun);
+          if (qmCitySkinsInput) qmCitySkinsInput.value = qmCitySkinsToText(savedSkins);
+          if (qmCityState) qmCityState.textContent = `Saved: ${{payload.updated_at || "now"}} | English ${{savedPercent}}% | invalid run ${{savedRun}} | skins ${{savedSkins.length}}`;
+        }} catch (error) {{
+          if (qmCityState) qmCityState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          qmCitySave.disabled = false;
+        }}
+      }});
+    }}
+    if (qmCityLevelAdd) {{
+      qmCityLevelAdd.addEventListener("click", () => {{
+        const rows = collectQmCityLevels();
+        const last = rows[rows.length - 1] || {{ level: 1, total_exp: 0 }};
+        const nextLevel = Math.min(999, Math.max(2, Number(last.level || 1) + 1));
+        const previousStep = rows.length >= 2
+          ? Math.max(25, Number(last.total_exp || 0) - Number(rows[rows.length - 2].total_exp || 0))
+          : 25;
+        rows.push({{ level: nextLevel, total_exp: Number(last.total_exp || 0) + previousStep }});
+        renderQmCityLevels(rows);
+        if (qmCityLevelState) qmCityLevelState.textContent = "Unsaved level curve.";
+      }});
+    }}
+    if (qmCityLevelSave) {{
+      qmCityLevelSave.addEventListener("click", async () => {{
+        qmCityLevelSave.disabled = true;
+        if (qmCityLevelState) qmCityLevelState.textContent = "Saving level curve...";
+        try {{
+          const levels = collectQmCityLevels();
+          const response = await fetch("/settings", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ qm_city_levels: levels }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not save QM-City levels.");
+          }}
+          const savedLevels = normalizeQmCityLevels(payload.qm_city_levels || levels);
+          renderQmCityLevels(savedLevels);
+          if (qmCityLevelState) qmCityLevelState.textContent = `Saved: ${{payload.updated_at || "now"}} | levels ${{savedLevels.length}}`;
+        }} catch (error) {{
+          if (qmCityLevelState) qmCityLevelState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          qmCityLevelSave.disabled = false;
+        }}
+      }});
+    }}
+    if (rewardSettingsSave) {{
+      rewardSettingsSave.addEventListener("click", async () => {{
+        rewardSettingsSave.disabled = true;
+        if (rewardSettingsState) rewardSettingsState.textContent = "Saving rewards...";
+        try {{
+          const response = await fetch("/settings", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ leaderboard_rewards: collectRewardSettings() }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not save reward settings.");
+          }}
+          renderRewardSettings(payload.leaderboard_rewards || {{}});
+          if (rewardSettingsState) rewardSettingsState.textContent = `Saved rewards: ${{payload.updated_at || "now"}}`;
+        }} catch (error) {{
+          if (rewardSettingsState) rewardSettingsState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          rewardSettingsSave.disabled = false;
+        }}
+      }});
+    }}
+    const resetLeaderboardScope = async (scope, button) => {{
+      if (!scope || !button) return;
+      const label = scope === "day" ? "day" : (scope === "week" ? "week" : "month");
+      if (!window.confirm(`Reset ${{label}} vocabulary top now? Total leaderboard is not affected.`)) {{
+        return;
+      }}
+      button.disabled = true;
+      if (rewardSettingsState) rewardSettingsState.textContent = `Resetting ${{label}} top...`;
+      try {{
+        const response = await fetch("/vocab/leaderboard/reset", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ scopes: [scope] }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || `Could not reset ${{label}} top.`);
+        }}
+        if (rewardSettingsState) {{
+          rewardSettingsState.textContent = `Reset ${{(payload.scopes || [scope]).join(", ")}} top at ${{payload.reset_at || "now"}}.`;
+        }}
+      }} catch (error) {{
+        if (rewardSettingsState) rewardSettingsState.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        button.disabled = false;
+      }}
+    }};
+    const resetSpaceLeaderboardTodayTest = async (button) => {{
+      if (!button) return;
+      if (!window.confirm("Reset Space_W/Q/P/S/L Top Today test credit now? Users can relearn the same file and earn today's Space Top points again. Total points are not duplicated.")) {{
+        return;
+      }}
+      button.disabled = true;
+      if (rewardSettingsState) rewardSettingsState.textContent = "Resetting Space lesson Top Today test credit...";
+      try {{
+        const response = await fetch("/space-leaderboard/reset-today-test", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ board_types: ["space_w", "space_q", "space_p", "space_s", "space_l"] }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not reset Space lesson Top Today test credit.");
+        }}
+        if (rewardSettingsState) {{
+          rewardSettingsState.textContent = `Reset Space Top Today test: ${{payload.removed_entries || 0}} entries, ${{payload.touched_users || 0}} users, bucket ${{payload.bucket || "today"}}.`;
+        }}
+      }} catch (error) {{
+        if (rewardSettingsState) rewardSettingsState.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        button.disabled = false;
+      }}
+    }};
+    if (leaderboardResetDay) {{
+      leaderboardResetDay.addEventListener("click", () => resetLeaderboardScope("day", leaderboardResetDay));
+    }}
+    if (leaderboardResetWeek) {{
+      leaderboardResetWeek.addEventListener("click", () => resetLeaderboardScope("week", leaderboardResetWeek));
+    }}
+    if (leaderboardResetMonth) {{
+      leaderboardResetMonth.addEventListener("click", () => resetLeaderboardScope("month", leaderboardResetMonth));
+    }}
+    if (spaceLeaderboardResetTodayTest) {{
+      spaceLeaderboardResetTodayTest.addEventListener("click", () => resetSpaceLeaderboardTodayTest(spaceLeaderboardResetTodayTest));
+    }}
+    if (settingsSave) {{
+      settingsSave.addEventListener("click", async () => {{
+        settingsSave.disabled = true;
+        if (settingsState) settingsState.textContent = "Saving...";
+        try {{
+          const seconds = normalizeHintSeconds(hintCycleInput ? hintCycleInput.value : 30);
+          const paragraphSeconds = normalizeParagraphHintSeconds(paragraphHintInput ? paragraphHintInput.value : 30);
+          const hudLines = String(questionHudInput && questionHudInput.value || "")
+            .split(/\\r?\\n|[|;]/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(0, 4);
+          const chatLimitMb = normalizeChatAttachmentLimitMb(chatAttachmentLimitInput ? chatAttachmentLimitInput.value : 100);
+          const heavyUserQuota = normalizeHeavyUserQuota(heavyUserQuotaInput ? heavyUserQuotaInput.value : 5);
+          const heavyUserInterval = normalizeHeavyUserInterval(heavyUserIntervalInput ? heavyUserIntervalInput.value : 5);
+          const aiAgentNoticeVoice = String(aiAgentNoticeVoiceInput && aiAgentNoticeVoiceInput.value || "kokoro:am_michael").trim() || "kokoro:am_michael";
+          const leaderboardReactions = reactionSettingsFromText(leaderboardReactionsInput ? leaderboardReactionsInput.value : "");
+          const cpuThreshold = normalizeCpuThreshold(cpuThresholdInput ? cpuThresholdInput.value : 90);
+          const cfHostname = normalizeCloudflareHostname(cloudflareHostnameInput ? cloudflareHostnameInput.value : "");
+          const cfTunnelName = normalizeCloudflareTunnelName(cloudflareTunnelNameInput ? cloudflareTunnelNameInput.value : "future-whisper");
+          const savePayload = {{
+            word_hint_cycle_seconds: seconds,
+            paragraph_hint_seconds: paragraphSeconds,
+            question_hud_lines: hudLines,
+            chat_attachment_limit_mb: chatLimitMb,
+            heavy_user_quota_per_minute: heavyUserQuota,
+            heavy_user_min_interval_seconds: heavyUserInterval,
+            ai_agent_notice_voice: aiAgentNoticeVoice,
+            space_w_ai_check_voice_enabled: Boolean(spaceWAiCheckVoiceEnabled),
+            leaderboard_reactions: leaderboardReactions,
+            cpu_guard_enabled: Boolean(cpuGuardEnabled),
+            cpu_queue_threshold_percent: cpuThreshold,
+            cloudflare_public_hostname: cfHostname,
+            cloudflare_tunnel_name: cfTunnelName,
+          }};
+          if (hostedClientSecretInput && hostedClientSecretInput.value) {{
+            savePayload.hosted_client_secret = hostedClientSecretInput.value;
+          }}
+          const response = await fetch("/settings", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify(savePayload),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Khong luu duoc settings.");
+          }}
+          const saved = normalizeHintSeconds(payload.word_hint_cycle_seconds);
+          if (hintCycleInput) hintCycleInput.value = String(saved);
+          const savedParagraph = normalizeParagraphHintSeconds(payload.paragraph_hint_seconds);
+          if (paragraphHintInput) paragraphHintInput.value = String(savedParagraph);
+          if (questionHudInput) {{
+            const lines = Array.isArray(payload.question_hud_lines) ? payload.question_hud_lines : hudLines;
+            questionHudInput.value = lines.join("\\n");
+          }}
+          const savedChatLimitMb = normalizeChatAttachmentLimitMb(payload.chat_attachment_limit_mb);
+          if (chatAttachmentLimitInput) chatAttachmentLimitInput.value = String(savedChatLimitMb);
+          const savedHeavyUserQuota = normalizeHeavyUserQuota(payload.heavy_user_quota_per_minute);
+          const savedHeavyUserInterval = normalizeHeavyUserInterval(payload.heavy_user_min_interval_seconds);
+          if (heavyUserQuotaInput) heavyUserQuotaInput.value = String(savedHeavyUserQuota);
+          if (heavyUserIntervalInput) heavyUserIntervalInput.value = String(savedHeavyUserInterval);
+          if (aiAgentNoticeVoiceInput) aiAgentNoticeVoiceInput.value = String(payload.ai_agent_notice_voice || aiAgentNoticeVoice || "kokoro:am_michael");
+          spaceWAiCheckVoiceEnabled = payload.space_w_ai_check_voice_enabled !== false;
+          renderSpaceWAiCheckToggle();
+          if (leaderboardReactionsInput) leaderboardReactionsInput.value = reactionSettingsToText(payload.leaderboard_reactions || leaderboardReactions);
+          const savedCpuThreshold = normalizeCpuThreshold(payload.cpu_queue_threshold_percent);
+          cpuGuardEnabled = payload.cpu_guard_enabled !== false;
+          if (cpuThresholdInput) cpuThresholdInput.value = String(savedCpuThreshold);
+          renderCpuGuardToggle();
+          const savedCfHostname = normalizeCloudflareHostname(payload.cloudflare_public_hostname || "");
+          const savedCfTunnelName = normalizeCloudflareTunnelName(payload.cloudflare_tunnel_name || cfTunnelName);
+          if (cloudflareHostnameInput) cloudflareHostnameInput.value = savedCfHostname;
+          if (cloudflareTunnelNameInput) cloudflareTunnelNameInput.value = savedCfTunnelName;
+          if (hostedClientSecretInput) {{
+            hostedClientSecretInput.value = "";
+            hostedClientSecretInput.placeholder = payload.hosted_client_secret_set
+              ? "Password key is set. Type a new one to rotate."
+              : "No password key set. Type one to enable.";
+          }}
+          const obfState = payload.hosted_client_secret_set ? "client key set" : "default client key";
+          const cfState = savedCfHostname ? `domain ${{savedCfHostname}} via ${{savedCfTunnelName}}` : "quick trycloudflare link";
+          const cpuState = `${{cpuGuardEnabled ? "CPU guard" : "CPU guard off"}} ${{savedCpuThreshold}}%`;
+          const speakState = spaceWAiCheckVoiceEnabled ? "Space_W Whisper on" : "Space_W browser check";
+          if (settingsState) settingsState.textContent = `Saved: ${{payload.updated_at || "now"}} | W ${{saved}}s | P ${{savedParagraph}}s | chat ${{savedChatLimitMb}} MB | heavy ${{savedHeavyUserQuota}}/min + ${{savedHeavyUserInterval}}s | AI ${{payload.ai_agent_notice_voice || aiAgentNoticeVoice}} | ${{speakState}} | ${{cpuState}} | ${{cfState}} | ${{obfState}}`;
+        }} catch (error) {{
+          if (settingsState) settingsState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          settingsSave.disabled = false;
+        }}
+      }});
+    }}
+    const todayLocalDate = () => {{
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      return `${{y}}-${{m}}-${{d}}`;
+    }};
+    if (loginLogDate && !loginLogDate.value) loginLogDate.value = todayLocalDate();
+    if (learningLogDate && !learningLogDate.value) learningLogDate.value = todayLocalDate();
+    let emailRoutingLoaded = false;
+    let emailRoutingMessages = [];
+    let emailRoutingReceivedAddressRows = [];
+    let emailRoutingSelectedId = "";
+    const setEmailRoutingState = (message, error = false) => {{
+      if (!emailRoutingState) return;
+      emailRoutingState.textContent = message || "";
+      emailRoutingState.classList.toggle("is-error", Boolean(error));
+    }};
+    const emailRoutingPost = async (path, payload = {{}}) => {{
+      const response = await fetch(path, {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(payload),
+      }});
+      const data = await response.json().catch(() => ({{}}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || "Email routing request failed.");
+      return data;
+    }};
+    const emailRoutingDomain = () => String(emailRoutingDomainInput && emailRoutingDomainInput.value || "qm-tech.io.vn").trim().toLowerCase().replace(/^@+/, "") || "qm-tech.io.vn";
+    const emailRoutingLocal = () => String(emailRoutingAliasInput && emailRoutingAliasInput.value || "admin").trim().toLowerCase().replace(/@.*$/, "").replace(/[^a-z0-9._%+-]/g, "") || "admin";
+    const emailRoutingAddress = () => `${{emailRoutingLocal()}}@${{emailRoutingDomain()}}`;
+    const updateEmailRoutingAddressPreview = () => {{
+      const address = emailRoutingAddress();
+      if (emailRoutingCurrentAddress) emailRoutingCurrentAddress.textContent = address;
+      return address;
+    }};
+    const setEmailRoutingAddress = (address) => {{
+      const raw = String(address || "").trim().toLowerCase().replace(/^mailto:/, "");
+      const match = raw.match(/^([^@\\s]+)@([^@\\s]+)$/);
+      if (match) {{
+        if (emailRoutingAliasInput) emailRoutingAliasInput.value = match[1].replace(/[^a-z0-9._%+-]/g, "");
+        if (emailRoutingDomainInput) emailRoutingDomainInput.value = match[2].replace(/^@+/, "");
+      }}
+      return updateEmailRoutingAddressPreview();
+    }};
+    const randomEmailRoutingLocal = () => {{
+      const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let out = "mail";
+      for (let index = 0; index < 8; index += 1) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+      return out;
+    }};
+    const emailRoutingTime = (value) => {{
+      const raw = String(value || "");
+      const parsed = raw ? new Date(raw) : null;
+      if (parsed && !Number.isNaN(parsed.getTime())) {{
+        return parsed.toLocaleTimeString([], {{ hour: "2-digit", minute: "2-digit" }});
+      }}
+      return raw.replace("T", " ").replace("Z", "").slice(11, 16) || "-";
+    }};
+    const emailRoutingOtp = (item = {{}}) => {{
+      const text = `${{item.title || ""}} ${{item.subject || ""}} ${{item.content || ""}} ${{item.text || ""}} ${{item.snippet || ""}}`;
+      const match = text.match(/\\b\\d{{4,8}}\\b/);
+      return match ? match[0] : "-";
+    }};
+    const copyEmailRoutingOtp = async (otp, node) => {{
+      const text = String(otp || "").trim();
+      if (!text || text === "-") return;
+      try {{
+        await navigator.clipboard.writeText(text);
+        if (node) {{
+          const previous = node.textContent;
+          node.textContent = "Copied";
+          window.setTimeout(() => {{ node.textContent = previous; }}, 900);
+        }}
+        setEmailRoutingState(`Copied code ${{text}}.`);
+      }} catch (error) {{
+        setEmailRoutingState("Could not copy code. Select it manually.", true);
+      }}
+    }};
+    const emailRoutingReceivedAddresses = (items = []) => {{
+      const map = new Map();
+      (Array.isArray(items) ? items : []).forEach((item) => {{
+        const address = String(item.to || item.recipient || "").trim().toLowerCase();
+        if (!/^[^@\\s]+@[^@\\s]+$/.test(address)) return;
+        const latest = String(item.received_at || "");
+        const row = map.get(address) || {{ address, count: 0, latest: "", title: "" }};
+        row.count += 1;
+        if (!row.latest || latest > row.latest) {{
+          row.latest = latest;
+          row.title = item.title || item.subject || "";
+        }}
+        map.set(address, row);
+      }});
+      return Array.from(map.values()).sort((left, right) => {{
+        const byTime = String(right.latest || "").localeCompare(String(left.latest || ""));
+        return byTime || left.address.localeCompare(right.address);
+      }});
+    }};
+    const emailRoutingAliasSearchScore = (address, query) => {{
+      const hay = String(address || "").trim().toLowerCase();
+      const needle = String(query || "").trim().toLowerCase().replace(/\\s+/g, "");
+      if (!needle) return {{ match: true, score: 0 }};
+      const directIndex = hay.indexOf(needle);
+      if (directIndex >= 0) {{
+        return {{ match: true, score: 100000 + (needle.length * 1200) - directIndex }};
+      }}
+      let needleIndex = 0;
+      let lastMatch = -2;
+      let currentRun = 0;
+      let bestRun = 0;
+      let gapPenalty = 0;
+      let score = 0;
+      for (let hayIndex = 0; hayIndex < hay.length && needleIndex < needle.length; hayIndex += 1) {{
+        if (hay[hayIndex] !== needle[needleIndex]) continue;
+        if (hayIndex === lastMatch + 1) {{
+          currentRun += 1;
+        }} else {{
+          if (lastMatch >= 0) gapPenalty += Math.max(0, hayIndex - lastMatch - 1);
+          currentRun = 1;
+        }}
+        bestRun = Math.max(bestRun, currentRun);
+        score += 120 + (currentRun * 35) - Math.max(0, hayIndex - needleIndex);
+        lastMatch = hayIndex;
+        needleIndex += 1;
+      }}
+      if (needleIndex < needle.length) return {{ match: false, score: -Infinity }};
+      const local = hay.split("@")[0] || hay;
+      if (needle.length <= 2 && bestRun < needle.length && !local.startsWith(needle[0])) {{
+        return {{ match: false, score: -Infinity }};
+      }}
+      const prefixBonus = local.startsWith(needle[0]) ? 320 : hay.startsWith(needle[0]) ? 160 : 0;
+      return {{ match: true, score: score + (bestRun * 650) + prefixBonus - (gapPenalty * 12) - hay.length }};
+    }};
+    const renderEmailRoutingReceivedAddresses = (items = emailRoutingReceivedAddressRows) => {{
+      if (!emailRoutingReceivedAddressList) return;
+      const query = emailRoutingAddressSearch ? emailRoutingAddressSearch.value : "";
+      const hasQuery = Boolean(String(query || "").trim());
+      const sourceRows = Array.isArray(items) && items.length
+        ? items
+        : emailRoutingReceivedAddresses(emailRoutingMessages);
+      const rows = sourceRows
+        .map((item) => ({{ ...item, search: emailRoutingAliasSearchScore(item.address, query) }}))
+        .filter((item) => item.search.match)
+        .sort((left, right) => {{
+          if (hasQuery) {{
+            const byScore = Number(right.search.score || 0) - Number(left.search.score || 0);
+            if (byScore) return byScore;
+          }}
+          const byTime = String(right.latest || "").localeCompare(String(left.latest || ""));
+          return byTime || left.address.localeCompare(right.address);
+        }});
+      const current = emailRoutingAddress().toLowerCase();
+      emailRoutingReceivedAddressList.textContent = "";
+      if (!rows.length) {{
+        const empty = document.createElement("div");
+        empty.className = "gmail-empty";
+        empty.textContent = hasQuery ? "No received aliases match this search." : "No received aliases yet.";
+        emailRoutingReceivedAddressList.appendChild(empty);
+        return;
+      }}
+      rows.forEach((item) => {{
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "gmail-history-row" + (item.address === current ? " is-active" : "");
+        const address = document.createElement("span");
+        address.className = "gmail-history-address";
+        address.textContent = item.address;
+        const meta = document.createElement("span");
+        meta.className = "gmail-history-meta";
+        meta.textContent = `${{item.count}} mail${{item.count === 1 ? "" : "s"}}`;
+        button.title = item.title || item.address;
+        button.append(address, meta);
+        button.addEventListener("click", () => {{
+          const selected = setEmailRoutingAddress(item.address);
+          emailRoutingSelectedId = "";
+          if (emailRoutingAddressHistoryPanel) emailRoutingAddressHistoryPanel.hidden = true;
+          else if (emailRoutingReceivedAddressList) emailRoutingReceivedAddressList.hidden = true;
+          renderEmailRoutingMessages({{ messages: emailRoutingMessages, received_addresses: emailRoutingReceivedAddressRows }});
+          setEmailRoutingState(`Showing ${{selected}}.`);
+        }});
+        emailRoutingReceivedAddressList.appendChild(button);
+      }});
+    }};
+    const renderEmailRoutingAliases = (payload = {{}}) => {{
+      if (!emailRoutingAliasList) return;
+      emailRoutingAliasList.textContent = "";
+      const liveRules = payload.live && Array.isArray(payload.live.rules) ? payload.live.rules : [];
+      const localAliases = Array.isArray(payload.aliases) ? payload.aliases : [];
+      const rows = liveRules.length
+        ? liveRules.map((item) => ({{
+            id: item.id || "",
+            address: item.address || "",
+            destination: Array.isArray(item.destinations) ? item.destinations.join(", ") : "",
+            enabled: Boolean(item.enabled),
+          }}))
+        : localAliases.map((item) => ({{
+            id: item.rule_id || "",
+            address: item.address || "",
+            destination: item.destination || "",
+            enabled: item.enabled !== false,
+          }}));
+      if (!rows.length) {{
+        const empty = document.createElement("span");
+        empty.className = "gmail-chip";
+        empty.textContent = "No Gmail addresses yet";
+        emailRoutingAliasList.appendChild(empty);
+        return;
+      }}
+      rows.forEach((item) => {{
+        const chip = document.createElement("span");
+        chip.className = "gmail-chip";
+        const label = document.createElement("span");
+        label.textContent = item.address || "";
+        chip.appendChild(label);
+        if (item.id) {{
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = "x";
+          button.title = "Delete this Cloudflare routing rule";
+          button.addEventListener("click", async () => {{
+            if (!window.confirm(`Delete ${{item.address || "this alias"}}?`)) return;
+            button.disabled = true;
+            try {{
+              const next = await emailRoutingPost("/dashboard/email-routing/delete-rule", {{ rule_id: item.id, address: item.address || "" }});
+              setEmailRoutingState("Alias deleted.");
+              applyEmailRoutingState(next);
+            }} catch (error) {{
+              setEmailRoutingState(String(error && error.message ? error.message : error), true);
+              button.disabled = false;
+            }}
+          }});
+          chip.appendChild(button);
+        }}
+        emailRoutingAliasList.appendChild(chip);
+      }});
+    }};
+    const renderEmailRoutingMessages = (payload = {{}}) => {{
+      if (!emailRoutingMessageList) return;
+      emailRoutingMessageList.textContent = "";
+      const allRows = Array.isArray(payload.messages) ? payload.messages : emailRoutingMessages;
+      emailRoutingMessages = allRows;
+      emailRoutingReceivedAddressRows = Array.isArray(payload.received_addresses) && payload.received_addresses.length
+        ? payload.received_addresses
+        : emailRoutingReceivedAddresses(allRows);
+      renderEmailRoutingReceivedAddresses(emailRoutingReceivedAddressRows);
+      const address = updateEmailRoutingAddressPreview();
+      const addressKey = address.toLowerCase();
+      const rows = allRows.filter((item) => String(item.to || item.recipient || "").toLowerCase() === addressKey);
+      if (emailRoutingMessageCount) emailRoutingMessageCount.textContent = `${{rows.length}} email${{rows.length === 1 ? "" : "s"}}`;
+      if (!rows.length) {{
+        const empty = document.createElement("div");
+        empty.className = "gmail-empty";
+        empty.textContent = `No inbound messages for ${{address}} yet.`;
+        emailRoutingMessageList.appendChild(empty);
+        renderEmailRoutingMessage(null);
+        return;
+      }}
+      if (!emailRoutingSelectedId || !rows.some((item) => String(item.id || "") === emailRoutingSelectedId)) {{
+        emailRoutingSelectedId = String(rows[0].id || "");
+      }}
+      rows.forEach((item) => {{
+        const row = document.createElement("button");
+        row.className = "gmail-message-row" + (String(item.id || "") === emailRoutingSelectedId ? " is-active" : "");
+        row.type = "button";
+        const time = document.createElement("div");
+        time.className = "gmail-time";
+        time.textContent = emailRoutingTime(item.received_at);
+        const sender = document.createElement("div");
+        sender.className = "gmail-sender";
+        sender.textContent = item.from || "unknown sender";
+        const code = document.createElement("div");
+        code.className = "gmail-code";
+        const otp = emailRoutingOtp(item);
+        code.textContent = otp !== "-" ? otp : (item.title || item.subject || "No subject");
+        code.title = item.title || item.subject || "";
+        if (otp !== "-") {{
+          code.classList.add("is-copyable");
+          code.title = "Click to copy this code";
+          code.setAttribute("role", "button");
+          code.tabIndex = 0;
+          code.addEventListener("click", (event) => {{
+            event.stopPropagation();
+            void copyEmailRoutingOtp(otp, code);
+          }});
+          code.addEventListener("keydown", (event) => {{
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            void copyEmailRoutingOtp(otp, code);
+          }});
+        }}
+        const action = document.createElement("div");
+        action.className = "gmail-action";
+        action.textContent = "View";
+        row.addEventListener("click", () => {{
+          emailRoutingSelectedId = String(item.id || "");
+          renderEmailRoutingMessages({{ messages: emailRoutingMessages, received_addresses: emailRoutingReceivedAddressRows }});
+          renderEmailRoutingMessage(item);
+        }});
+        row.append(time, sender, code, action);
+        emailRoutingMessageList.appendChild(row);
+      }});
+      renderEmailRoutingMessage(rows.find((item) => String(item.id || "") === emailRoutingSelectedId) || rows[0]);
+    }};
+    const renderEmailRoutingMessage = (item) => {{
+      const safe = item || {{}};
+      if (emailRoutingReaderSubject) emailRoutingReaderSubject.textContent = safe.title || safe.subject || "No email selected";
+      if (emailRoutingReaderSender) emailRoutingReaderSender.textContent = safe.from ? `From: ${{safe.from}}` : "From: -";
+      if (emailRoutingReaderTime) emailRoutingReaderTime.textContent = safe.received_at ? String(safe.received_at).replace("T", " ").replace("Z", "") : "Time: -";
+      if (emailRoutingReaderCode) {{
+        const otp = item ? emailRoutingOtp(safe) : "-";
+        emailRoutingReaderCode.textContent = otp;
+        emailRoutingReaderCode.classList.toggle("is-copyable", otp !== "-");
+        emailRoutingReaderCode.title = otp !== "-" ? "Click to copy this code" : "";
+        emailRoutingReaderCode.tabIndex = otp !== "-" ? 0 : -1;
+        emailRoutingReaderCode.onclick = otp !== "-" ? () => copyEmailRoutingOtp(otp, emailRoutingReaderCode) : null;
+        emailRoutingReaderCode.onkeydown = otp !== "-" ? (event) => {{
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          void copyEmailRoutingOtp(otp, emailRoutingReaderCode);
+        }} : null;
+      }}
+      if (emailRoutingReaderBody) emailRoutingReaderBody.textContent = item ? (safe.content || safe.snippet || safe.text || "") : "Select an email to read it.";
+    }};
+    const applyEmailRoutingState = (payload = {{}}) => {{
+      if (emailRoutingDomainInput) emailRoutingDomainInput.value = payload.domain || "";
+      if (emailRoutingDefaultDestinationInput) emailRoutingDefaultDestinationInput.value = payload.default_destination || "";
+      if (emailRoutingAccountIdInput) emailRoutingAccountIdInput.value = payload.account_id || "";
+      if (emailRoutingZoneIdInput) emailRoutingZoneIdInput.value = payload.zone_id || "";
+      if (emailRoutingApiTokenInput) emailRoutingApiTokenInput.value = "";
+      if (emailRoutingInboundSecretInput) emailRoutingInboundSecretInput.value = payload.inbound_secret || "";
+      updateEmailRoutingAddressPreview();
+      renderEmailRoutingAliases(payload);
+      renderEmailRoutingMessages(payload);
+      const token = payload.token_saved ? `token ${{payload.token_source || "saved"}} ${{payload.token_hint || ""}}` : "token missing";
+      const inbox = payload.inbound_secret_hint ? ` | webhook ${{payload.inbound_secret_hint}}` : "";
+      setEmailRoutingState(`${{payload.domain || "gmail"}} | ${{token}}${{inbox}}`);
+    }};
+    const loadEmailRouting = async (live = false) => {{
+      if (!emailRoutingAliasList && !emailRoutingMessageList) return;
+      setEmailRoutingState(live ? "Refreshing Cloudflare email..." : "Loading email routing...");
+      try {{
+        const url = `/dashboard/email-routing/state?ts=${{Date.now()}}${{live ? "&live=1" : ""}}`;
+        const response = await fetch(url, {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not load email routing.");
+        emailRoutingLoaded = true;
+        applyEmailRoutingState(payload);
+        if (payload.live_error) setEmailRoutingState(payload.live_error, true);
+      }} catch (error) {{
+        setEmailRoutingState(String(error && error.message ? error.message : error), true);
+      }}
+    }};
+    const saveEmailRouting = async (regenerateSecret = false) => {{
+      if (!emailRoutingSave) return;
+      const button = regenerateSecret ? emailRoutingRegenerateSecret : emailRoutingSave;
+      if (button) button.disabled = true;
+      setEmailRoutingState("Saving email routing...");
+      try {{
+        const payload = {{
+          domain: emailRoutingDomainInput ? emailRoutingDomainInput.value : "",
+          default_destination: emailRoutingDefaultDestinationInput ? emailRoutingDefaultDestinationInput.value : "",
+          account_id: emailRoutingAccountIdInput ? emailRoutingAccountIdInput.value : "",
+          zone_id: emailRoutingZoneIdInput ? emailRoutingZoneIdInput.value : "",
+          api_token: emailRoutingApiTokenInput ? emailRoutingApiTokenInput.value : "",
+          inbound_secret: emailRoutingInboundSecretInput ? emailRoutingInboundSecretInput.value : "",
+          regenerate_inbound_secret: Boolean(regenerateSecret),
+        }};
+        const saved = await emailRoutingPost("/dashboard/email-routing/config", payload);
+        applyEmailRoutingState(saved);
+        setEmailRoutingState(regenerateSecret ? "Webhook secret regenerated." : "Email settings saved.");
+      }} catch (error) {{
+        setEmailRoutingState(String(error && error.message ? error.message : error), true);
+      }} finally {{
+        if (button) button.disabled = false;
+      }}
+    }};
+    const verifyEmailRoutingDestination = async () => {{
+      if (!emailRoutingVerifyDestination) return;
+      emailRoutingVerifyDestination.disabled = true;
+      setEmailRoutingState("Sending Gmail verification...");
+      try {{
+        const payload = {{ destination: emailRoutingDefaultDestinationInput ? emailRoutingDefaultDestinationInput.value : "" }};
+        const saved = await emailRoutingPost("/dashboard/email-routing/destination", payload);
+        applyEmailRoutingState(saved);
+        setEmailRoutingState("Cloudflare verification email sent.");
+      }} catch (error) {{
+        setEmailRoutingState(String(error && error.message ? error.message : error), true);
+      }} finally {{
+        emailRoutingVerifyDestination.disabled = false;
+      }}
+    }};
+    const selectEmailRoutingAddress = () => {{
+      const address = updateEmailRoutingAddressPreview();
+      emailRoutingSelectedId = "";
+      renderEmailRoutingMessages({{ messages: emailRoutingMessages, received_addresses: emailRoutingReceivedAddressRows }});
+      setEmailRoutingState(`Watching ${{address}}. External mail arrives here after Cloudflare catch-all/Worker is active.`);
+    }};
+    const createEmailRoutingRoute = async () => {{
+      if (!emailRoutingCreateRoute) return;
+      emailRoutingCreateRoute.disabled = true;
+      setEmailRoutingState("Creating Cloudflare route...");
+      try {{
+        const payload = {{
+          address: updateEmailRoutingAddressPreview(),
+          destination: emailRoutingAliasDestinationInput ? emailRoutingAliasDestinationInput.value : "",
+          name: emailRoutingAliasNameInput ? emailRoutingAliasNameInput.value : "",
+        }};
+        const saved = await emailRoutingPost("/dashboard/email-routing/alias", payload);
+        applyEmailRoutingState(saved);
+        setEmailRoutingState(`Created Cloudflare route for ${{saved.address || payload.address}}.`);
+      }} catch (error) {{
+        setEmailRoutingState(String(error && error.message ? error.message : error), true);
+      }} finally {{
+        emailRoutingCreateRoute.disabled = false;
+      }}
+    }};
+    const createEmailRoutingAlias = () => {{
+      if (!emailRoutingCreateAlias) return;
+      emailRoutingCreateAlias.disabled = true;
+      try {{
+        selectEmailRoutingAddress();
+      }} catch (error) {{
+        setEmailRoutingState(String(error && error.message ? error.message : error), true);
+      }} finally {{
+        emailRoutingCreateAlias.disabled = false;
+      }}
+    }};
+    const dashboardTabs = [
+      {{ name: "main", tab: tabMain, panel: panelMain }},
+      {{ name: "users", tab: tabUsers, panel: panelUsers }},
+      {{ name: "login", tab: tabLoginLog, panel: panelLoginLog }},
+      {{ name: "learning", tab: tabLearningLog, panel: panelLearningLog }},
+      {{ name: "admins", tab: tabAdmins, panel: panelAdmins }},
+      {{ name: "password-reset", tab: tabPasswordReset, panel: panelPasswordReset }},
+      {{ name: "security", tab: tabSecurity, panel: panelSecurity }},
+      {{ name: "email-routing", tab: tabEmailRouting, panel: panelEmailRouting }},
+      {{ name: "workers", tab: tabWorkers, panel: panelWorkers }},
+      {{ name: "rewards", tab: tabRewards, panel: panelRewards }},
+      {{ name: "qm-city", tab: tabQmCity, panel: panelQmCity }},
+      {{ name: "qm-city-npc", tab: tabQmCityNpc, panel: panelQmCityNpc }},
+      {{ name: "qm-city-levels", tab: tabQmCityLevels, panel: panelQmCityLevels }},
+    ];
+    let activeDashboardTab = "main";
+    const deleteDashboardUserData = async (username, button) => {{
+      const safeUser = String(username || "").trim();
+      if (!safeUser) return;
+      const confirmName = window.prompt(`Delete all private data for user "${{safeUser}}"? Type the username to confirm.`);
+      if (confirmName !== safeUser) {{
+        if (messageNode) messageNode.textContent = "User deletion cancelled.";
+        return;
+      }}
+      if (button) button.disabled = true;
+      if (messageNode) messageNode.textContent = `Deleting private data for ${{safeUser}}...`;
+      try {{
+        const response = await fetch("/dashboard/users/delete", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username: safeUser, confirm: confirmName }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not delete user data.");
+        const deleted = payload.deleted || {{}};
+        const paths = Number(deleted.deleted_path_count || 0);
+        const states = Number(deleted.state_changes || 0);
+        const sessions = Number(deleted.revoked_sessions || 0);
+        const errors = Array.isArray(deleted.errors) ? deleted.errors.filter(Boolean) : [];
+        if (messageNode) {{
+          messageNode.textContent = errors.length
+            ? `Deleted ${{safeUser}} with warnings: ${{errors.join(" | ")}}`
+            : `Deleted ${{safeUser}}: ${{paths}} path(s), ${{states}} state group(s), ${{sessions}} session(s).`;
+        }}
+        await loadAdminUsers();
+        try {{ await pollChatAdmin(); }} catch (error) {{}}
+      }} catch (error) {{
+        if (messageNode) messageNode.textContent = String(error && error.message ? error.message : error);
+        if (button) button.disabled = false;
+      }}
+    }};
+    let adminUserRowsCache = [];
+    // Added 2026-07-09: keeps admin account search client-side so filtering never hits the server.
+    const renderAdminUsers = (rows = adminUserRowsCache) => {{
+      if (!adminUserList) return;
+      adminUserList.textContent = "";
+      const query = String(adminUserSearch && adminUserSearch.value || "").trim().toLowerCase();
+      const list = Array.isArray(rows) ? rows : [];
+      const filtered = query
+        ? list.filter((item) => {{
+          const flags = Array.isArray(item && item.data_flags) ? item.data_flags.join(" ") : "";
+          const haystack = [
+            item && item.username,
+            item && item.full_name,
+            flags,
+            item && item.is_admin ? "admin" : "learner",
+            item && item.login_blocked ? "blocked login blocked-login chan dang nhap" : "",
+            item && item.has_account ? "account" : "",
+            item && item.has_data ? "data" : "",
+          ].join(" ").toLowerCase();
+          return haystack.includes(query);
+        }})
+        : list;
+      if (!list.length) {{
+        adminUserList.textContent = "No users found.";
+        return;
+      }}
+      if (!filtered.length) {{
+        adminUserList.textContent = "No matching users.";
+        return;
+      }}
+      filtered.forEach((item) => {{
+          const row = document.createElement("div");
+          row.className = "dashboard-log-row";
+          const name = document.createElement("div");
+          name.className = "dashboard-log-user";
+          name.textContent = item.username || "";
+          const info = document.createElement("div");
+          info.className = "dashboard-log-detail";
+          const flags = Array.isArray(item.data_flags) ? item.data_flags.filter(Boolean) : [];
+          info.textContent = `${{item.full_name || (item.is_admin ? "Admin enabled" : "Learner")}}${{item.login_blocked ? " | login blocked" : ""}}${{flags.length ? ` | data: ${{flags.join(", ")}}` : ""}}`;
+          const actions = document.createElement("div");
+          actions.className = "online-actions";
+          const passwordInput = document.createElement("input");
+          passwordInput.className = "setting-input admin-password-input";
+          passwordInput.type = "text";
+          passwordInput.placeholder = "New password";
+          passwordInput.autocomplete = "off";
+          passwordInput.spellcheck = false;
+          passwordInput.title = "Admin reset: at least 4 characters. Numbers are optional.";
+          const passwordButton = document.createElement("button");
+          passwordButton.className = "pending-action";
+          passwordButton.type = "button";
+          passwordButton.textContent = "Change password";
+          passwordButton.title = "Change this user's password immediately.";
+          passwordButton.addEventListener("click", async () => {{
+            const nextPassword = String(passwordInput.value || "");
+            passwordButton.disabled = true;
+            passwordInput.disabled = true;
+            try {{
+              const save = await fetch("/dashboard/users/password", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ username: item.username || "", password: nextPassword }}),
+              }});
+              const saved = await save.json().catch(() => ({{}}));
+              if (!save.ok || saved.ok === false) throw new Error(saved.error || "Could not change password.");
+              passwordInput.value = "";
+              if (messageNode) messageNode.textContent = `Password changed for ${{item.username || ""}}.`;
+            }} catch (error) {{
+              if (messageNode) messageNode.textContent = String(error && error.message ? error.message : error);
+            }} finally {{
+              passwordButton.disabled = false;
+              passwordInput.disabled = false;
+            }}
+          }});
+          const button = document.createElement("button");
+          button.className = "pending-action" + (item.is_admin ? " reject" : "");
+          button.type = "button";
+          button.textContent = item.is_admin ? "Remove admin" : "Make admin";
+          button.addEventListener("click", async () => {{
+            button.disabled = true;
+            try {{
+              const save = await fetch("/dashboard/admins", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ username: item.username || "", enabled: !item.is_admin }}),
+              }});
+              const saved = await save.json().catch(() => ({{}}));
+              if (!save.ok || saved.ok === false) throw new Error(saved.error || "Could not update admin.");
+              await loadAdminUsers();
+            }} catch (error) {{
+              messageNode.textContent = String(error && error.message ? error.message : error);
+              button.disabled = false;
+            }}
+          }});
+          const blockButton = document.createElement("button");
+          blockButton.className = "pending-action" + (item.login_blocked ? "" : " reject");
+          blockButton.type = "button";
+          blockButton.textContent = item.login_blocked ? "Unblock login" : "Block login";
+          blockButton.title = item.login_blocked
+            ? "Allow this user to log in again."
+            : "Block this user from logging in and revoke active sessions.";
+          blockButton.disabled = !item.has_account;
+          blockButton.addEventListener("click", async () => {{
+            blockButton.disabled = true;
+            try {{
+              const save = await fetch("/dashboard/users/block-login", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ username: item.username || "", blocked: !item.login_blocked }}),
+              }});
+              const saved = await save.json().catch(() => ({{}}));
+              if (!save.ok || saved.ok === false) throw new Error(saved.error || "Could not update login block.");
+              const revoked = Number(saved.revoked_sessions || 0);
+              if (messageNode) {{
+                messageNode.textContent = saved.login_blocked
+                  ? `Login blocked for ${{item.username || ""}}${{revoked ? `; revoked ${{revoked}} session(s)` : ""}}.`
+                  : `Login unblocked for ${{item.username || ""}}.`;
+              }}
+              await loadAdminUsers();
+            }} catch (error) {{
+              messageNode.textContent = String(error && error.message ? error.message : error);
+              blockButton.disabled = false;
+            }}
+          }});
+          const deleteButton = document.createElement("button");
+          deleteButton.className = "pending-action reject";
+          deleteButton.type = "button";
+          deleteButton.textContent = "Delete user data";
+          deleteButton.title = "Delete this user's account, progress, private server-data folder, profile media, chat attachments, and related learning state.";
+          deleteButton.disabled = !item.has_data && !item.has_account;
+          deleteButton.addEventListener("click", () => void deleteDashboardUserData(item.username || "", deleteButton));
+          actions.append(passwordInput, passwordButton, button, blockButton, deleteButton);
+          row.append(name, info, actions);
+          adminUserList.appendChild(row);
+        }});
+    }};
+    const loadAdminUsers = async () => {{
+      if (!adminUserList) return;
+      adminUserList.textContent = "Loading...";
+      try {{
+        const response = await fetch("/dashboard/admins?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not load admins.");
+        adminUserRowsCache = Array.isArray(payload.users) ? payload.users : [];
+        renderAdminUsers(adminUserRowsCache);
+      }} catch (error) {{
+        adminUserList.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    if (adminUserSearch) {{
+      adminUserSearch.addEventListener("input", () => renderAdminUsers(adminUserRowsCache));
+    }}
+    const renderDashboardLogRows = (node, rows, mode) => {{
+      if (!node) return;
+      node.textContent = "";
+      const list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {{
+        const empty = document.createElement("div");
+        empty.className = "dashboard-log-row";
+        empty.innerHTML = '<span class="dashboard-log-time">No data</span><span class="dashboard-log-user">-</span><span class="dashboard-log-detail">No matching records in the last 31 days.</span>';
+        node.appendChild(empty);
+        return;
+      }}
+      list.forEach((item) => {{
+        const row = document.createElement("div");
+        row.className = "dashboard-log-row";
+        const at = document.createElement("div");
+        at.className = "dashboard-log-time";
+        at.textContent = String(item.at || "").replace("T", " ").replace("Z", "");
+        const user = document.createElement("div");
+        user.className = "dashboard-log-user";
+        user.textContent = item.user || item.username || "";
+        const detail = document.createElement("div");
+        detail.className = "dashboard-log-detail";
+        if (mode === "login") {{
+          const client = item.client ? ` | IP: ${{item.client}}` : "";
+          const agent = item.user_agent ? ` | ${{item.user_agent}}` : "";
+          detail.textContent = `Logged in${{client}}${{agent}}`;
+        }} else {{
+          const file = item.file || item.title || item.path || "lesson";
+          const count = item.user_count ? ` | user runs: ${{item.user_count}}` : "";
+          const total = item.total ? ` | file runs: ${{item.total}}` : "";
+          const nodes = item.nodes ? ` | nodes: ${{item.nodes}}` : "";
+          detail.textContent = `Completed ${{file}}${{nodes}}${{count}}${{total}}`;
+        }}
+        row.append(at, user, detail);
+        node.appendChild(row);
+      }});
+    }};
+    const loadDashboardLog = async (mode) => {{
+      const isLogin = mode === "login";
+      const dateInput = isLogin ? loginLogDate : learningLogDate;
+      const searchInput = isLogin ? loginLogSearch : learningLogSearch;
+      const listNode = isLogin ? loginLogList : learningLogList;
+      if (!listNode) return;
+      listNode.textContent = "Loading...";
+      try {{
+        const query = new URLSearchParams();
+        if (dateInput && dateInput.value) query.set("date", dateInput.value);
+        if (searchInput && searchInput.value) query.set("search", searchInput.value);
+        query.set("limit", "1000");
+        const endpoint = isLogin ? "/dashboard/login-log" : "/dashboard/learning-log";
+        const response = await fetch(`${{endpoint}}?${{query.toString()}}`, {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not load log.");
+        }}
+        renderDashboardLogRows(listNode, payload.rows || [], mode);
+      }} catch (error) {{
+        listNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const showDashboardTab = (name) => {{
+      activeDashboardTab = name || "main";
+      dashboardTabs.forEach((item) => {{
+        if (item.panel) item.panel.hidden = item.name !== activeDashboardTab;
+        if (item.tab) item.tab.classList.toggle("is-active", item.name === activeDashboardTab);
+      }});
+      if (activeDashboardTab === "login") void loadDashboardLog("login");
+      if (activeDashboardTab === "learning") void loadDashboardLog("learning");
+      if (activeDashboardTab === "admins") void loadAdminUsers();
+      if (activeDashboardTab === "password-reset") void pollPendingUsers();
+      if (activeDashboardTab === "security") void poll();
+      if (activeDashboardTab === "email-routing") void loadEmailRouting(!emailRoutingLoaded);
+      if (activeDashboardTab === "rewards") void loadSettings();
+      if (activeDashboardTab === "qm-city") void loadSettings();
+      if (activeDashboardTab === "qm-city-npc") void loadSettings();
+      if (activeDashboardTab === "qm-city-levels") void loadSettings();
+      if (activeDashboardTab === "users") {{
+        adminOnlineRenderedSignature = "";
+        void pollChatAdmin();
+        renderOnlineUsers(adminChatState.users || [], adminChatState);
+        void pollAdminScreenPreviews();
+      }}
+    }};
+    if (tabMain) tabMain.addEventListener("click", () => showDashboardTab("main"));
+    if (tabUsers) tabUsers.addEventListener("click", () => showDashboardTab("users"));
+    if (tabLoginLog) tabLoginLog.addEventListener("click", () => showDashboardTab("login"));
+    if (tabLearningLog) tabLearningLog.addEventListener("click", () => showDashboardTab("learning"));
+    if (tabAdmins) tabAdmins.addEventListener("click", () => showDashboardTab("admins"));
+    if (tabPasswordReset) tabPasswordReset.addEventListener("click", () => showDashboardTab("password-reset"));
+    if (tabSecurity) tabSecurity.addEventListener("click", () => showDashboardTab("security"));
+    if (tabEmailRouting) tabEmailRouting.addEventListener("click", () => showDashboardTab("email-routing"));
+    if (tabWorkers) tabWorkers.addEventListener("click", () => showDashboardTab("workers"));
+    if (tabRewards) tabRewards.addEventListener("click", () => showDashboardTab("rewards"));
+    if (tabQmCity) tabQmCity.addEventListener("click", () => showDashboardTab("qm-city"));
+    if (tabQmCityNpc) tabQmCityNpc.addEventListener("click", () => showDashboardTab("qm-city-npc"));
+    if (tabQmCityLevels) tabQmCityLevels.addEventListener("click", () => showDashboardTab("qm-city-levels"));
+    if (loginLogRefresh) loginLogRefresh.addEventListener("click", () => loadDashboardLog("login"));
+    if (learningLogRefresh) learningLogRefresh.addEventListener("click", () => loadDashboardLog("learning"));
+    [emailRoutingAliasInput, emailRoutingDomainInput].forEach((node) => node && node.addEventListener("input", () => {{
+      emailRoutingSelectedId = "";
+      renderEmailRoutingMessages({{ messages: emailRoutingMessages, received_addresses: emailRoutingReceivedAddressRows }});
+    }}));
+    if (emailRoutingRandom) emailRoutingRandom.addEventListener("click", () => {{
+      if (emailRoutingAliasInput) emailRoutingAliasInput.value = randomEmailRoutingLocal();
+      selectEmailRoutingAddress();
+    }});
+    if (emailRoutingCopy) emailRoutingCopy.addEventListener("click", async () => {{
+      const address = updateEmailRoutingAddressPreview();
+      try {{
+        await navigator.clipboard.writeText(address);
+        setEmailRoutingState(`Copied ${{address}}`);
+      }} catch (error) {{
+        setEmailRoutingState(address);
+      }}
+    }});
+    if (emailRoutingAddressHistory) emailRoutingAddressHistory.addEventListener("click", () => {{
+      const panel = emailRoutingAddressHistoryPanel || emailRoutingReceivedAddressList;
+      if (!panel) return;
+      renderEmailRoutingReceivedAddresses(emailRoutingReceivedAddressRows);
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden && emailRoutingAddressSearch) emailRoutingAddressSearch.focus();
+    }});
+    if (emailRoutingAddressSearch) emailRoutingAddressSearch.addEventListener("input", () => {{
+      renderEmailRoutingReceivedAddresses(emailRoutingReceivedAddressRows);
+    }});
+    if (emailRoutingReaderBack) emailRoutingReaderBack.addEventListener("click", () => {{
+      emailRoutingSelectedId = "";
+      renderEmailRoutingMessages({{ messages: emailRoutingMessages, received_addresses: emailRoutingReceivedAddressRows }});
+    }});
+    if (emailRoutingSave) emailRoutingSave.addEventListener("click", () => saveEmailRouting(false));
+    if (emailRoutingRegenerateSecret) emailRoutingRegenerateSecret.addEventListener("click", () => saveEmailRouting(true));
+    if (emailRoutingVerifyDestination) emailRoutingVerifyDestination.addEventListener("click", () => verifyEmailRoutingDestination());
+    if (emailRoutingRefresh) emailRoutingRefresh.addEventListener("click", () => loadEmailRouting(true));
+    if (emailRoutingWorker) emailRoutingWorker.addEventListener("click", () => window.open("/dashboard/email-routing/worker.js", "_blank", "noopener"));
+    if (emailRoutingOpenFull) emailRoutingOpenFull.addEventListener("click", () => window.open("/dashboard/email-routing", "_blank", "noopener"));
+    if (emailRoutingCreateAlias) emailRoutingCreateAlias.addEventListener("click", () => createEmailRoutingAlias());
+    if (emailRoutingCreateRoute) emailRoutingCreateRoute.addEventListener("click", () => createEmailRoutingRoute());
+    [loginLogDate, loginLogSearch].forEach((node) => node && node.addEventListener("change", () => loadDashboardLog("login")));
+    [learningLogDate, learningLogSearch].forEach((node) => node && node.addEventListener("change", () => loadDashboardLog("learning")));
+    const renderAdminVoiceSelect = (select, items, fallbackKey, fallbackLabel = "") => {{
+      if (!select) return;
+      const rows = Array.isArray(items) && items.length
+        ? items
+        : (fallbackKey ? [{{ key: fallbackKey, label: fallbackLabel || fallbackKey }}] : []);
+      const previous = select.value || fallbackKey || "";
+      select.textContent = "";
+      rows.forEach((item) => {{
+        const option = document.createElement("option");
+        option.value = item.key || "";
+        option.textContent = item.label || item.key || "Voice";
+        select.appendChild(option);
+      }});
+      if (previous && rows.some((item) => item.key === previous)) {{
+        select.value = previous;
+      }} else if (fallbackKey && rows.some((item) => item.key === fallbackKey)) {{
+        select.value = fallbackKey;
+      }}
+    }};
+    const loadAdminChatVoices = async () => {{
+      if (adminChatVoiceState) adminChatVoiceState.textContent = "Loading voices...";
+      try {{
+        const response = await fetch("/chat/admin/voices?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not load voices.");
+        adminChatVoices = {{ vi: payload.vi || [], en: payload.en || [] }};
+        renderAdminVoiceSelect(adminChatViVoice, adminChatVoices.vi, "edge:vi-VN-NamMinhNeural", "Edge | Vietnamese VN | Nam Minh");
+        renderAdminVoiceSelect(adminChatEnVoice, adminChatVoices.en, "male-us", "People | Male US");
+        if (adminChatVoiceState) {{
+          const suffix = payload.error ? ` | ${{payload.error}}` : "";
+          adminChatVoiceState.textContent = `${{adminChatVoices.vi.length}} Vietnamese voices | ${{adminChatVoices.en.length}} English voices${{suffix}}`;
+        }}
+      }} catch (error) {{
+        adminChatVoices = {{
+          vi: [
+            {{ label: "Edge | Vietnamese VN | Nam Minh", key: "edge:vi-VN-NamMinhNeural" }},
+            {{ label: "Edge | Vietnamese VN | Hoai My", key: "edge:vi-VN-HoaiMyNeural" }},
+          ],
+          en: [{{ label: "People | Male US", key: "male-us" }}],
+        }};
+        renderAdminVoiceSelect(adminChatViVoice, adminChatVoices.vi, "edge:vi-VN-NamMinhNeural", "Edge | Vietnamese VN | Nam Minh");
+        renderAdminVoiceSelect(adminChatEnVoice, adminChatVoices.en, "male-us", "People | Male US");
+        if (adminChatVoiceState) adminChatVoiceState.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const renderAdminChatAudioToggles = () => {{
+      if (adminChatViAudioToggle) {{
+        adminChatViAudioToggle.classList.toggle("is-on", adminChatViAudioEnabled);
+        adminChatViAudioToggle.textContent = adminChatViAudioEnabled ? "VI audio on" : "VI audio off";
+        adminChatViAudioToggle.setAttribute("aria-pressed", adminChatViAudioEnabled ? "true" : "false");
+      }}
+      if (adminChatEnAudioToggle) {{
+        adminChatEnAudioToggle.classList.toggle("is-on", adminChatEnAudioEnabled);
+        adminChatEnAudioToggle.textContent = adminChatEnAudioEnabled ? "EN audio on" : "EN audio off";
+        adminChatEnAudioToggle.setAttribute("aria-pressed", adminChatEnAudioEnabled ? "true" : "false");
+      }}
+    }};
+    const setAdminTranslateEnabled = (enabled) => {{
+      adminTranslateEnabled = Boolean(enabled);
+      if (adminChatTranslate) {{
+        adminChatTranslate.classList.toggle("is-active", adminTranslateEnabled);
+        adminChatTranslate.textContent = adminTranslateEnabled ? "Translate to English: On" : "Translate to English";
+      }}
+    }};
+    const translateAdminDraft = async () => {{
+      const text = String(adminChatInput && adminChatInput.value || "").trim();
+      if (!text || !adminChatEnInput) return;
+      if (adminChatVoiceState) adminChatVoiceState.textContent = "Translating...";
+      try {{
+        const response = await fetch("/chat/admin/translate", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ text }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not translate.");
+        adminChatEnInput.value = payload.translation || "";
+        if (adminChatVoiceState) adminChatVoiceState.textContent = "Translation ready.";
+      }} catch (error) {{
+        if (adminChatVoiceState) adminChatVoiceState.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const queueAdminTranslate = () => {{
+      if (!adminTranslateEnabled) return;
+      window.clearTimeout(adminTranslateTimer);
+      adminTranslateTimer = window.setTimeout(() => {{
+        translateAdminDraft();
+      }}, 520);
+    }};
+    if (adminChatTranslate) {{
+      adminChatTranslate.addEventListener("click", () => {{
+        setAdminTranslateEnabled(!adminTranslateEnabled);
+        if (adminTranslateEnabled) translateAdminDraft();
+      }});
+    }}
+    if (adminChatInput) adminChatInput.addEventListener("input", queueAdminTranslate);
+    const adminChatUserRecord = (username) => (adminChatState.users || []).find((item) => item.username === username) || null;
+    const adminChatAttachments = (item = {{}}) => {{
+      const rows = Array.isArray(item.attachments) ? [...item.attachments] : [];
+      if (item.attachment && typeof item.attachment === "object") rows.push(item.attachment);
+      return rows.filter((row) => row && (row.path || row.url));
+    }};
+    const adminChatRowsSignature = (rows = []) => {{
+      const source = Array.isArray(rows) ? rows : [];
+      return source.map((item) => {{
+        const audioPath = item.audio_path || (item.audio && item.audio.path) || "";
+        const attachments = adminChatAttachments(item)
+          .map((attachment) => [
+            attachment.id || "",
+            attachment.path || attachment.url || "",
+            attachment.name || "",
+            attachment.mime || "",
+            attachment.size || "",
+          ].join(":"))
+          .join(",");
+        return [
+          item.id || "",
+          item.sender || "",
+          item.text || "",
+          item.peer_read ? "1" : "0",
+          audioPath,
+          attachments,
+        ].join("|");
+      }}).join("||");
+    }};
+    const adminAttachmentUrl = (attachment = {{}}, download = false) => {{
+      const raw = String(download
+        ? attachment.download_url || attachment.downloadUrl || attachment.url || attachment.path || ""
+        : attachment.url || attachment.path || "");
+      if (!raw) return "";
+      if (/^https?:\\/\\//i.test(raw) || raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
+      if (raw.startsWith("/")) return raw;
+      return `/chat/attachment?path=${{encodeURIComponent(raw)}}${{download ? "&download=1" : ""}}`;
+    }};
+    const formatAdminAttachmentSize = (size) => {{
+      const value = Number(size || 0);
+      if (!value) return "";
+      if (value >= 1024 * 1024) return `${{(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)}} MB`;
+      if (value >= 1024) return `${{Math.round(value / 1024)}} KB`;
+      return `${{value}} B`;
+    }};
+    const applyAdminImageTransform = () => {{
+      if (!adminImageViewerImg) return;
+      adminImageViewerImg.style.transform = `translate(${{adminImageViewerState.x}}px, ${{adminImageViewerState.y}}px) scale(${{adminImageViewerState.zoom}})`;
+      if (adminImageZoomReset) adminImageZoomReset.textContent = `${{Math.round(adminImageViewerState.zoom * 100)}}%`;
+    }};
+    const resetAdminImageTransform = () => {{
+      adminImageViewerState.zoom = 1;
+      adminImageViewerState.x = 0;
+      adminImageViewerState.y = 0;
+      adminImageViewerState.dragging = false;
+      if (adminImageViewerImg) adminImageViewerImg.classList.remove("is-dragging");
+      applyAdminImageTransform();
+    }};
+    const setAdminImageZoom = (zoom) => {{
+      adminImageViewerState.zoom = Math.max(0.25, Math.min(6, Number(zoom) || 1));
+      applyAdminImageTransform();
+    }};
+    const openAdminImageViewer = (src, downloadSrc = "", name = "") => {{
+      if (!adminImageViewer || !adminImageViewerImg) {{
+        window.open(src, "_blank", "noopener");
+        return;
+      }}
+      resetAdminImageTransform();
+      adminImageViewerImg.src = src;
+      adminImageViewerImg.alt = name || "Chat image";
+      if (adminImageDownload) {{
+        adminImageDownload.href = downloadSrc || src;
+        adminImageDownload.setAttribute("download", name || "chat-image");
+      }}
+      adminImageViewer.classList.add("is-open");
+    }};
+    const closeAdminImageViewer = () => {{
+      if (!adminImageViewer) return;
+      resetAdminImageTransform();
+      adminImageViewer.classList.remove("is-open");
+      if (adminImageViewerImg) adminImageViewerImg.removeAttribute("src");
+    }};
+    const beginAdminImageDrag = (event) => {{
+      if (!adminImageViewerImg || !adminImageViewer || !adminImageViewer.classList.contains("is-open")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      adminImageViewerState.dragging = true;
+      adminImageViewerState.pointerId = event.pointerId;
+      adminImageViewerState.startX = event.clientX;
+      adminImageViewerState.startY = event.clientY;
+      adminImageViewerState.originX = adminImageViewerState.x;
+      adminImageViewerState.originY = adminImageViewerState.y;
+      adminImageViewerImg.classList.add("is-dragging");
+      try {{ adminImageViewerImg.setPointerCapture(event.pointerId); }} catch (error) {{}}
+    }};
+    const moveAdminImageDrag = (event) => {{
+      if (!adminImageViewerState.dragging) return;
+      event.preventDefault();
+      adminImageViewerState.x = adminImageViewerState.originX + event.clientX - adminImageViewerState.startX;
+      adminImageViewerState.y = adminImageViewerState.originY + event.clientY - adminImageViewerState.startY;
+      applyAdminImageTransform();
+    }};
+    const endAdminImageDrag = (event) => {{
+      if (!adminImageViewerState.dragging) return;
+      adminImageViewerState.dragging = false;
+      if (adminImageViewerImg) {{
+        adminImageViewerImg.classList.remove("is-dragging");
+        try {{ adminImageViewerImg.releasePointerCapture(event.pointerId); }} catch (error) {{}}
+      }}
+    }};
+    const setAdminPaintStatus = (message) => {{
+      if (adminPaintStatus) adminPaintStatus.textContent = message || "";
+    }};
+    const adminPaintCtx = () => adminPaintCanvas ? adminPaintCanvas.getContext("2d") : null;
+    const adminPaintBufferCtx = () => {{
+      if (!adminPaintBufferCanvas) {{
+        adminPaintBufferCanvas = document.createElement("canvas");
+        adminPaintBufferCanvas.width = ADMIN_PAINT_BOARD_WIDTH;
+        adminPaintBufferCanvas.height = ADMIN_PAINT_BOARD_HEIGHT;
+      }}
+      return adminPaintBufferCanvas.getContext("2d");
+    }};
+    const adminPaintEnsureBuffer = () => {{
+      if (!adminPaintBufferCanvas) {{
+        adminPaintBufferCanvas = document.createElement("canvas");
+      }}
+      if (adminPaintBufferCanvas.width === ADMIN_PAINT_BOARD_WIDTH && adminPaintBufferCanvas.height === ADMIN_PAINT_BOARD_HEIGHT) return;
+      const previous = adminPaintBufferCanvas;
+      const next = document.createElement("canvas");
+      next.width = ADMIN_PAINT_BOARD_WIDTH;
+      next.height = ADMIN_PAINT_BOARD_HEIGHT;
+      const ctx = next.getContext("2d");
+      if (ctx && previous.width && previous.height) {{
+        ctx.drawImage(previous, 0, 0, previous.width, previous.height, 0, 0, next.width, next.height);
+      }}
+      adminPaintBufferCanvas = next;
+    }};
+    const drawAdminPaintGrid = (ctx, width, height) => {{
+      ctx.fillStyle = "#f7fff9";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.055)";
+      ctx.lineWidth = 1;
+      for (let x = 24; x < width; x += 24) {{
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }}
+      for (let y = 24; y < height; y += 24) {{
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }}
+    }};
+    const adminPaintClamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const adminPaintSelectionBounds = () => adminPaintSelection
+      ? {{ x: adminPaintSelection.x, y: adminPaintSelection.y, w: adminPaintSelection.w, h: adminPaintSelection.h }}
+      : null;
+    const adminPaintPointInBounds = (point, bounds, pad = 0) => Boolean(bounds
+      && point.x >= bounds.x - pad
+      && point.y >= bounds.y - pad
+      && point.x <= bounds.x + bounds.w + pad
+      && point.y <= bounds.y + bounds.h + pad);
+    const adminPaintHandleBounds = (bounds) => ({{
+      x: bounds.x + bounds.w - 8,
+      y: bounds.y + bounds.h - 8,
+      w: 16,
+      h: 16,
+    }});
+    const adminPaintRect = (start, end) => {{
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const w = Math.abs(end.x - start.x);
+      const h = Math.abs(end.y - start.y);
+      return {{ x, y, w, h }};
+    }};
+    const adminPaintSelectionCanvas = (imageData) => {{
+      const canvas = document.createElement("canvas");
+      canvas.width = imageData.width;
+      canvas.height = imageData.height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.putImageData(imageData, 0, 0);
+      return canvas;
+    }};
+    const createAdminPaintSelection = (rect) => {{
+      adminPaintEnsureBuffer();
+      if (!adminPaintBufferCanvas) return;
+      const safeRect = {{
+        x: Math.round(adminPaintClamp(rect.x, 0, adminPaintBufferCanvas.width)),
+        y: Math.round(adminPaintClamp(rect.y, 0, adminPaintBufferCanvas.height)),
+        w: Math.round(Math.max(0, rect.w)),
+        h: Math.round(Math.max(0, rect.h)),
+      }};
+      safeRect.w = Math.min(safeRect.w, adminPaintBufferCanvas.width - safeRect.x);
+      safeRect.h = Math.min(safeRect.h, adminPaintBufferCanvas.height - safeRect.y);
+      if (safeRect.w < 5 || safeRect.h < 5) {{
+        adminPaintSelection = null;
+        return;
+      }}
+      const ctx = adminPaintBufferCtx();
+      if (!ctx) return;
+      const imageData = ctx.getImageData(safeRect.x, safeRect.y, safeRect.w, safeRect.h);
+      ctx.clearRect(safeRect.x, safeRect.y, safeRect.w, safeRect.h);
+      adminPaintSelection = {{
+        ...safeRect,
+        canvas: adminPaintSelectionCanvas(imageData),
+        kind: "region",
+      }};
+    }};
+    const renderAdminPaintSelection = (ctx) => {{
+      const selection = adminPaintSelection;
+      if (!selection) return;
+      if (selection.canvas) {{
+        ctx.drawImage(selection.canvas, selection.x, selection.y, selection.w, selection.h);
+      }}
+      ctx.save();
+      ctx.setLineDash([7, 5]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#ff8e48";
+      ctx.strokeRect(selection.x, selection.y, selection.w, selection.h);
+      ctx.setLineDash([]);
+      const handle = adminPaintHandleBounds(selection);
+      ctx.fillStyle = "#ff8e48";
+      ctx.strokeStyle = "#061112";
+      ctx.fillRect(handle.x, handle.y, handle.w, handle.h);
+      ctx.strokeRect(handle.x, handle.y, handle.w, handle.h);
+      ctx.restore();
+    }};
+    const renderAdminPaintDraftRect = (ctx) => {{
+      if (!adminPaintPointer || adminPaintPointer.type !== "select-region") return;
+      const rect = adminPaintRect(adminPaintPointer.start, adminPaintPointer.current || adminPaintPointer.start);
+      if (rect.w < 2 || rect.h < 2) return;
+      ctx.save();
+      ctx.setLineDash([7, 5]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#46f0d7";
+      ctx.fillStyle = "rgba(70, 240, 215, 0.08)";
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+    }};
+    const commitAdminPaintSelection = () => {{
+      if (!adminPaintSelection || !adminPaintSelection.canvas) {{
+        adminPaintSelection = null;
+        return;
+      }}
+      adminPaintEnsureBuffer();
+      const ctx = adminPaintBufferCtx();
+      if (ctx && adminPaintBufferCanvas) {{
+        ctx.drawImage(
+          adminPaintSelection.canvas,
+          Math.round(adminPaintSelection.x),
+          Math.round(adminPaintSelection.y),
+          Math.round(adminPaintSelection.w),
+          Math.round(adminPaintSelection.h)
+        );
+      }}
+      adminPaintSelection = null;
+    }};
+    const updateAdminPaintZoomLabel = () => {{
+      if (adminPaintZoomLabel) adminPaintZoomLabel.textContent = `${{Math.round(adminPaintZoom * 100)}}%`;
+    }};
+    const setAdminPaintZoom = (nextZoom) => {{
+      adminPaintZoom = adminPaintClamp(Number(nextZoom || 1), 0.35, 3);
+      updateAdminPaintZoomLabel();
+      resizeAdminPaintCanvas();
+      if (adminPaintCanvas && adminPaintCanvas.parentElement) {{
+        const stage = adminPaintCanvas.parentElement;
+        stage.scrollLeft = Math.max(0, (stage.scrollWidth - stage.clientWidth) / 2);
+        stage.scrollTop = Math.max(0, (stage.scrollHeight - stage.clientHeight) / 2);
+      }}
+    }};
+    const adminPaintExportCanvas = () => {{
+      adminPaintEnsureBuffer();
+      if (!adminPaintBufferCanvas) return null;
+      const canvas = document.createElement("canvas");
+      canvas.width = adminPaintBufferCanvas.width;
+      canvas.height = adminPaintBufferCanvas.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      ctx.drawImage(adminPaintBufferCanvas, 0, 0);
+      if (adminPaintSelection && adminPaintSelection.canvas) {{
+        ctx.drawImage(
+          adminPaintSelection.canvas,
+          Math.round(adminPaintSelection.x),
+          Math.round(adminPaintSelection.y),
+          Math.round(adminPaintSelection.w),
+          Math.round(adminPaintSelection.h)
+        );
+      }}
+      return canvas;
+    }};
+    const fitAdminPaintCanvasElement = () => {{
+      if (!adminPaintCanvas || !adminPaintCanvas.parentElement) return;
+      const stage = adminPaintCanvas.parentElement;
+      const rect = stage.getBoundingClientRect();
+      if (rect.width < 20 || rect.height < 20) return;
+      const styles = window.getComputedStyle(stage);
+      const padX = Number.parseFloat(styles.paddingLeft || "0") + Number.parseFloat(styles.paddingRight || "0");
+      const padY = Number.parseFloat(styles.paddingTop || "0") + Number.parseFloat(styles.paddingBottom || "0");
+      const availableWidth = Math.max(1, rect.width - padX);
+      const availableHeight = Math.max(1, rect.height - padY);
+      const ratio = ADMIN_PAINT_BOARD_WIDTH / ADMIN_PAINT_BOARD_HEIGHT;
+      let cssWidth = availableWidth;
+      let cssHeight = cssWidth / ratio;
+      if (cssHeight > availableHeight) {{
+        cssHeight = availableHeight;
+        cssWidth = cssHeight * ratio;
+      }}
+      cssWidth *= adminPaintZoom;
+      cssHeight *= adminPaintZoom;
+      adminPaintCanvas.style.width = `${{Math.max(1, Math.floor(cssWidth))}}px`;
+      adminPaintCanvas.style.height = `${{Math.max(1, Math.floor(cssHeight))}}px`;
+    }};
+    const resizeAdminPaintCanvas = () => {{
+      if (!adminPaintCanvas) return;
+      fitAdminPaintCanvasElement();
+      const rect = adminPaintCanvas.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const cssWidth = Math.max(1, rect.width || adminPaintCanvas.clientWidth || 900);
+      const cssHeight = Math.max(1, rect.height || adminPaintCanvas.clientHeight || 560);
+      const nextWidth = Math.max(1, Math.round(cssWidth * dpr));
+      const nextHeight = Math.max(1, Math.round(cssHeight * dpr));
+      if (adminPaintCanvas.width !== nextWidth || adminPaintCanvas.height !== nextHeight) {{
+        adminPaintCanvas.width = nextWidth;
+        adminPaintCanvas.height = nextHeight;
+      }}
+      adminPaintEnsureBuffer();
+      const ctx = adminPaintCtx();
+      if (!ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, adminPaintCanvas.width, adminPaintCanvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawAdminPaintGrid(ctx, cssWidth, cssHeight);
+      if (adminPaintBufferCanvas) {{
+        ctx.drawImage(adminPaintBufferCanvas, 0, 0, adminPaintBufferCanvas.width, adminPaintBufferCanvas.height, 0, 0, cssWidth, cssHeight);
+      }}
+      const boardWidth = adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH;
+      const boardHeight = adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT;
+      ctx.save();
+      ctx.scale(cssWidth / Math.max(1, boardWidth), cssHeight / Math.max(1, boardHeight));
+      renderAdminPaintSelection(ctx);
+      renderAdminPaintDraftRect(ctx);
+      ctx.restore();
+      positionAdminPaintRemoteCursor();
+    }};
+    const adminPaintPoint = (event) => {{
+      adminPaintEnsureBuffer();
+      const rect = adminPaintCanvas.getBoundingClientRect();
+      const boardWidth = adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH;
+      const boardHeight = adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT;
+      return {{
+        x: Math.max(0, Math.min(boardWidth, (event.clientX - rect.left) * boardWidth / Math.max(1, rect.width))),
+        y: Math.max(0, Math.min(boardHeight, (event.clientY - rect.top) * boardHeight / Math.max(1, rect.height))),
+      }};
+    }};
+    const ensureAdminPaintRemoteCursorNode = () => {{
+      if (adminPaintRemoteCursorNode && adminPaintRemoteCursorNode.isConnected) return adminPaintRemoteCursorNode;
+      const stage = adminPaintCanvas && adminPaintCanvas.parentElement;
+      if (!stage) return null;
+      const node = document.createElement("div");
+      node.className = "admin-paint-remote-cursor";
+      node.setAttribute("aria-hidden", "true");
+      const label = document.createElement("span");
+      label.className = "admin-paint-remote-label";
+      label.textContent = adminPaintUser || "User";
+      node.appendChild(label);
+      stage.appendChild(node);
+      adminPaintRemoteCursorNode = node;
+      return node;
+    }};
+    const hideAdminPaintRemoteCursor = () => {{
+      if (adminPaintRemoteCursorNode) adminPaintRemoteCursorNode.classList.remove("is-visible");
+    }};
+    const positionAdminPaintRemoteCursor = () => {{
+      const cursor = adminPaintRemoteCursor;
+      const node = ensureAdminPaintRemoteCursorNode();
+      if (!node || !adminPaintCanvas || !cursor || !cursor.visible) {{
+        hideAdminPaintRemoteCursor();
+        return;
+      }}
+      const canvasRect = adminPaintCanvas.getBoundingClientRect();
+      if (canvasRect.width < 2 || canvasRect.height < 2) {{
+        hideAdminPaintRemoteCursor();
+        return;
+      }}
+      const boardWidth = Number(cursor.width || 0) || (adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH);
+      const boardHeight = Number(cursor.height || 0) || (adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT);
+      const x = adminPaintClamp(Number(cursor.x || 0), 0, boardWidth) * canvasRect.width / Math.max(1, boardWidth);
+      const y = adminPaintClamp(Number(cursor.y || 0), 0, boardHeight) * canvasRect.height / Math.max(1, boardHeight);
+      const left = adminPaintCanvas.offsetLeft + x;
+      const top = adminPaintCanvas.offsetTop + y;
+      const label = node.querySelector(".admin-paint-remote-label");
+      if (label) {{
+        const mode = String(cursor.mode || "").trim();
+        const name = String(cursor.label || adminPaintUser || "User").trim() || "User";
+        label.textContent = `${{name}}${{mode ? " | " + mode : ""}}`;
+      }}
+      node.style.transform = `translate3d(${{left.toFixed(1)}}px, ${{top.toFixed(1)}}px, 0)`;
+      node.classList.add("is-visible");
+    }};
+    const renderAdminPaintRemoteCursor = (cursor = null) => {{
+      adminPaintRemoteCursor = cursor && cursor.visible ? cursor : null;
+      positionAdminPaintRemoteCursor();
+    }};
+    const adminPaintCursorPayload = (point, visible = true) => {{
+      adminPaintEnsureBuffer();
+      const boardWidth = adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH;
+      const boardHeight = adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT;
+      return {{
+        x: adminPaintClamp(Number(point && point.x || 0), 0, boardWidth),
+        y: adminPaintClamp(Number(point && point.y || 0), 0, boardHeight),
+        width: boardWidth,
+        height: boardHeight,
+        visible: Boolean(visible),
+        mode: adminPaintMode || "paint",
+        label: "Admin",
+      }};
+    }};
+    const sendAdminPaintCursor = async () => {{
+      if (!adminPaintUser || !adminPaintLocalCursor || adminPaintCursorSending) return;
+      if (adminScreenUser === adminPaintUser && adminScreenControlChannelOpen()) return;
+      adminPaintCursorSending = true;
+      adminPaintLastCursorSentAt = Date.now();
+      try {{
+        await fetch("/paint/admin/cursor", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username: adminPaintUser, cursor: adminPaintLocalCursor }}),
+        }});
+      }} catch (error) {{
+      }} finally {{
+        adminPaintCursorSending = false;
+      }}
+    }};
+    const scheduleAdminPaintCursorSync = (delay = 20) => {{
+      if (!adminPaintUser || !adminPaintLocalCursor) return;
+      const elapsed = Date.now() - adminPaintLastCursorSentAt;
+      const wait = Math.max(delay, 220 - elapsed, 0);
+      window.clearTimeout(adminPaintCursorTimer);
+      adminPaintCursorTimer = window.setTimeout(() => void sendAdminPaintCursor(), wait);
+    }};
+    const updateAdminPaintLocalCursor = (event, visible = true) => {{
+      if (!adminPaintCanvas || !adminPaintUser) return;
+      const point = visible ? adminPaintPoint(event) : (adminPaintLocalCursor || {{ x: 0, y: 0 }});
+      adminPaintLocalCursor = adminPaintCursorPayload(point, visible);
+      scheduleAdminPaintCursorSync(visible ? 120 : 0);
+    }};
+    const setAdminPaintMode = (mode) => {{
+      const nextMode = ["select", "pen", "eraser", "text"].includes(mode) ? mode : "pen";
+      if (adminPaintTextEditor && nextMode !== "text") {{
+        commitAdminPaintTextEditor();
+      }}
+      if (adminPaintSelection && nextMode !== "select") {{
+        commitAdminPaintSelection();
+        scheduleAdminPaintSync(120);
+      }}
+      adminPaintMode = nextMode;
+      adminPaintModeButtons.forEach((button) => {{
+        const active = button.dataset.adminPaintMode === adminPaintMode;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      }});
+      resizeAdminPaintCanvas();
+    }};
+    const clearAdminPaintCanvas = () => {{
+      cancelAdminPaintTextEditor();
+      adminPaintSelection = null;
+      adminPaintEnsureBuffer();
+      const ctx = adminPaintBufferCtx();
+      if (ctx && adminPaintBufferCanvas) {{
+        ctx.clearRect(0, 0, adminPaintBufferCanvas.width, adminPaintBufferCanvas.height);
+      }}
+      resizeAdminPaintCanvas();
+    }};
+    const deleteAdminPaintSelection = () => {{
+      if (!adminPaintSelection) {{
+        setAdminPaintStatus("Select or insert a picture first.");
+        return;
+      }}
+      adminPaintSelection = null;
+      adminPaintPointer = null;
+      resizeAdminPaintCanvas();
+      scheduleAdminPaintSync(80);
+    }};
+    const addAdminPaintImageFromDataUrl = (dataUrl) => {{
+      const source = String(dataUrl || "");
+      if (!source.startsWith("data:image/")) {{
+        setAdminPaintStatus("Clipboard does not contain an image.");
+        return;
+      }}
+      commitAdminPaintSelection();
+      adminPaintEnsureBuffer();
+      const image = new Image();
+      image.onload = () => {{
+        const boardWidth = adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH;
+        const boardHeight = adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT;
+        const maxWidth = boardWidth * 0.7;
+        const maxHeight = boardHeight * 0.7;
+        const naturalWidth = Math.max(1, image.naturalWidth || image.width || maxWidth);
+        const naturalHeight = Math.max(1, image.naturalHeight || image.height || maxHeight);
+        const scale = Math.min(1, maxWidth / naturalWidth, maxHeight / naturalHeight);
+        const width = Math.max(24, Math.round(naturalWidth * scale));
+        const height = Math.max(24, Math.round(naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = naturalWidth;
+        canvas.height = naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) ctx.drawImage(image, 0, 0, naturalWidth, naturalHeight);
+        adminPaintSelection = {{
+          x: Math.round((boardWidth - width) / 2),
+          y: Math.round((boardHeight - height) / 2),
+          w: width,
+          h: height,
+          canvas,
+          kind: "image",
+        }};
+        setAdminPaintMode("select");
+        resizeAdminPaintCanvas();
+        scheduleAdminPaintSync(120);
+        setAdminPaintStatus("Picture inserted. Drag it or pull the corner to resize.");
+      }};
+      image.onerror = () => setAdminPaintStatus("Could not load picture.");
+      image.src = source;
+    }};
+    const addAdminPaintImageFile = (file) => {{
+      if (!file || !String(file.type || "").startsWith("image/")) {{
+        setAdminPaintStatus("Choose an image file.");
+        return;
+      }}
+      const reader = new FileReader();
+      reader.onload = () => addAdminPaintImageFromDataUrl(String(reader.result || ""));
+      reader.onerror = () => setAdminPaintStatus("Could not read picture.");
+      reader.readAsDataURL(file);
+    }};
+    const pasteAdminPaintImageFromClipboard = async () => {{
+      if (navigator.clipboard && navigator.clipboard.read) {{
+        try {{
+          const items = await navigator.clipboard.read();
+          for (const item of items) {{
+            const imageType = item.types.find((type) => String(type || "").startsWith("image/"));
+            if (imageType) {{
+              const blob = await item.getType(imageType);
+              addAdminPaintImageFile(blob);
+              return;
+            }}
+          }}
+        }} catch (error) {{
+        }}
+      }}
+      setAdminPaintStatus("Copy an image, then press Ctrl+V while Paint is open.");
+    }};
+    const drawAdminPaintLine = (from, to, eraser = false) => {{
+      adminPaintEnsureBuffer();
+      const ctx = adminPaintBufferCtx();
+      if (!ctx) return;
+      const size = Math.max(1, Number(adminPaintSize && adminPaintSize.value || 6));
+      ctx.save();
+      ctx.globalCompositeOperation = eraser ? "destination-out" : "source-over";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = eraser ? Math.max(14, size * 2.4) : size;
+      ctx.strokeStyle = adminPaintColor && adminPaintColor.value || "#0f172a";
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+      ctx.restore();
+      resizeAdminPaintCanvas();
+    }};
+    const adminPaintTextLines = (text) => {{
+      const raw = String(text == null ? "" : text).replace(/\\r/g, "");
+      const lines = raw.split("\\n").slice(0, 8);
+      return lines.length ? lines : ["Text"];
+    }};
+    const adminPaintCurrentTextSize = () => adminPaintClamp(14 + Math.max(1, Number(adminPaintSize && adminPaintSize.value || 6)) * 2.2, 16, 82);
+    const drawAdminPaintTextToBuffer = (options = {{}}) => {{
+      const text = String(options.text == null ? "" : options.text).trim();
+      if (!text) return;
+      adminPaintEnsureBuffer();
+      const ctx = adminPaintBufferCtx();
+      if (!ctx) return;
+      const size = Math.max(10, Number(options.size || adminPaintCurrentTextSize()));
+      ctx.save();
+      ctx.fillStyle = options.color || adminPaintColor && adminPaintColor.value || "#0f172a";
+      ctx.font = `900 ${{size}}px Inter, Segoe UI, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      adminPaintTextLines(text).forEach((line, index) => {{
+        ctx.fillText(line || " ", Number(options.x || 0), Number(options.y || 0) + index * size * 1.24);
+      }});
+      ctx.restore();
+      resizeAdminPaintCanvas();
+    }};
+    const cancelAdminPaintTextEditor = () => {{
+      if (adminPaintTextEditor) {{
+        adminPaintTextEditor.remove();
+        adminPaintTextEditor = null;
+      }}
+    }};
+    const commitAdminPaintTextEditor = () => {{
+      const editor = adminPaintTextEditor;
+      if (!editor) return;
+      adminPaintTextEditor = null;
+      const text = String(editor.value || "").trim();
+      if (text) {{
+        drawAdminPaintTextToBuffer({{
+          text,
+          x: Number(editor.dataset.paintX || 0),
+          y: Number(editor.dataset.paintY || 0),
+          color: editor.dataset.paintColor || adminPaintColor && adminPaintColor.value || "#0f172a",
+          size: Number(editor.dataset.paintSize || adminPaintCurrentTextSize()),
+        }});
+        if (adminPaintText) adminPaintText.value = text;
+      }}
+      editor.remove();
+      resizeAdminPaintCanvas();
+      scheduleAdminPaintSync(120);
+    }};
+    const showAdminPaintTextEditor = (point) => {{
+      commitAdminPaintSelection();
+      cancelAdminPaintTextEditor();
+      if (!adminPaintCanvas) return;
+      const stage = adminPaintCanvas.parentElement;
+      if (!stage) return;
+      const canvasRect = adminPaintCanvas.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const size = adminPaintCurrentTextSize();
+      adminPaintEnsureBuffer();
+      const boardWidth = adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH;
+      const boardHeight = adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT;
+      const displayX = point.x * canvasRect.width / Math.max(1, boardWidth);
+      const displayY = point.y * canvasRect.height / Math.max(1, boardHeight);
+      const displaySize = adminPaintClamp(size * Math.min(
+        canvasRect.width / Math.max(1, boardWidth),
+        canvasRect.height / Math.max(1, boardHeight)
+      ), 12, 72);
+      const editor = document.createElement("textarea");
+      editor.className = "admin-paint-text-editor";
+      editor.value = String(adminPaintText && adminPaintText.value || "").trim();
+      editor.placeholder = "Type text";
+      editor.dataset.paintX = String(point.x);
+      editor.dataset.paintY = String(point.y);
+      editor.dataset.paintColor = adminPaintColor && adminPaintColor.value || "#0f172a";
+      editor.dataset.paintSize = String(size);
+      editor.style.left = `${{adminPaintClamp(canvasRect.left - stageRect.left + displayX + stage.scrollLeft, 12, Math.max(12, stage.scrollWidth - 180))}}px`;
+      editor.style.top = `${{adminPaintClamp(canvasRect.top - stageRect.top + displayY + stage.scrollTop, 12, Math.max(12, stage.scrollHeight - 76))}}px`;
+      editor.style.fontSize = `${{displaySize}}px`;
+      editor.style.color = editor.dataset.paintColor;
+      ["pointerdown", "mousedown", "click", "touchstart"].forEach((name) => {{
+        editor.addEventListener(name, (event) => event.stopPropagation());
+      }});
+      editor.addEventListener("keydown", (event) => {{
+        event.stopPropagation();
+        if (event.key === "Enter" && !event.shiftKey) {{
+          event.preventDefault();
+          commitAdminPaintTextEditor();
+        }} else if (event.key === "Escape") {{
+          event.preventDefault();
+          cancelAdminPaintTextEditor();
+          resizeAdminPaintCanvas();
+        }}
+      }});
+      editor.addEventListener("input", () => {{
+        if (adminPaintText) adminPaintText.value = editor.value;
+      }});
+      editor.addEventListener("blur", () => {{
+        window.setTimeout(() => {{
+          if (adminPaintTextEditor === editor) commitAdminPaintTextEditor();
+        }}, 80);
+      }});
+      stage.appendChild(editor);
+      adminPaintTextEditor = editor;
+      editor.focus({{ preventScroll: true }});
+      editor.select();
+      window.setTimeout(() => editor.focus({{ preventScroll: true }}), 30);
+    }};
+    const adminPaintSnapshot = () => {{
+      const exportCanvas = adminPaintExportCanvas();
+      return exportCanvas ? exportCanvas.toDataURL("image/png") : "";
+    }};
+    const sendAdminPaintSnapshot = async () => {{
+      if (!adminPaintUser || !adminPaintCanvas || adminPaintSending || adminPaintApplyingRemote) return;
+      adminPaintSending = true;
+      try {{
+        const response = await fetch("/paint/admin/sync", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{
+            username: adminPaintUser,
+            data: adminPaintSnapshot(),
+            width: ADMIN_PAINT_BOARD_WIDTH,
+            height: ADMIN_PAINT_BOARD_HEIGHT,
+          }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not sync paint.");
+        if (payload.state) adminPaintRevision = Math.max(adminPaintRevision, Number(payload.state.revision || 0));
+        if (payload.users) {{
+          adminChatState = {{ users: payload.users || [], online_count: Number(payload.online_count || 0) }};
+          renderOnlineUsers(adminChatState.users, adminChatState);
+        }}
+        setAdminPaintStatus(`Paint synced rev ${{adminPaintRevision || 0}}.`);
+      }} catch (error) {{
+        setAdminPaintStatus(String(error && error.message ? error.message : error));
+      }} finally {{
+        adminPaintSending = false;
+      }}
+    }};
+    const scheduleAdminPaintSync = (delay = 180) => {{
+      window.clearTimeout(adminPaintSendTimer);
+      adminPaintSendTimer = window.setTimeout(() => void sendAdminPaintSnapshot(), delay);
+    }};
+    const applyAdminPaintState = (state = {{}}) => {{
+      const revision = Number(state.revision || 0);
+      if (!revision || revision <= adminPaintRevision || adminPaintPointer || adminPaintSelection || adminPaintTextEditor) return;
+      adminPaintRevision = revision;
+      adminPaintApplyingRemote = true;
+      const data = String(state.data || "");
+      if (!data) {{
+        clearAdminPaintCanvas();
+        adminPaintApplyingRemote = false;
+        setAdminPaintStatus(`Paint rev ${{revision}}.`);
+        return;
+      }}
+      const image = new Image();
+      image.onload = () => {{
+        adminPaintEnsureBuffer();
+        const ctx = adminPaintBufferCtx();
+        if (ctx && adminPaintBufferCanvas) {{
+          ctx.clearRect(0, 0, adminPaintBufferCanvas.width, adminPaintBufferCanvas.height);
+          ctx.drawImage(image, 0, 0, adminPaintBufferCanvas.width, adminPaintBufferCanvas.height);
+        }}
+        resizeAdminPaintCanvas();
+        adminPaintApplyingRemote = false;
+        setAdminPaintStatus(`Paint rev ${{revision}} from ${{state.updated_by || "user"}}.`);
+      }};
+      image.onerror = () => {{
+        adminPaintApplyingRemote = false;
+        setAdminPaintStatus("Could not load remote paint.");
+      }};
+      image.src = data;
+    }};
+    const adminPaintPollDelay = (changed = false) => {{
+      if (!dashboardPollIsFocused()) return DASHBOARD_HIDDEN_POLL_MS;
+      if (changed) return 320;
+      const recent = Date.now() - Math.max(Number(adminPaintLastPollChangedAt || 0), Number(adminPaintLastRemoteCursorAt || 0));
+      return recent < 2500 ? 450 : 1200;
+    }};
+    const adminPaintCoveredByScreenWebRtc = () => Boolean(
+      adminPaintUser
+      && adminScreenUser === adminPaintUser
+      && adminScreenSession
+      && adminScreenSession.state === "active"
+      && adminScreenControlChannelOpen()
+    );
+    const scheduleAdminPaintPoll = (delay = 0) => {{
+      if (!adminPaintUser) return;
+      window.clearTimeout(adminPaintPollTimer);
+      adminPaintPollTimer = window.setTimeout(() => void pollAdminPaint({{ scheduleNext: true }}), Math.max(250, Number(delay) || 0));
+    }};
+    const pollAdminPaint = async (options = {{}}) => {{
+      if (!adminPaintUser || adminPaintPollInFlight) return;
+      if (adminPaintCoveredByScreenWebRtc()) {{
+        if (options && options.scheduleNext && adminPaintUser) {{
+          scheduleAdminPaintPoll(3000);
+        }}
+        return;
+      }}
+      adminPaintPollInFlight = true;
+      let changed = false;
+      try {{
+        const response = await fetch(`/paint/admin/state?username=${{encodeURIComponent(adminPaintUser)}}&after=${{encodeURIComponent(String(adminPaintRevision || 0))}}`, {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not poll paint.");
+        if (payload.state) {{
+          const previousRevision = Number(adminPaintRevision || 0);
+          const userCursor = payload.state.cursors && payload.state.cursors.user;
+          const cursorAt = Number(userCursor && userCursor.updated_at || 0);
+          if (cursorAt && cursorAt !== adminPaintLastRemoteCursorAt) {{
+            adminPaintLastRemoteCursorAt = cursorAt;
+            changed = true;
+          }}
+          renderAdminPaintRemoteCursor(payload.state.cursors && payload.state.cursors.user);
+          applyAdminPaintState(payload.state);
+          if (Number(adminPaintRevision || 0) !== previousRevision) {{
+            changed = true;
+          }}
+          if (changed) adminPaintLastPollChangedAt = Date.now();
+        }}
+      }} catch (error) {{
+        setAdminPaintStatus(String(error && error.message ? error.message : error));
+      }} finally {{
+        adminPaintPollInFlight = false;
+        if (options && options.scheduleNext && adminPaintUser) {{
+          scheduleAdminPaintPoll(adminPaintPollDelay(changed));
+        }}
+      }}
+    }};
+    const stopAdminPaintPolling = () => {{
+      if (adminPaintPollTimer) {{
+        window.clearTimeout(adminPaintPollTimer);
+        adminPaintPollTimer = 0;
+      }}
+      adminPaintPollInFlight = false;
+    }};
+    const startAdminPaintPolling = () => {{
+      stopAdminPaintPolling();
+      void pollAdminPaint({{ scheduleNext: true }});
+    }};
+    document.addEventListener("visibilitychange", () => {{
+      if (!adminPaintUser) return;
+      scheduleAdminPaintPoll(dashboardPollIsFocused() ? 0 : DASHBOARD_HIDDEN_POLL_MS);
+    }});
+    window.addEventListener("focus", () => {{
+      if (adminPaintUser) scheduleAdminPaintPoll(0);
+    }});
+    window.addEventListener("blur", () => {{
+      if (adminPaintUser) scheduleAdminPaintPoll(DASHBOARD_HIDDEN_POLL_MS);
+    }});
+    const openAdminPaint = (itemOrUsername) => {{
+      const username = typeof itemOrUsername === "string" ? itemOrUsername : (itemOrUsername && itemOrUsername.username || "");
+      if (!username) return;
+      adminPaintUser = username;
+      adminPaintRevision = 0;
+      adminPaintSelection = null;
+      cancelAdminPaintTextEditor();
+      if (adminPaintTitle) adminPaintTitle.textContent = `Paint with ${{username}}`;
+      document.documentElement.classList.add("admin-paint-performance-mode");
+      if (adminPaintModal) adminPaintModal.classList.add("is-open");
+      if (typeof pollChatAdmin === "function") void pollChatAdmin();
+      window.requestAnimationFrame(() => {{
+        resizeAdminPaintCanvas();
+        clearAdminPaintCanvas();
+        startAdminPaintPolling();
+      }});
+      setAdminPaintStatus("Paint sync connecting...");
+    }};
+    const closeAdminPaint = () => {{
+      if (adminPaintTextEditor) {{
+        commitAdminPaintTextEditor();
+      }}
+      if (adminPaintSelection) {{
+        commitAdminPaintSelection();
+        scheduleAdminPaintSync(80);
+      }}
+      if (adminPaintModal) adminPaintModal.classList.remove("is-open");
+      document.documentElement.classList.remove("admin-paint-performance-mode");
+      stopAdminPaintPolling();
+      adminPaintLocalCursor = adminPaintCursorPayload(adminPaintLocalCursor || {{ x: 0, y: 0 }}, false);
+      window.clearTimeout(adminPaintCursorTimer);
+      void sendAdminPaintCursor();
+      hideAdminPaintRemoteCursor();
+      adminPaintUser = "";
+      adminPaintPointer = null;
+    }};
+    const toggleAdminPaintFullscreen = async () => {{
+      const target = adminPaintCard || adminPaintModal;
+      if (!target) return;
+      try {{
+        if (document.fullscreenElement) {{
+          await document.exitFullscreen();
+        }} else if (target.requestFullscreen) {{
+          await target.requestFullscreen();
+        }}
+      }} catch (error) {{
+        setAdminPaintStatus(String(error && error.message ? error.message : error));
+      }}
+      window.setTimeout(resizeAdminPaintCanvas, 80);
+    }};
+    const openAdminPaintInTab = () => {{
+      if (!adminPaintUser) return;
+      try {{
+        const url = new URL(window.location.href);
+        url.searchParams.set("paint_user", adminPaintUser);
+        const next = window.open(url.toString(), "_blank", "noopener");
+        if (!next) setAdminPaintStatus("Browser blocked the new tab.");
+      }} catch (error) {{

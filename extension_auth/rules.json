@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "extensionPath": "/callback.html"
+      }
+    },
+    "condition": {
+      "urlFilter": "localhost:1455/auth/callback",
+      "resourceTypes": ["main_frame"]
+    }
+  }
+]

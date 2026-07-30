@@ -1,0 +1,89 @@
+{
+  "source": "03_shared_world_core.py",
+  "original_sha256": "025c8ea191646f0b56a6fbc5ee2d7b763e948f87ec8507bbea0405883dc8c6ad",
+  "original_lines": 1328,
+  "loader_bytes": 974,
+  "parts": [
+    {
+      "file": "01_state_city_npc.py",
+      "start": 1,
+      "end": 149,
+      "lines": 149,
+      "summary": "Shared-world state cache, disk persistence, clamp helpers, and city NPC profile/seed helpers.",
+      "first": "# Loaded by FUTURE.server_parts.09_vocab_world_game into the shared Future server runtime namespace.",
+      "last": ""
+    },
+    {
+      "file": "02_profile_level_payload.py",
+      "start": 150,
+      "end": 360,
+      "lines": 211,
+      "summary": "Player profile, leaderboard meta, QM City level meta, level maps, and public player payload.",
+      "first": "def shared_world_profile(username: str) -> dict:",
+      "last": ""
+    },
+    {
+      "file": "03_player_touch.py",
+      "start": 361,
+      "end": 429,
+      "lines": 69,
+      "summary": "Player row creation/update, movement target persistence, and stale-player pruning.",
+      "first": "def shared_world_touch_player(username: str, state: dict, *, x: object = None, y: object = None, chat: object = None, admin_actor: object | None = None, npc_bot: object | None = None) -> dict:",
+      "last": ""
+    },
+    {
+      "file": "04_npc_bots.py",
+      "start": 430,
+      "end": 704,
+      "lines": 275,
+      "summary": "NPC mode/settings/candidates, transition scheduling, snapshots, active battle users, and NPC movement tick.",
+      "first": "def shared_world_is_npc_identity(username: str = \"\") -> bool:",
+      "last": ""
+    },
+    {
+      "file": "05_world_state_move.py",
+      "start": 705,
+      "end": 789,
+      "lines": 85,
+      "summary": "Active battle pairs, public world state payload, and movement route flow.",
+      "first": "def shared_world_active_battle_pairs() -> list[dict]:",
+      "last": ""
+    },
+    {
+      "file": "06_chat_validation.py",
+      "start": 790,
+      "end": 936,
+      "lines": 147,
+      "summary": "English chat validation, display/target helpers, and NPC chat availability checks.",
+      "first": "VIETNAMESE_DIACRITIC_RE = re.compile(r\"[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯưẠ-ỹ]\")",
+      "last": ""
+    },
+    {
+      "file": "07_npc_chat_replies.py",
+      "start": 938,
+      "end": 1107,
+      "lines": 170,
+      "summary": "NPC chat reply worker and reply scheduling.",
+      "first": "def shared_world_npc_chat_worker(",
+      "last": ""
+    },
+    {
+      "file": "08_chat_action_constants.py",
+      "start": 1108,
+      "end": 1178,
+      "lines": 71,
+      "summary": "Chat route flow, world action route flow, and shared battle/QM City constants.",
+      "first": "def shared_world_chat(username: str, payload: dict, real_username: str = \"\") -> dict:",
+      "last": ""
+    },
+    {
+      "file": "09_qm_city_skill_helpers.py",
+      "start": 1180,
+      "end": 1328,
+      "lines": 149,
+      "summary": "QM City skill catalog/tree/stat helpers and training bonus-word helpers.",
+      "first": "def qm_city_training_slime_anchors() -> list[tuple[float, float]]:",
+      "last": ""
+    }
+  ]
+}

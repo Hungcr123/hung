@@ -1,0 +1,1973 @@
+  <style>
+    :root {{
+      color-scheme: dark;
+      --bg: #071015;
+      --panel: rgba(12, 25, 34, 0.82);
+      --line: rgba(104, 243, 226, 0.28);
+      --cyan: #68f3e2;
+      --pink: #ff71ce;
+      --green: #7cffb2;
+      --yellow: #ffd166;
+      --red: #ff7a90;
+      --text: #f3fbff;
+      --muted: #9bb4bd;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(255, 113, 206, 0.18), transparent 28%),
+        radial-gradient(circle at 86% 22%, rgba(104, 243, 226, 0.2), transparent 32%),
+        linear-gradient(135deg, #05070c, var(--bg) 46%, #101020);
+      color: var(--text);
+      font-family: Inter, Segoe UI, system-ui, -apple-system, sans-serif;
+    }}
+    main {{
+      width: min(1180px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(19, 42, 52, 0.9), rgba(7, 16, 21, 0.92));
+      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48), 0 0 60px rgba(104, 243, 226, 0.12);
+      overflow: hidden;
+    }}
+    .top {{
+      padding: 28px;
+      border-bottom: 1px solid rgba(104, 243, 226, 0.18);
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: clamp(26px, 4vw, 42px);
+      line-height: 1;
+      letter-spacing: 0;
+    }}
+    .sub {{
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }}
+    .pill {{
+      min-width: 132px;
+      padding: 12px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      color: var(--yellow);
+      background: rgba(255, 209, 102, 0.1);
+      text-align: center;
+      font-weight: 900;
+      box-shadow: 0 0 28px rgba(255, 209, 102, 0.1);
+    }}
+    .pill.ready {{
+      color: var(--green);
+      background: rgba(124, 255, 178, 0.1);
+      box-shadow: 0 0 30px rgba(124, 255, 178, 0.16);
+    }}
+    .pill.error {{
+      color: var(--red);
+      background: rgba(255, 122, 144, 0.1);
+      box-shadow: 0 0 30px rgba(255, 122, 144, 0.16);
+    }}
+    .dashboard-status-stack {{
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      min-width: 158px;
+    }}
+    .dashboard-freshness {{
+      min-width: 142px;
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 999px;
+      padding: 0 12px;
+      color: #061115;
+      background:
+        radial-gradient(circle at 18% 50%, rgba(255, 255, 255, 0.82), transparent 18%),
+        linear-gradient(135deg, rgba(104, 243, 226, 0.96), rgba(162, 255, 203, 0.92));
+      box-shadow:
+        0 0 0 1px rgba(5, 20, 24, 0.24),
+        0 0 24px rgba(104, 243, 226, 0.22);
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }}
+    .dashboard-freshness::before {{
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #063018;
+      box-shadow: 0 0 14px rgba(10, 78, 42, 0.38);
+    }}
+    .dashboard-freshness.is-old {{
+      color: rgba(226, 240, 240, 0.86);
+      border-color: rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035);
+    }}
+    .dashboard-freshness.is-old::before {{
+      background: rgba(226, 240, 240, 0.62);
+      box-shadow: none;
+    }}
+    .dashboard-warm-log {{
+      max-width: 260px;
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 7px;
+      border: 1px solid rgba(104, 243, 226, 0.16);
+      border-radius: 999px;
+      padding: 0 10px;
+      color: rgba(204, 234, 236, 0.86);
+      background: rgba(1, 8, 12, 0.36);
+      box-shadow: inset 0 0 18px rgba(104, 243, 226, 0.035);
+      font-size: 11px;
+      font-weight: 850;
+      line-height: 1.2;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .dashboard-warm-log::before {{
+      content: "";
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--yellow);
+      box-shadow: 0 0 14px rgba(255, 209, 102, 0.35);
+      animation: pulse 1.8s infinite;
+    }}
+    .dashboard-warm-log.is-ready {{
+      color: var(--green);
+      border-color: rgba(124, 255, 178, 0.2);
+      background: rgba(124, 255, 178, 0.075);
+    }}
+    .dashboard-warm-log.is-ready::before {{
+      background: var(--green);
+      box-shadow: 0 0 14px rgba(124, 255, 178, 0.38);
+      animation: none;
+    }}
+    .actions {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }}
+    .tabs {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 14px 22px 0;
+      border-top: 1px solid rgba(104, 243, 226, 0.08);
+      overflow: visible;
+    }}
+    .tab {{
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.26);
+      border-radius: 999px;
+      padding: 0 14px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.045);
+      font-weight: 950;
+      cursor: pointer;
+    }}
+    .tab.is-active {{
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+    }}
+    .tab-panel[hidden] {{ display: none !important; }}
+    .action {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid rgba(104, 243, 226, 0.4);
+      border-radius: 999px;
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+      font-size: 13px;
+      font-weight: 950;
+      font-family: inherit;
+      text-decoration: none;
+      box-shadow: 0 0 28px rgba(104, 243, 226, 0.18);
+      cursor: pointer;
+    }}
+    .copy {{
+      margin-top: 12px;
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.38);
+      border-radius: 12px;
+      color: var(--cyan);
+      background: rgba(104, 243, 226, 0.08);
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }}
+    .pending-list {{
+      display: grid;
+      gap: 10px;
+    }}
+    .pending-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.045);
+    }}
+    .pending-name {{
+      min-width: 0;
+      font-size: 13px;
+      line-height: 1.35;
+    }}
+    .pending-action {{
+      min-height: 34px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 11px;
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }}
+    .pending-action.reject {{
+      color: var(--red);
+      background: rgba(255, 122, 144, 0.09);
+    }}
+    .online-users {{
+      display: grid;
+      gap: 12px;
+      padding: 22px;
+    }}
+    .dashboard-log-panel {{
+      display: grid;
+      gap: 12px;
+      padding: 22px;
+    }}
+    .dashboard-log-toolbar {{
+      display: grid;
+      grid-template-columns: 160px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }}
+    .dashboard-log-input {{
+      min-height: 38px;
+      min-width: 0;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 12px;
+      padding: 0 12px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.62);
+      outline: none;
+      font: 850 13px/1 Inter, Segoe UI, system-ui, sans-serif;
+    }}
+    .dashboard-log-list {{
+      display: grid;
+      gap: 10px;
+    }}
+    .dashboard-log-list[hidden] {{
+      display: none !important;
+    }}
+    .dashboard-log-row {{
+      display: grid;
+      grid-template-columns: 160px minmax(120px, 0.45fr) minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 11px 12px;
+      border: 1px solid rgba(104, 243, 226, 0.16);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.045);
+    }}
+    .dashboard-log-time {{
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 950;
+    }}
+    .dashboard-log-user {{
+      color: var(--yellow);
+      font-size: 13px;
+      font-weight: 950;
+      word-break: break-word;
+    }}
+    .dashboard-log-detail {{
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.42;
+      font-weight: 820;
+      word-break: break-word;
+    }}
+    .dashboard-log-list.worker-list {{
+      min-width: 0;
+      overflow: visible;
+      padding-right: 8px;
+    }}
+    .dashboard-log-row.worker-row {{
+      grid-template-columns: minmax(72px, 0.14fr) minmax(160px, 0.22fr) minmax(0, 1fr);
+      padding-right: 18px;
+    }}
+    .dashboard-log-row.worker-row .dashboard-log-detail {{
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }}
+    .dashboard-log-row.worker-machine-row {{
+      background: rgba(125, 211, 252, 0.12);
+      border-color: rgba(125, 211, 252, 0.34);
+      margin-top: 8px;
+    }}
+    .dashboard-log-row.worker-instance-row {{
+      margin-left: 18px;
+      border-left-color: rgba(250, 204, 21, 0.34);
+    }}
+    .worker-log-toggle {{
+      margin: 8px 0 12px;
+      min-height: 34px;
+      padding: 0 12px;
+      font-size: 12px;
+    }}
+    .gmail-panel {{
+      padding: 18px;
+    }}
+    .gmail-mailbox {{
+      display: grid;
+      gap: 14px;
+    }}
+    .gmail-topbar {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid rgba(104, 243, 226, 0.22);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(104, 243, 226, 0.12), rgba(255, 113, 206, 0.08));
+    }}
+    .gmail-title {{
+      font-size: 24px;
+      font-weight: 950;
+      letter-spacing: 0;
+    }}
+    .gmail-subtitle,
+    .gmail-expiry {{
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }}
+    .gmail-status {{
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border: 1px solid rgba(124, 255, 178, 0.24);
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(124, 255, 178, 0.08);
+      font-size: 12px;
+      font-weight: 850;
+      text-align: center;
+    }}
+    .gmail-status.is-error {{
+      color: var(--red);
+      border-color: rgba(255, 122, 144, 0.3);
+      background: rgba(255, 122, 144, 0.08);
+    }}
+    .gmail-address-card {{
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid rgba(104, 243, 226, 0.2);
+      border-radius: 18px;
+      background: rgba(5, 12, 18, 0.5);
+    }}
+    .gmail-address-line {{
+      display: grid;
+      grid-template-columns: minmax(120px, 0.82fr) auto minmax(180px, 1fr);
+      gap: 8px;
+      align-items: center;
+    }}
+    .gmail-local-input,
+    .gmail-domain-input {{
+      min-height: 46px;
+      width: 100%;
+      min-width: 0;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 14px;
+      padding: 0 14px;
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.22);
+      font: inherit;
+      font-weight: 800;
+      outline: none;
+    }}
+    .gmail-at {{
+      color: var(--cyan);
+      font-weight: 950;
+      font-size: 18px;
+    }}
+    .gmail-preview-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }}
+    .gmail-preview-row code {{
+      flex: 1 1 260px;
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 209, 102, 0.22);
+      border-radius: 12px;
+      color: var(--yellow);
+      background: rgba(255, 209, 102, 0.08);
+      overflow-wrap: anywhere;
+    }}
+    .gmail-history-panel[hidden],
+    .gmail-history-list[hidden] {{
+      display: none !important;
+    }}
+    .gmail-history-panel {{
+      display: grid;
+      gap: 8px;
+    }}
+    .gmail-history-search {{
+      min-height: 40px;
+      width: 100%;
+      border: 1px solid rgba(104, 243, 226, 0.24);
+      border-radius: 12px;
+      padding: 0 12px;
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.22);
+      font: inherit;
+      font-weight: 800;
+      outline: none;
+    }}
+    .gmail-history-list {{
+      display: grid;
+      gap: 8px;
+      max-height: 190px;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.18);
+    }}
+    .gmail-history-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      min-height: 38px;
+      padding: 0 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.045);
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }}
+    .gmail-history-row:hover,
+    .gmail-history-row.is-active {{
+      border-color: rgba(104, 243, 226, 0.3);
+      background: rgba(104, 243, 226, 0.08);
+    }}
+    .gmail-history-address {{
+      min-width: 0;
+      overflow: hidden;
+      color: var(--yellow);
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .gmail-history-meta {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }}
+    .gmail-config-strip {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.035);
+    }}
+    .gmail-config-strip .notice-save {{
+      min-height: 38px;
+    }}
+    .gmail-config-strip[hidden],
+    .gmail-alias-chips[hidden] {{
+      display: none !important;
+    }}
+    .gmail-alias-chips {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 42px;
+      align-items: center;
+    }}
+    .gmail-chip {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      max-width: 100%;
+      padding: 0 10px;
+      border: 1px solid rgba(104, 243, 226, 0.22);
+      border-radius: 999px;
+      color: var(--text);
+      background: rgba(104, 243, 226, 0.07);
+      font-size: 12px;
+    }}
+    .gmail-chip button {{
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 0 8px;
+      border: 1px solid rgba(255, 122, 144, 0.35);
+      color: var(--red);
+      background: rgba(255, 122, 144, 0.08);
+      cursor: pointer;
+    }}
+    .gmail-layout {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+      gap: 14px;
+      align-items: stretch;
+    }}
+    .gmail-inbox,
+    .gmail-reader {{
+      min-width: 0;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 18px;
+      background: rgba(5, 12, 18, 0.46);
+      overflow: hidden;
+    }}
+    .gmail-section-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 14px;
+      border-bottom: 1px solid rgba(104, 243, 226, 0.14);
+      color: var(--text);
+      font-weight: 900;
+    }}
+    .gmail-section-head span:last-child {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }}
+    .gmail-table-head,
+    .gmail-message-row {{
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr) 92px 76px;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+    }}
+    .gmail-table-head {{
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }}
+    .gmail-message-list {{
+      display: grid;
+      max-height: 460px;
+      overflow: auto;
+    }}
+    .gmail-message-row {{
+      border: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }}
+    .gmail-message-row:hover,
+    .gmail-message-row.is-active {{
+      background: rgba(104, 243, 226, 0.08);
+    }}
+    .gmail-message-row .gmail-time {{
+      color: var(--cyan);
+      font-size: 12px;
+    }}
+    .gmail-message-row .gmail-sender {{
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 13px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .gmail-message-row .gmail-code {{
+      color: var(--yellow);
+      font-weight: 950;
+      text-align: center;
+    }}
+    .gmail-message-row .gmail-code.is-copyable,
+    .gmail-reader-code strong.is-copyable {{
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      text-underline-offset: 4px;
+    }}
+    .gmail-message-row .gmail-code.is-copyable:hover,
+    .gmail-reader-code strong.is-copyable:hover {{
+      color: #fff2a8;
+    }}
+    .gmail-message-row .gmail-action {{
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      text-align: right;
+    }}
+    .gmail-empty {{
+      padding: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    .gmail-reader {{
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }}
+    .gmail-back {{
+      justify-self: start;
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 999px;
+      color: var(--cyan);
+      background: rgba(104, 243, 226, 0.08);
+      cursor: pointer;
+      font-weight: 900;
+    }}
+    .gmail-reader-subject {{
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 950;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }}
+    .gmail-reader-meta {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }}
+    .gmail-reader-code {{
+      display: grid;
+      gap: 6px;
+      padding: 14px;
+      border: 1px solid rgba(255, 209, 102, 0.24);
+      border-radius: 16px;
+      background: rgba(255, 209, 102, 0.08);
+    }}
+    .gmail-reader-code span {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }}
+    .gmail-reader-code strong {{
+      color: var(--yellow);
+      font-size: 30px;
+      line-height: 1;
+      letter-spacing: 0;
+    }}
+    .gmail-reader-body {{
+      min-height: 220px;
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--text);
+      font: 13px/1.5 Consolas, ui-monospace, monospace;
+    }}
+    .reward-settings-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }}
+    .reward-settings-card {{
+      border: 1px solid rgba(255, 209, 102, 0.22);
+      border-radius: 18px;
+      padding: 14px;
+      background:
+        radial-gradient(circle at 18% 0, rgba(255, 209, 102, 0.14), transparent 42%),
+        rgba(255, 255, 255, 0.045);
+      box-shadow: inset 0 0 24px rgba(104, 243, 226, 0.05);
+    }}
+    .reward-settings-title {{
+      color: var(--yellow);
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }}
+    .reward-settings-row {{
+      display: grid;
+      grid-template-columns: 70px repeat(6, minmax(48px, 1fr)) 70px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 0;
+      border-top: 1px solid rgba(104, 243, 226, 0.12);
+    }}
+    .reward-settings-row.is-header {{
+      padding: 6px 0 4px;
+      color: rgba(239, 254, 250, 0.62);
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: 0.12em;
+      text-align: center;
+      text-transform: uppercase;
+    }}
+    .reward-rank-label {{
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 950;
+    }}
+    .level-settings-list {{
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }}
+    .level-settings-row {{
+      display: grid;
+      grid-template-columns: 92px minmax(140px, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 16px;
+      background:
+        linear-gradient(135deg, rgba(104, 243, 226, 0.08), rgba(255, 173, 80, 0.055)),
+        rgba(1, 8, 12, 0.52);
+      box-shadow: inset 0 0 18px rgba(104, 243, 226, 0.045);
+    }}
+    .level-settings-row.is-header {{
+      border-color: rgba(255, 209, 102, 0.2);
+      color: rgba(239, 254, 250, 0.68);
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }}
+    .level-settings-input {{
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.3);
+      border-radius: 12px;
+      padding: 0 10px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.72);
+      outline: none;
+      font: 950 14px/1 Inter, Segoe UI, system-ui, sans-serif;
+      text-align: center;
+    }}
+    .level-settings-remove {{
+      min-height: 34px;
+      border: 1px solid rgba(255, 101, 132, 0.32);
+      border-radius: 10px;
+      color: #ffdbe3;
+      background: rgba(255, 101, 132, 0.11);
+      font-size: 11px;
+      font-weight: 950;
+      cursor: pointer;
+    }}
+    .reward-badge-label {{
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      text-align: center;
+    }}
+    .reward-settings-input {{
+      min-height: 36px;
+      min-width: 0;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 12px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.68);
+      text-align: center;
+      font: 950 14px/1 Inter, Segoe UI, system-ui, sans-serif;
+      outline: none;
+    }}
+    .online-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      align-items: stretch;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 16px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.045);
+    }}
+    .online-controls {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }}
+    .online-identity {{
+      flex: 1 1 220px;
+      min-width: 180px;
+      padding: 9px 11px;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 13px;
+      background:
+        linear-gradient(135deg, rgba(104, 243, 226, 0.08), transparent 62%),
+        rgba(1, 8, 12, 0.46);
+      box-shadow: inset 0 0 18px rgba(104, 243, 226, 0.05);
+    }}
+    .online-actions {{
+      flex: 2 1 540px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .online-actions .pending-action {{
+      min-height: 34px;
+      padding: 0 12px;
+      white-space: nowrap;
+    }}
+    .online-actions .admin-password-input {{
+      flex: 0 1 150px;
+      width: 150px;
+      min-width: 118px;
+      max-width: 170px;
+      min-height: 34px;
+      padding: 0 10px;
+      font-size: 13px;
+      text-align: left;
+      border-radius: 10px;
+    }}
+    .online-name {{ font-weight: 950; }}
+    .online-meta {{ margin-top: 0; color: var(--muted); font-size: 12px; font-weight: 800; }}
+    .online-realtime {{
+      padding: 9px 11px;
+      border: 1px solid rgba(255, 209, 102, 0.24);
+      border-radius: 13px;
+      color: var(--yellow);
+      background:
+        linear-gradient(90deg, rgba(255, 209, 102, 0.11), rgba(104, 243, 226, 0.045)),
+        rgba(1, 8, 12, 0.54);
+      box-shadow: inset 0 0 22px rgba(255, 209, 102, 0.045);
+      font-size: 12px;
+      line-height: 1.4;
+      font-weight: 920;
+      word-break: break-word;
+    }}
+    .online-realtime.is-idle {{
+      color: var(--muted);
+      border-color: rgba(104, 243, 226, 0.16);
+      background: rgba(1, 8, 12, 0.36);
+      box-shadow: none;
+    }}
+    .online-details {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+      gap: 8px 14px;
+      align-items: start;
+    }}
+    .online-details-text {{
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid rgba(104, 243, 226, 0.12);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.032);
+    }}
+    .online-activity {{
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 209, 102, 0.22);
+      border-radius: 12px;
+      color: var(--yellow);
+      background: rgba(255, 209, 102, 0.07);
+      font-size: 12px;
+      line-height: 1.4;
+      font-weight: 900;
+      word-break: break-word;
+    }}
+    .online-dot {{
+      width: 9px;
+      height: 9px;
+      display: inline-block;
+      margin-right: 7px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 14px rgba(124, 255, 178, 0.46);
+      vertical-align: 1px;
+    }}
+    .online-dot.off {{
+      background: var(--muted);
+      box-shadow: none;
+    }}
+    .online-screen-preview {{
+      width: min(240px, 100%);
+      aspect-ratio: 16 / 9;
+      margin-top: 0;
+      justify-self: end;
+      border: 1px solid rgba(104, 243, 226, 0.24);
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--muted);
+      background:
+        linear-gradient(90deg, rgba(104, 243, 226, 0.06) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(104, 243, 226, 0.06) 1px, transparent 1px),
+        rgba(1, 8, 12, 0.72);
+      background-size: 18px 18px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 900;
+    }}
+    .online-screen-preview img {{
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #02080b;
+    }}
+    .online-screen-preview.is-live {{
+      border-color: rgba(255, 209, 102, 0.48);
+      box-shadow: 0 0 24px rgba(255, 209, 102, 0.12);
+    }}
+    .online-screen-preview-note {{
+      grid-column: 2;
+      justify-self: end;
+      margin-top: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+    }}
+    .chat-badge {{
+      min-width: 24px;
+      height: 24px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      color: #061115;
+      background: var(--yellow);
+      font-size: 12px;
+      font-weight: 950;
+    }}
+    .chat-badge.is-empty {{ color: var(--muted); background: rgba(255,255,255,0.08); }}
+    .admin-chat-modal {{
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0, 0, 0, 0.58);
+    }}
+    .admin-chat-modal.is-open {{ display: grid; }}
+    .admin-chat-card {{
+      width: min(760px, 100%);
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(14, 31, 39, 0.96), rgba(4, 11, 16, 0.98));
+      box-shadow: 0 28px 90px rgba(0,0,0,0.52);
+      overflow: hidden;
+    }}
+    .admin-chat-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(104, 243, 226, 0.16);
+      font-weight: 950;
+    }}
+    .admin-chat-log {{
+      min-height: 260px;
+      max-height: 420px;
+      overflow: auto;
+      display: grid;
+      align-content: start;
+      gap: 8px;
+      padding: 14px;
+    }}
+    .admin-msg {{
+      max-width: 82%;
+      border: 1px solid rgba(104, 243, 226, 0.2);
+      border-radius: 14px;
+      padding: 9px 11px;
+      background: rgba(255,255,255,0.055);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 800;
+    }}
+    .admin-msg.is-admin {{
+      justify-self: end;
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+    }}
+    .admin-msg-text {{
+      white-space: pre-wrap;
+    }}
+    .admin-attachments {{
+      display: grid;
+      justify-items: start;
+      gap: 8px;
+      margin-top: 8px;
+    }}
+    .admin-thumb {{
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 12px;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      cursor: pointer;
+      line-height: 0;
+    }}
+    .admin-thumb img {{
+      width: auto;
+      height: auto;
+      max-width: min(240px, 56vw);
+      max-height: 250px;
+      object-fit: contain;
+      display: block;
+      border-radius: 11px;
+    }}
+    .admin-file {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 12px;
+      padding: 8px 10px;
+      color: inherit;
+      background: rgba(1, 8, 12, 0.18);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 900;
+    }}
+    .admin-audio-clip {{
+      display: grid;
+      gap: 7px;
+      max-width: min(300px, 58vw);
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 12px;
+      padding: 8px;
+      background: rgba(1, 8, 12, 0.18);
+    }}
+    .admin-audio-clip audio {{
+      width: 100%;
+      min-width: 200px;
+    }}
+    .admin-audio-download {{
+      color: inherit;
+      font-size: 11px;
+      font-weight: 900;
+      text-decoration: none;
+    }}
+    .admin-read-state {{
+      margin-top: 6px;
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      opacity: 0.72;
+      text-transform: uppercase;
+    }}
+    .admin-chat-compose {{
+      display: grid;
+      gap: 11px;
+      padding: 14px;
+      border-top: 1px solid rgba(104, 243, 226, 0.16);
+    }}
+    .admin-chat-tools {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }}
+    .admin-chat-row {{
+      display: grid;
+      grid-template-columns: minmax(170px, 0.34fr) minmax(0, 1fr) auto auto;
+      gap: 10px;
+      align-items: stretch;
+    }}
+    .admin-chat-select {{
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 14px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.78);
+      padding: 0 10px;
+      font: 850 12px/1.35 Inter, Segoe UI, system-ui, sans-serif;
+      outline: none;
+    }}
+    .admin-chat-small-note {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }}
+    .admin-chat-speech-mode {{
+      min-height: 34px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 11px;
+      color: var(--muted);
+      background: rgba(1, 8, 12, 0.72);
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }}
+    .admin-chat-translate.is-active {{
+      border-color: rgba(104, 243, 226, 0.72);
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+    }}
+    .admin-chat-audio-toggle {{
+      min-height: 48px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 14px;
+      color: var(--muted);
+      background: rgba(1, 8, 12, 0.72);
+      font-size: 12px;
+      font-weight: 950;
+      cursor: pointer;
+      white-space: nowrap;
+    }}
+    .admin-chat-audio-toggle.is-on {{
+      border-color: rgba(104, 243, 226, 0.72);
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+    }}
+    .stream-audio-mode {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }}
+    .stream-mode-button {{
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 12px;
+      color: var(--muted);
+      background: rgba(1, 8, 12, 0.72);
+      padding: 0 13px;
+      font-size: 12px;
+      font-weight: 950;
+      cursor: pointer;
+    }}
+    .stream-mode-button.is-active {{
+      border-color: rgba(104, 243, 226, 0.78);
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+    }}
+    .stream-mode-note {{
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }}
+    .admin-chat-attach {{
+      min-height: 34px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      border-radius: 11px;
+      color: var(--cyan);
+      background: rgba(104, 243, 226, 0.08);
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }}
+    .admin-chat-attach.is-recording {{
+      color: #061115;
+      border-color: rgba(255, 122, 144, 0.82);
+      background: linear-gradient(135deg, #ff7a90, #ffd166);
+    }}
+    .admin-chat-attach.is-busy {{
+      opacity: 0.74;
+      cursor: wait;
+    }}
+    .admin-chat-row .notice-input {{
+      min-height: 58px;
+      padding: 10px 12px;
+    }}
+    .admin-chat-input-vi {{
+      border-color: rgba(74, 222, 128, 0.42);
+      background: rgba(4, 28, 20, 0.72);
+    }}
+    .admin-chat-input-en {{
+      border-color: rgba(96, 165, 250, 0.42);
+      background: rgba(8, 18, 38, 0.72);
+    }}
+    .admin-chat-row .notice-input::placeholder {{
+      color: rgba(225, 248, 246, 0.52);
+    }}
+    .admin-image-viewer {{
+      position: fixed;
+      inset: 0;
+      z-index: 42;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(7px);
+    }}
+    .admin-image-viewer.is-open {{ display: grid; }}
+    .admin-image-viewer img {{
+      max-width: min(100%, 1200px);
+      max-height: calc(100vh - 92px);
+      object-fit: contain;
+      border-radius: 14px;
+      box-shadow: 0 24px 90px rgba(0, 0, 0, 0.62);
+      background: #061115;
+      cursor: grab;
+      transform-origin: center center;
+      user-select: none;
+      touch-action: none;
+      will-change: transform;
+    }}
+    .admin-image-viewer img.is-dragging {{ cursor: grabbing; }}
+    .admin-image-tools {{
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      z-index: 43;
+    }}
+    .admin-image-close,
+    .admin-image-download,
+    .admin-image-zoom {{
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.4);
+      border-radius: 12px;
+      padding: 0 12px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.82);
+      font-size: 12px;
+      font-weight: 950;
+      cursor: pointer;
+      text-decoration: none;
+    }}
+    .admin-image-download {{
+      display: inline-flex;
+      align-items: center;
+    }}
+    .admin-screen-modal {{
+      place-items: stretch;
+      padding: 0;
+      background: #02080b;
+    }}
+    .admin-screen-modal.is-open {{
+      display: block;
+    }}
+    .admin-screen-card {{
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      border: 0;
+      border-radius: 0;
+      background: #02080b;
+      box-shadow: none;
+      overflow: hidden;
+    }}
+    .admin-screen-card .admin-chat-head {{
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 6;
+      padding: 0;
+      border: 0;
+      pointer-events: none;
+    }}
+    .admin-screen-card .admin-chat-head > span {{
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(104, 243, 226, 0.24);
+      border-radius: 999px;
+      padding: 0 13px;
+      color: rgba(241, 253, 255, 0.92);
+      background: rgba(1, 8, 12, 0.62);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(12px);
+      font-size: 12px;
+      font-weight: 950;
+      pointer-events: auto;
+    }}
+    .admin-screen-head-tools {{
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      z-index: 7;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      pointer-events: auto;
+    }}
+    .admin-screen-head-tools .notice-save,
+    .admin-screen-head-tools .pending-action {{
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(228, 255, 249, 0.86);
+      padding: 0 12px;
+      color: #031014;
+      background: linear-gradient(135deg, rgba(240, 255, 252, 0.96), rgba(112, 255, 230, 0.9));
+      box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.34),
+        0 0 0 1px rgba(10, 30, 34, 0.28),
+        0 0 22px rgba(104, 243, 226, 0.28);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+      font-weight: 950;
+      text-shadow: none;
+    }}
+    .admin-screen-head-tools .pending-action.reject {{
+      border-color: rgba(255, 223, 230, 0.92);
+      color: #24070c;
+      background: linear-gradient(135deg, rgba(255, 247, 249, 0.98), rgba(255, 130, 154, 0.92));
+      box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.34),
+        0 0 20px rgba(255, 112, 142, 0.28);
+    }}
+    .admin-screen-head-tools .notice-save:hover,
+    .admin-screen-head-tools .notice-save:focus-visible,
+    .admin-screen-head-tools .pending-action:hover,
+    .admin-screen-head-tools .pending-action:focus-visible {{
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }}
+    .admin-screen-view {{
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      min-width: 100vw;
+      min-height: 100vh;
+      display: block;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      background:
+        linear-gradient(90deg, rgba(104, 243, 226, 0.05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(104, 243, 226, 0.05) 1px, transparent 1px),
+        #02080b;
+      background-size: 24px 24px;
+      overflow: hidden;
+      cursor: crosshair;
+      touch-action: none;
+    }}
+    .admin-screen-view video,
+    .admin-screen-view img {{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      object-fit: contain;
+      border-radius: 0;
+      box-shadow: none;
+      background: #02080b;
+    }}
+    .admin-screen-view img {{
+      display: none;
+    }}
+    .admin-screen-card:fullscreen {{
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+    }}
+    .admin-screen-card:fullscreen .admin-screen-view {{
+      max-height: none;
+      height: 100vh;
+    }}
+    .admin-screen-card:fullscreen .admin-screen-view video,
+    .admin-screen-card:fullscreen .admin-screen-view img {{
+      max-height: 100vh;
+    }}
+    .admin-screen-status {{
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 6;
+      max-width: min(720px, calc(100vw - 28px));
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(104, 243, 226, 0.2);
+      border-radius: 999px;
+      padding: 0 12px;
+      color: rgba(204, 234, 236, 0.9);
+      background: rgba(1, 8, 12, 0.58);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(12px);
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    html.admin-paint-performance-mode body > :not(.admin-paint-modal),
+    html.admin-paint-performance-mode body > :not(.admin-paint-modal) *,
+    html.admin-paint-performance-mode body > :not(.admin-paint-modal) *::before,
+    html.admin-paint-performance-mode body > :not(.admin-paint-modal) *::after {{
+      animation-play-state: paused !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+      will-change: auto !important;
+    }}
+    html.admin-paint-performance-mode .admin-paint-modal,
+    html.admin-paint-performance-mode .admin-paint-modal *,
+    html.admin-paint-performance-mode .admin-paint-modal *::before,
+    html.admin-paint-performance-mode .admin-paint-modal *::after {{
+      animation-play-state: running !important;
+    }}
+    .admin-paint-card {{
+      width: min(980px, calc(100vw - 28px));
+      height: min(760px, calc(100vh - 28px));
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+    }}
+    .admin-paint-card:fullscreen {{
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+    }}
+    .admin-paint-tools {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(104, 243, 226, 0.16);
+      align-items: center;
+    }}
+    .admin-paint-tool.is-active {{
+      border-color: rgba(104, 243, 226, 0.72);
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+    }}
+    .admin-paint-color,
+    .admin-paint-size,
+    .admin-paint-text {{
+      min-height: 34px;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 11px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.72);
+      font: 850 12px/1.35 Inter, Segoe UI, system-ui, sans-serif;
+    }}
+    .admin-paint-color {{ width: 56px; }}
+    .admin-paint-size {{ width: 142px; }}
+    .admin-paint-text {{
+      width: min(210px, 100%);
+      flex: 1 1 160px;
+      padding: 0 10px;
+    }}
+    .admin-paint-zoom-label {{
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 11px;
+      padding: 0 10px;
+      color: #a2ffcb;
+      background: rgba(104, 243, 226, 0.08);
+      font-size: 12px;
+      font-weight: 900;
+    }}
+    .admin-paint-stage {{
+      position: relative;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      padding: 14px;
+      background:
+        linear-gradient(90deg, rgba(104, 243, 226, 0.045) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(104, 243, 226, 0.045) 1px, transparent 1px),
+        rgba(1, 8, 12, 0.82);
+      background-size: 20px 20px;
+      overflow: auto;
+    }}
+    .admin-paint-canvas {{
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 14px;
+      background:
+        linear-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+        #f7fff9;
+      background-size: 24px 24px;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }}
+    .admin-paint-remote-cursor {{
+      position: absolute;
+      z-index: 6;
+      left: 0;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate3d(-9999px, -9999px, 0);
+      transition: opacity 120ms ease, transform 80ms linear;
+      color: var(--cyan);
+      filter:
+        drop-shadow(0 0 1px rgba(0, 0, 0, 0.9))
+        drop-shadow(0 0 10px rgba(104, 243, 226, 0.82))
+        drop-shadow(0 0 18px rgba(255, 209, 102, 0.42));
+    }}
+    .admin-paint-remote-cursor.is-visible {{ opacity: 1; }}
+    .admin-paint-remote-cursor::before {{
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 24px;
+      height: 30px;
+      clip-path: polygon(0 0, 0 26px, 7px 20px, 11px 30px, 17px 27px, 13px 18px, 24px 18px);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(104, 243, 226, 0.86) 48%, rgba(255, 209, 102, 0.88));
+      box-shadow:
+        inset 0 0 0 1px rgba(2, 8, 12, 0.72),
+        0 0 0 1px rgba(255, 255, 255, 0.82),
+        0 0 18px rgba(104, 243, 226, 0.66);
+    }}
+    .admin-paint-remote-cursor::after {{
+      content: "";
+      position: absolute;
+      left: -9px;
+      top: -9px;
+      width: 25px;
+      height: 25px;
+      border: 1px solid rgba(104, 243, 226, 0.68);
+      border-radius: 999px;
+      background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 2px, transparent 3px),
+        conic-gradient(from 80deg, transparent, rgba(255, 209, 102, 0.46), transparent 42%, rgba(104, 243, 226, 0.54), transparent 78%);
+      animation: adminPaintRemoteCursorPulse 1600ms ease-in-out infinite;
+    }}
+    .admin-paint-remote-label {{
+      position: absolute;
+      left: 16px;
+      top: 28px;
+      min-width: 78px;
+      max-width: 180px;
+      padding: 5px 9px;
+      border: 1px solid rgba(104, 243, 226, 0.74);
+      border-radius: 999px;
+      color: #f3fbff;
+      background: linear-gradient(135deg, rgba(2, 8, 12, 0.9), rgba(5, 25, 31, 0.84));
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.72),
+        0 0 16px rgba(104, 243, 226, 0.36);
+      font-size: 11px;
+      font-weight: 950;
+      line-height: 1;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.88);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    @keyframes adminPaintRemoteCursorPulse {{
+      0%, 100% {{ opacity: 0.62; transform: scale(0.82) rotate(0deg); }}
+      50% {{ opacity: 1; transform: scale(1.08) rotate(18deg); }}
+    }}
+    .admin-paint-text-editor {{
+      position: absolute;
+      z-index: 3;
+      min-width: 150px;
+      min-height: 46px;
+      max-width: min(420px, calc(100% - 28px));
+      border: 2px solid rgba(255, 142, 72, 0.82);
+      border-radius: 12px;
+      padding: 8px 10px;
+      color: #061115;
+      background: rgba(247, 255, 249, 0.96);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+      resize: both;
+      outline: none;
+      font-family: Inter, Segoe UI, system-ui, sans-serif;
+      font-weight: 900;
+      line-height: 1.18;
+    }}
+    .admin-paint-status {{
+      min-height: 18px;
+      padding: 0 14px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }}
+    .notice-editor {{
+      display: grid;
+      gap: 12px;
+    }}
+    .notice-input {{
+      width: 100%;
+      min-height: 124px;
+      resize: vertical;
+      border: 1px solid rgba(104, 243, 226, 0.28);
+      border-radius: 16px;
+      padding: 14px;
+      color: var(--text);
+      background:
+        linear-gradient(90deg, rgba(104, 243, 226, 0.055) 1px, transparent 1px),
+        rgba(1, 8, 12, 0.62);
+      background-size: 18px 100%;
+      outline: none;
+      font: 800 14px/1.5 Inter, Segoe UI, system-ui, sans-serif;
+      box-shadow: inset 0 0 22px rgba(104, 243, 226, 0.06);
+    }}
+    .notice-input:focus {{
+      border-color: rgba(104, 243, 226, 0.62);
+      box-shadow: 0 0 28px rgba(104, 243, 226, 0.12), inset 0 0 22px rgba(104, 243, 226, 0.08);
+    }}
+    .notice-actions {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }}
+    .notice-save {{
+      min-height: 38px;
+      border: 1px solid rgba(104, 243, 226, 0.38);
+      border-radius: 12px;
+      color: #061115;
+      background: linear-gradient(135deg, var(--cyan), #a2ffcb);
+      font-size: 12px;
+      font-weight: 950;
+      cursor: pointer;
+    }}
+    .notice-state {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }}
+    .qmdict-audio-progress {{
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 7px;
+      padding: 10px 12px;
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 14px;
+      background:
+        linear-gradient(135deg, rgba(104, 243, 226, 0.08), rgba(162, 255, 203, 0.04)),
+        rgba(1, 8, 12, 0.56);
+      box-shadow: inset 0 0 18px rgba(104, 243, 226, 0.05);
+    }}
+    .qmdict-audio-progress[hidden] {{
+      display: none;
+    }}
+    .qmdict-audio-bar {{
+      position: relative;
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      border: 1px solid rgba(104, 243, 226, 0.34);
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px) 0 0 / 18px 100%,
+        rgba(0, 0, 0, 0.28);
+    }}
+    .qmdict-audio-bar i {{
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--qmdict-audio-progress, 0%);
+      border-radius: inherit;
+      background:
+        linear-gradient(90deg, rgba(104, 243, 226, 0.16), rgba(104, 243, 226, 0.94), rgba(162, 255, 203, 0.92)),
+        repeating-linear-gradient(115deg, rgba(255,255,255,0.24) 0 4px, transparent 4px 10px);
+      box-shadow: 0 0 20px rgba(104, 243, 226, 0.36);
+      transition: width 180ms linear;
+    }}
+    .qmdict-audio-progress.is-running .qmdict-audio-bar i::after {{
+      content: "";
+      position: absolute;
+      top: -6px;
+      right: -12px;
+      width: 24px;
+      height: 20px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #fff 0 2px, rgba(162,255,203,0.9) 3px, rgba(104,243,226,0.36) 9px, transparent 70%);
+      animation: qmdictAudioPulse 0.9s ease-in-out infinite;
+    }}
+    .qmdict-audio-copy {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }}
+    @keyframes qmdictAudioPulse {{
+      0%, 100% {{ opacity: 0.48; transform: scale(0.82); }}
+      50% {{ opacity: 1; transform: scale(1.2); }}
+    }}
+    .notice-preview {{
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid rgba(104, 243, 226, 0.14);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+    }}
+    .notice-preview-line {{
+      padding: 8px 10px;
+      border-left: 2px solid rgba(104, 243, 226, 0.62);
+      border-radius: 10px;
+      color: var(--text);
+      background: linear-gradient(90deg, rgba(104, 243, 226, 0.09), transparent);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 850;
+    }}
+    .setting-editor {{
+      display: grid;
+      gap: 12px;
+    }}
+    .setting-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+      gap: 12px;
+      align-items: end;
+    }}
+    .setting-copy {{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 750;
+    }}
+    .setting-input {{
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid rgba(104, 243, 226, 0.32);
+      border-radius: 14px;
+      padding: 0 12px;
+      color: var(--text);
+      background: rgba(1, 8, 12, 0.68);
+      outline: none;
+      font: 950 18px/1 Inter, Segoe UI, system-ui, sans-serif;
+      text-align: center;
+      box-shadow: inset 0 0 18px rgba(104, 243, 226, 0.06);
+    }}
+    .setting-input:focus {{
+      border-color: rgba(104, 243, 226, 0.64);
+      box-shadow: 0 0 28px rgba(104, 243, 226, 0.12), inset 0 0 18px rgba(104, 243, 226, 0.08);
+    }}
+    .cpu-guard-control {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+      gap: 8px;
+      align-items: stretch;
+    }}
+    .setting-row > .notice-state,
+    .setting-row > .qmdict-audio-progress {{
+      grid-column: 1 / -1;
+    }}
+    .setting-row > .notice-input,
+    .setting-row > .setting-input,
+    .setting-row > .cpu-guard-control {{
+      min-width: 0;
+      width: 100%;
+    }}
+    .setting-row > .notice-input {{
+      min-height: 86px;
+    }}
+    .worker-capacity-row {{
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }}
+    .worker-capacity-row .cpu-guard-control {{
+      width: 100%;
+      min-width: 0;
+      grid-template-columns: repeat(4, minmax(72px, 96px)) minmax(150px, 190px);
+      justify-content: end;
+      align-items: stretch;
+    }}
+    .worker-limit-field {{
+      min-width: 0;
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 950;
+      text-align: center;
+      text-transform: uppercase;
+    }}
+    .worker-limit-field span {{
+      min-height: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .worker-limit-help {{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }}
+    .worker-capacity-row .setting-input,
+    .worker-capacity-row .notice-save {{
+      min-width: 0;
+    }}
+    #distributed-worker-command {{
+      display: block;
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }}
+    .cpu-guard-toggle {{
+      position: relative;
+      overflow: hidden;
+      min-height: 46px;
+      color: #061115;
+      background:
+        linear-gradient(135deg, rgba(104, 243, 226, 0.94), rgba(162, 255, 203, 0.96));
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.16) inset,
+        0 0 22px rgba(104, 243, 226, 0.22);
+    }}
+    .cpu-guard-toggle::after {{
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border: 1px solid rgba(2, 8, 12, 0.28);
+      clip-path: polygon(0 0, 86% 0, 100% 42%, 100% 100%, 14% 100%, 0 58%);
+      pointer-events: none;
+    }}
+    .cpu-guard-toggle.is-off {{
+      color: #ffd9c2;
+      background:
+        linear-gradient(135deg, rgba(25, 10, 8, 0.98), rgba(92, 28, 18, 0.92));
+      box-shadow:
+        0 0 0 1px rgba(255, 142, 72, 0.24) inset,
+        0 0 22px rgba(255, 142, 72, 0.18);
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      padding: 22px;
+    }}
+    .card {{
+      border: 1px solid rgba(104, 243, 226, 0.18);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.045);
+      padding: 16px;
+      min-height: 94px;
+    }}
+    .label {{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }}
+    .value {{
+      margin-top: 10px;
+      word-break: break-word;
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 800;
+    }}
+    .wide {{ grid-column: 1 / -1; }}
+    code {{
+      color: var(--cyan);
+      font-family: Consolas, ui-monospace, monospace;
+      font-size: 13px;
+    }}
+    .pulse {{
+      width: 12px;
+      height: 12px;
+      display: inline-block;
+      margin-right: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 rgba(104, 243, 226, 0.4);
+      animation: none;
+      vertical-align: -1px;
+    }}
+    .pill.is-busy .pulse,
+    .pill.error .pulse {{
+      animation: pulse 1.3s infinite;
+    }}
+    @keyframes pulse {{
+      0% {{ box-shadow: 0 0 0 0 rgba(104, 243, 226, 0.42); }}
+      70% {{ box-shadow: 0 0 0 12px rgba(104, 243, 226, 0); }}
+      100% {{ box-shadow: 0 0 0 0 rgba(104, 243, 226, 0); }}
+    }}
+    @media (max-width: 640px) {{
+      body {{ padding: 14px; }}
+      .top {{ padding: 22px; }}
+      .grid {{ grid-template-columns: 1fr; padding: 16px; }}
+      .gmail-panel {{ padding: 14px; }}
+      .gmail-topbar {{ align-items: stretch; flex-direction: column; }}
+      .gmail-address-line,
+      .gmail-config-strip,
+      .gmail-layout {{ grid-template-columns: 1fr; }}
+      .gmail-at {{ display: none; }}
+      .gmail-table-head {{ display: none; }}
+      .gmail-message-row {{ grid-template-columns: 64px minmax(0, 1fr) 72px; }}
+      .gmail-message-row .gmail-action {{ display: none; }}
+      .dashboard-log-panel {{ padding: 16px; }}
+      .dashboard-log-toolbar,
+      .dashboard-log-row {{ grid-template-columns: 1fr; }}
+      .dashboard-log-row.worker-row {{ grid-template-columns: 1fr; padding-right: 12px; }}
+      .worker-capacity-row .cpu-guard-control {{ grid-template-columns: repeat(2, minmax(72px, 1fr)); justify-content: stretch; }}
+      .worker-capacity-row .cpu-guard-apply {{ grid-column: 1 / -1; }}
+      .setting-row {{ grid-template-columns: 1fr; }}
+      .online-users {{ padding: 16px; }}
+      .online-actions {{ justify-content: flex-start; flex: 1 1 100%; }}
+      .online-actions .pending-action {{ flex: 1 1 104px; }}
+      .online-actions .admin-password-input {{ flex: 1 1 132px; width: auto; max-width: 180px; }}
+      .online-details {{ grid-template-columns: 1fr; }}
+      .online-screen-preview {{ width: 100%; justify-self: stretch; }}
+      .online-screen-preview-note {{ grid-column: auto; justify-self: start; }}
+      .reward-settings-grid {{ grid-template-columns: 1fr; }}
+      .reward-settings-row {{ grid-template-columns: 1fr 1fr; }}
+      .admin-chat-row {{ grid-template-columns: 1fr; }}
+      .admin-chat-audio-toggle {{ width: 100%; }}
+    }}
+  </style>

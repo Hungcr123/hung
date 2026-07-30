@@ -1,0 +1,929 @@
+    if path == "/auth/username":
+        try:
+            query = parse_qs(parsed.query)
+            username = normalize_username((query.get("username") or query.get("user") or [""])[0])
+            self.send_json(200, auth_username_lookup_payload(username))
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/common-tree":
+        tree_request_started = time.perf_counter()
+        common_phase_trace = {}
+        tree_build_lock = None
+        tree_cache_key = None
+        tree_lock_acquired = False
+        cache_lookup_ms = 0.0
+        lock_wait_ms = 0.0
+        build_ms = 0.0
+        serialize_ms = 0.0
+        compress_ms = 0.0
+        send_ms = 0.0
+        try:
+            overlay_auth_started = time.perf_counter()
+            session = self.auth_session()
+            auth_ms = (time.perf_counter() - overlay_auth_started) * 1000
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            admin_view = bool(is_admin_user(username))
+            manifest = get_server_data_manifest(force=False)
+            structural_version = int(manifest.get("structural_metadata_version", 0) or 0) if isinstance(manifest, dict) else 0
+            common_revision = server_data_manifest_runtime_revision(manifest, {"common"})
+            tree_cache_revision = f"{common_revision}:sm{structural_version}"
+            tree_cache_key = ("__shared_common_tree__", "common", tree_cache_revision)
+            etag = f'"ft-tree-{hashlib.sha1("|".join(tree_cache_key).encode("utf-8")).hexdigest()}"'
+            if clean(self.headers.get("If-None-Match", "")) == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+                self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+                self.safe_finish_response()
+                return
+            cache_lookup_started = time.perf_counter()
+            with SERVER_DATA_LIST_CACHE_LOCK:
+                tree_cache = globals().setdefault("SERVER_DATA_COMMON_TREE_PRELOAD_BYTES_CACHE", {})
+                tree_locks = globals().setdefault("SERVER_DATA_COMMON_TREE_PRELOAD_BUILD_LOCKS", {})
+                tree_build_lock = tree_locks.get(tree_cache_key)
+                if tree_build_lock is None:
+                    tree_build_lock = threading.Lock()
+                    tree_locks[tree_cache_key] = tree_build_lock
+                if len(tree_locks) > LOGIN_PRELOAD_BUILD_LOCKS_MAX_ITEMS:
+                    for old_key, old_lock in list(tree_locks.items()):
+                        if old_key != tree_cache_key and not old_lock.locked():
+                            tree_locks.pop(old_key, None)
+                            if len(tree_locks) <= LOGIN_PRELOAD_BUILD_LOCKS_MAX_ITEMS:
+                                break
+            cache_lookup_ms = (time.perf_counter() - cache_lookup_started) * 1000
+            lock_started = time.perf_counter()
+            tree_build_lock.acquire()
+            tree_lock_acquired = True
+            lock_wait_ms = (time.perf_counter() - lock_started) * 1000
+            with SERVER_DATA_LIST_CACHE_LOCK:
+                cached_tree = tree_cache.get(tree_cache_key) if isinstance(tree_cache, dict) else None
+            tree_cache_hit = isinstance(cached_tree, dict)
+            if not tree_cache_hit:
+                build_started = time.perf_counter()
+                tree_payload = build_server_data_common_tree_snapshot(manifest, trace=common_phase_trace)
+                build_ms = (time.perf_counter() - build_started) * 1000
+                serialize_started = time.perf_counter()
+                identity_data = json_bytes(tree_payload)
+                serialize_ms = (time.perf_counter() - serialize_started) * 1000
+                compress_started = time.perf_counter()
+                cached_tree = {
+                    "identity": b"",
+                    "gzip": gzip.compress(identity_data, compresslevel=1, mtime=0),
+                    "decoded_bytes": len(identity_data),
+                }
+                compress_ms = (time.perf_counter() - compress_started) * 1000
+                with SERVER_DATA_LIST_CACHE_LOCK:
+                    tree_cache[tree_cache_key] = cached_tree
+                    if len(tree_cache) > SERVER_DATA_TREE_PRELOAD_CACHE_MAX_ITEMS:
+                        for old_key in list(tree_cache.keys())[: max(1, len(tree_cache) - SERVER_DATA_TREE_PRELOAD_CACHE_MAX_ITEMS)]:
+                            tree_cache.pop(old_key, None)
+            accepts_gzip = "gzip" in clean(self.headers.get("Accept-Encoding", "")).lower()
+            response_data = bytes(cached_tree.get("gzip") or b"") if accepts_gzip else bytes(cached_tree.get("identity") or b"")
+            if not accepts_gzip and not response_data and cached_tree.get("gzip"):
+                response_data = gzip.decompress(bytes(cached_tree.get("gzip") or b""))
+            send_started = time.perf_counter()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(response_data)))
+            self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+            self.send_header("ETag", etag)
+            self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+            if accepts_gzip:
+                self.send_header("Content-Encoding", "gzip")
+            self.send_header("X-Future-Cache-Hit", "common-tree" if tree_cache_hit else "miss")
+            self.send_header("X-Future-Common-Revision", common_revision)
+            self.send_header("X-Future-Common-Cache-Key", "server2-common-tree:user-scope")
+            server_timing = ", ".join([
+                f"common_auth;dur={auth_ms:.3f}",
+                f"common_cache_lookup;dur={cache_lookup_ms:.3f}",
+                f"common_lock;dur={lock_wait_ms:.3f}",
+                f"common_manifest;dur={(common_phase_trace.get('manifest_ready', 0.0) - common_phase_trace.get('snapshot_start', 0.0)) * 1000:.3f}" if common_phase_trace.get("snapshot_start") else "common_manifest;dur=0.000",
+                f"common_compact_base;dur={(common_phase_trace.get('compact_base_done', 0.0) - common_phase_trace.get('snapshot_start', 0.0)) * 1000:.3f}" if common_phase_trace.get("snapshot_start") else "common_compact_base;dur=0.000",
+                f"common_rows_by_path;dur={(common_phase_trace.get('rows_by_path_done', 0.0) - common_phase_trace.get('manifest_ready', 0.0)) * 1000:.3f}" if common_phase_trace.get("rows_by_path_done") else "common_rows_by_path;dur=0.000",
+                f"common_rows_by_root;dur={(common_phase_trace.get('rows_by_root_done', 0.0) - common_phase_trace.get('rows_by_path_done', 0.0)) * 1000:.3f}" if common_phase_trace.get("rows_by_root_done") else "common_rows_by_root;dur=0.000",
+                f"common_payload_ready;dur={(common_phase_trace.get('payload_ready', 0.0) - common_phase_trace.get('rows_compacted', 0.0)) * 1000:.3f}" if common_phase_trace.get("payload_ready") else "common_payload_ready;dur=0.000",
+                f"common_build;dur={build_ms:.3f}",
+                f"common_serialize;dur={serialize_ms:.3f}",
+                f"common_compress;dur={compress_ms:.3f}",
+                f"common_send;dur={(time.perf_counter() - send_started) * 1000:.3f}",
+                f"common_prepare;dur={(time.perf_counter() - tree_request_started) * 1000:.3f}",
+            ])
+            self.send_header("Server-Timing", server_timing)
+            queue_wait_ms = self.request_queue_wait_ms()
+            write_started = time.perf_counter()
+            self.safe_finish_response(response_data)
+            stt_debug_log(
+                "common_tree_response_timing",
+                cache_hit=tree_cache_hit,
+                queue_wait_ms=round(queue_wait_ms, 3),
+                handler_elapsed_ms=round(self.request_handler_elapsed_ms(), 3),
+                write_ms=round((time.perf_counter() - write_started) * 1000, 3),
+                bytes=len(response_data),
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        finally:
+            if tree_lock_acquired and tree_build_lock is not None and tree_build_lock.locked():
+                tree_build_lock.release()
+            if tree_cache_key is not None:
+                with SERVER_DATA_LIST_CACHE_LOCK:
+                    tree_locks = globals().setdefault("SERVER_DATA_COMMON_TREE_PRELOAD_BUILD_LOCKS", {})
+                    if tree_locks.get(tree_cache_key) is tree_build_lock:
+                        tree_locks.pop(tree_cache_key, None)
+        return
+    if path == "/server-data/user-overlay":
+        tree_request_started = time.perf_counter()
+        overlay_manifest_started = time.perf_counter()
+        tree_build_lock = None
+        tree_cache_key = None
+        tree_lock_acquired = False
+        auth_ms = 0.0
+        try:
+            overlay_auth_started = time.perf_counter()
+            session = self.auth_session()
+            auth_ms = (time.perf_counter() - overlay_auth_started) * 1000
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            admin_view = bool(is_admin_user(username))
+            manifest = get_server_data_manifest(force=False)
+            manifest_ms = (time.perf_counter() - overlay_manifest_started) * 1000
+            structural_version = int(manifest.get("structural_metadata_version", 0) or 0) if isinstance(manifest, dict) else 0
+            overlay_roots_started = time.perf_counter()
+            if admin_view:
+                registered_users = {
+                    normalize_username(item).lower()
+                    for item in list_dashboard_usernames()
+                    if normalize_username(item)
+                }
+                overlay_roots = {"admin", username.lower(), *registered_users}
+            else:
+                overlay_roots = {username.lower()} if username else set()
+            overlay_roots = {
+                item for item in overlay_roots
+                if item and item != "common" and item not in {clean(skip).lower() for skip in server_data_manifest_skip_tops()}
+            }
+            overlay_roots_ms = (time.perf_counter() - overlay_roots_started) * 1000
+            overlay_revision_started = time.perf_counter()
+            overlay_manifest_revision = server_data_manifest_user_overlay_revision(manifest, overlay_roots) if overlay_roots else ""
+            overlay_manifest_revision_ms = (time.perf_counter() - overlay_revision_started) * 1000
+            overlay_revision_started = time.perf_counter()
+            vault_revision_reader = globals().get("server_database_vault_revision")
+            vault_revision = int(vault_revision_reader(username) or 0) if callable(vault_revision_reader) and username else 0
+            overlay_revision_ms = (time.perf_counter() - overlay_revision_started) * 1000
+            overlay_revision = f"{overlay_manifest_revision}:v{vault_revision}"
+            overlay_context = {
+                "viewer": username,
+                "overlay_roots": overlay_roots,
+                "overlay_manifest_revision": overlay_manifest_revision,
+                "vault_revision": vault_revision,
+                "overlay_revision": overlay_revision,
+                "structural_version": structural_version,
+            }
+            tree_cache_key = (username.lower(), "admin" if admin_view else "user", f"{overlay_revision}:sm{structural_version}")
+            etag = f'"ft-overlay-{hashlib.sha1("|".join(tree_cache_key).encode("utf-8")).hexdigest()}"'
+            if clean(self.headers.get("If-None-Match", "")) == etag:
+                server_timing = ", ".join([
+                    f"overlay_auth;dur={auth_ms:.3f}",
+                    f"overlay_manifest;dur={manifest_ms:.3f}",
+                    f"overlay_roots;dur={overlay_roots_ms:.3f}",
+                    f"overlay_manifest_revision;dur={overlay_manifest_revision_ms:.3f}",
+                    f"overlay_vault_revision;dur={overlay_revision_ms:.3f}",
+                    f"overlay_prepare;dur={(time.perf_counter() - tree_request_started) * 1000:.3f}",
+                ])
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, max-age=120, must-revalidate")
+                self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+                self.send_header("Server-Timing", server_timing)
+                self.safe_finish_response()
+                return
+            tree_cache = globals().get("SERVER_DATA_USER_OVERLAY_BYTES_CACHE", {})
+            cached_tree = tree_cache.get(tree_cache_key) if isinstance(tree_cache, dict) else None
+            tree_cache_hit = isinstance(cached_tree, dict)
+            if tree_cache_hit:
+                accepts_gzip = "gzip" in clean(self.headers.get("Accept-Encoding", "")).lower()
+                response_data = bytes(cached_tree.get("gzip") or b"") if accepts_gzip else bytes(cached_tree.get("identity") or b"")
+                if not accepts_gzip and not response_data and cached_tree.get("gzip"):
+                    response_data = gzip.decompress(bytes(cached_tree.get("gzip") or b""))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(response_data)))
+                self.send_header("Cache-Control", "private, max-age=120, must-revalidate")
+                self.send_header("ETag", etag)
+                self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+                if accepts_gzip:
+                    self.send_header("Content-Encoding", "gzip")
+                self.send_header("X-Future-Cache-Hit", "user-overlay")
+                self.send_header("X-Future-Overlay-Revision", overlay_revision)
+                self.send_header("Server-Timing", ", ".join([
+                    f"overlay_auth;dur={auth_ms:.3f}",
+                    f"overlay_manifest;dur={manifest_ms:.3f}",
+                    f"overlay_roots;dur={overlay_roots_ms:.3f}",
+                    f"overlay_manifest_revision;dur={overlay_manifest_revision_ms:.3f}",
+                    f"overlay_vault_revision;dur={overlay_revision_ms:.3f}",
+                    f"overlay_build;dur=0.000",
+                    f"overlay_serialize;dur=0.000",
+                    f"overlay_compress;dur=0.000",
+                    f"overlay_prepare;dur={(time.perf_counter() - tree_request_started) * 1000:.3f}",
+                ]))
+                queue_wait_ms = self.request_queue_wait_ms()
+                write_started = time.perf_counter()
+                self.safe_finish_response(response_data)
+                stt_debug_log(
+                    "user_overlay_response_timing",
+                    cache_hit=tree_cache_hit,
+                    queue_wait_ms=round(queue_wait_ms, 3),
+                    handler_elapsed_ms=round(self.request_handler_elapsed_ms(), 3),
+                    write_ms=round((time.perf_counter() - write_started) * 1000, 3),
+                    bytes=len(response_data),
+                )
+                return
+            lock_started = time.perf_counter()
+            with SERVER_DATA_LIST_CACHE_LOCK:
+                tree_cache = globals().setdefault("SERVER_DATA_USER_OVERLAY_BYTES_CACHE", {})
+                tree_locks = globals().setdefault("SERVER_DATA_USER_OVERLAY_BUILD_LOCKS", {})
+                tree_build_lock = tree_locks.get(tree_cache_key)
+                if tree_build_lock is None:
+                    tree_build_lock = threading.Lock()
+                    tree_locks[tree_cache_key] = tree_build_lock
+                if len(tree_locks) > LOGIN_PRELOAD_BUILD_LOCKS_MAX_ITEMS:
+                    for old_key, old_lock in list(tree_locks.items()):
+                        if old_key != tree_cache_key and not old_lock.locked():
+                            tree_locks.pop(old_key, None)
+                            if len(tree_locks) <= LOGIN_PRELOAD_BUILD_LOCKS_MAX_ITEMS:
+                                break
+            lock_timeout = max(1.0, float(globals().get("LOGIN_PRELOAD_BUILD_LOCK_TIMEOUT_SECONDS", 15.0) or 15.0))
+            if not tree_build_lock.acquire(timeout=lock_timeout):
+                self.send_json(503, {
+                    "ok": False,
+                    "error": "User overlay build is busy; retry shortly.",
+                    "retry_after_ms": int(lock_timeout * 1000),
+                })
+                return
+            tree_lock_acquired = True
+            lock_wait_ms = (time.perf_counter() - lock_started) * 1000
+            with SERVER_DATA_LIST_CACHE_LOCK:
+                cached_tree = tree_cache.get(tree_cache_key) if isinstance(tree_cache, dict) else None
+            tree_cache_hit = isinstance(cached_tree, dict)
+            build_started = time.perf_counter()
+            serialize_ms = 0.0
+            compress_ms = 0.0
+            if not tree_cache_hit:
+                overlay_payload = build_server_data_user_tree_overlay(username, admin=admin_view, manifest=manifest, overlay_context=overlay_context)
+                serialize_started = time.perf_counter()
+                identity_data = json_bytes(overlay_payload)
+                serialize_ms = (time.perf_counter() - serialize_started) * 1000
+                compress_started = time.perf_counter()
+                cached_tree = {
+                    "identity": identity_data,
+                    "gzip": gzip.compress(identity_data, compresslevel=1, mtime=0),
+                    "decoded_bytes": len(identity_data),
+                }
+                compress_ms = (time.perf_counter() - compress_started) * 1000
+                with SERVER_DATA_LIST_CACHE_LOCK:
+                    tree_cache[tree_cache_key] = cached_tree
+                    if len(tree_cache) > SERVER_DATA_TREE_PRELOAD_CACHE_MAX_ITEMS:
+                        for old_key in list(tree_cache.keys())[: max(1, len(tree_cache) - SERVER_DATA_TREE_PRELOAD_CACHE_MAX_ITEMS)]:
+                            tree_cache.pop(old_key, None)
+            accepts_gzip = "gzip" in clean(self.headers.get("Accept-Encoding", "")).lower()
+            response_data = bytes(cached_tree.get("gzip") or b"") if accepts_gzip else bytes(cached_tree.get("identity") or b"")
+            if not accepts_gzip and not response_data and cached_tree.get("gzip"):
+                response_data = gzip.decompress(bytes(cached_tree.get("gzip") or b""))
+            server_timing = ", ".join([
+                f"overlay_auth;dur={auth_ms:.3f}",
+                f"overlay_manifest;dur={manifest_ms:.3f}",
+                f"overlay_roots;dur={overlay_roots_ms:.3f}",
+                f"overlay_manifest_revision;dur={overlay_manifest_revision_ms:.3f}",
+                f"overlay_vault_revision;dur={overlay_revision_ms:.3f}",
+                f"overlay_lock;dur={lock_wait_ms:.3f}",
+                f"overlay_build;dur={(time.perf_counter() - build_started) * 1000:.3f}",
+                f"overlay_serialize;dur={serialize_ms:.3f}",
+                f"overlay_compress;dur={compress_ms:.3f}",
+                f"overlay_prepare;dur={(time.perf_counter() - tree_request_started) * 1000:.3f}",
+            ])
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(response_data)))
+            self.send_header("Cache-Control", "private, max-age=120, must-revalidate")
+            self.send_header("ETag", etag)
+            self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+            if accepts_gzip:
+                self.send_header("Content-Encoding", "gzip")
+            self.send_header("X-Future-Cache-Hit", "user-overlay" if tree_cache_hit else "user-overlay-build")
+            self.send_header("X-Future-Overlay-Revision", overlay_revision)
+            self.send_header("Server-Timing", server_timing)
+            response_started = time.perf_counter()
+            headers_ms = (time.perf_counter() - response_started) * 1000
+            write_started = time.perf_counter()
+            self.safe_finish_response(response_data)
+            write_ms = (time.perf_counter() - write_started) * 1000
+            if headers_ms > 0 or write_ms > 0:
+                stt_debug_log("user_overlay_response_timing", cache_hit=tree_cache_hit, headers_ms=round(headers_ms, 3), queue_wait_ms=round(self.request_queue_wait_ms(), 3), handler_elapsed_ms=round(self.request_handler_elapsed_ms(), 3), write_ms=round(write_ms, 3), bytes=len(response_data))
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        finally:
+            if tree_lock_acquired and tree_build_lock is not None and tree_build_lock.locked():
+                tree_build_lock.release()
+            if tree_cache_key is not None:
+                with SERVER_DATA_LIST_CACHE_LOCK:
+                    tree_locks = globals().setdefault("SERVER_DATA_USER_OVERLAY_BUILD_LOCKS", {})
+                    if tree_locks.get(tree_cache_key) is tree_build_lock and tree_build_lock is not None and not tree_build_lock.locked():
+                        tree_locks.pop(tree_cache_key, None)
+        return
+    if path == "/server-data/tree-preload":
+        tree_request_started = time.perf_counter()
+        tree_build_lock = None
+        tree_cache_key = None
+        tree_lock_acquired = False
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            admin_view = bool(is_admin_user(username))
+            manifest = get_server_data_manifest(force=False)
+            manifest_signature = server_data_tree_runtime_revision(username, admin_view, manifest)
+            structural_version = int(manifest.get("structural_metadata_version", 0) or 0) if isinstance(manifest, dict) else 0
+            tree_cache_revision = f"{manifest_signature}:sm{structural_version}"
+            snapshot_username, tree_cache_identity = server_data_tree_snapshot_identity(username, admin_view, manifest)
+            tree_cache_key = (tree_cache_identity, "admin" if admin_view else "user", tree_cache_revision)
+            etag = f'"ft-tree-{hashlib.sha1("|".join(tree_cache_key).encode("utf-8")).hexdigest()}"'
+            if clean(self.headers.get("If-None-Match", "")) == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+                self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+                self.safe_finish_response()
+                return
+            with SERVER_DATA_LIST_CACHE_LOCK:
+                tree_cache = globals().setdefault("SERVER_DATA_TREE_PRELOAD_BYTES_CACHE", {})
+                tree_locks = globals().setdefault("SERVER_DATA_TREE_PRELOAD_BUILD_LOCKS", {})
+                tree_build_lock = tree_locks.get(tree_cache_key)
+                if tree_build_lock is None:
+                    tree_build_lock = threading.Lock()
+                    tree_locks[tree_cache_key] = tree_build_lock
+                if len(tree_locks) > LOGIN_PRELOAD_BUILD_LOCKS_MAX_ITEMS:
+                    for old_key, old_lock in list(tree_locks.items()):
+                        if old_key != tree_cache_key and not old_lock.locked():
+                            tree_locks.pop(old_key, None)
+                            if len(tree_locks) <= LOGIN_PRELOAD_BUILD_LOCKS_MAX_ITEMS:
+                                break
+            tree_build_lock.acquire()
+            tree_lock_acquired = True
+            with SERVER_DATA_LIST_CACHE_LOCK:
+                cached_tree = tree_cache.get(tree_cache_key) if isinstance(tree_cache, dict) else None
+            tree_cache_hit = isinstance(cached_tree, dict)
+            if not tree_cache_hit:
+                tree_payload = build_server_data_tree_snapshot(snapshot_username, admin=admin_view)
+                identity_data = json_bytes(tree_payload)
+                cached_tree = {
+                    "identity": b"",
+                    "gzip": gzip.compress(identity_data, compresslevel=1, mtime=0),
+                }
+                with SERVER_DATA_LIST_CACHE_LOCK:
+                    tree_cache[tree_cache_key] = cached_tree
+                    if len(tree_cache) > SERVER_DATA_TREE_PRELOAD_CACHE_MAX_ITEMS:
+                        for old_key in list(tree_cache.keys())[: max(1, len(tree_cache) - SERVER_DATA_TREE_PRELOAD_CACHE_MAX_ITEMS)]:
+                            tree_cache.pop(old_key, None)
+            accepts_gzip = "gzip" in clean(self.headers.get("Accept-Encoding", "")).lower()
+            response_data = bytes(cached_tree.get("gzip") or b"") if accepts_gzip else bytes(cached_tree.get("identity") or b"")
+            if not accepts_gzip and not response_data and cached_tree.get("gzip"):
+                response_data = gzip.decompress(bytes(cached_tree.get("gzip") or b""))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(response_data)))
+            self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+            self.send_header("ETag", etag)
+            self.send_header("Vary", "Accept-Encoding, Cookie, Authorization")
+            if accepts_gzip:
+                self.send_header("Content-Encoding", "gzip")
+            self.send_header("X-Future-Cache-Hit", "tree-preload" if tree_cache_hit else "miss")
+            self.send_header("Server-Timing", f"tree_prepare;dur={(time.perf_counter() - tree_request_started) * 1000:.3f}")
+            self.safe_finish_response(response_data)
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        finally:
+            if tree_lock_acquired and tree_build_lock is not None and tree_build_lock.locked():
+                tree_build_lock.release()
+            if tree_cache_key is not None:
+                with SERVER_DATA_LIST_CACHE_LOCK:
+                    tree_locks = globals().setdefault("SERVER_DATA_TREE_PRELOAD_BUILD_LOCKS", {})
+                    if tree_locks.get(tree_cache_key) is tree_build_lock:
+                        tree_locks.pop(tree_cache_key, None)
+        return
+    if path == "/server-data/login-preload":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap.", "reason": "auth_required"})
+                return
+            query = parse_qs(parsed.query)
+            session_username = normalize_username(session.get("username", ""))
+            username = normalize_username((query.get("username") or query.get("user") or [session_username])[0])
+            valid, message = validate_username(username)
+            if not valid:
+                self.send_json(400, {"ok": False, "error": message, "reason": "invalid_username"})
+                return
+            if username != session_username:
+                self.send_json(403, {"ok": False, "error": "Khong duoc nap du lieu cua user khac.", "reason": "cross_user"})
+                return
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            response_mode = clean((query.get("response") or query.get("schema") or [""])[0])
+            row = get_or_build_login_preload_response_cache_row(username, rel_path, response_mode)
+            timing = row.get("timing") if isinstance(row, dict) else {}
+            server_timing = ", ".join([
+                f"login_preload_list;dur={float((timing or {}).get('list_server_data_ms', 0) or 0):.3f}",
+                f"login_preload_progress;dur={float((timing or {}).get('progress_snapshot_ms', 0) or 0):.3f}",
+                f"login_preload_progress_index;dur={float((timing or {}).get('progress_snapshot_index_ms', 0) or 0):.3f}",
+                f"login_preload_progress_time;dur={float((timing or {}).get('progress_snapshot_time_ms', 0) or 0):.3f}",
+                f"login_preload_progress_items;dur={float((timing or {}).get('progress_snapshot_items_ms', 0) or 0):.3f}",
+                f"login_preload_progress_cache;dur={float((timing or {}).get('progress_snapshot_cache_ms', 0) or 0):.3f}",
+                f"login_preload_last_file;dur={float((timing or {}).get('last_file_state_ms', 0) or 0):.3f}",
+                f"login_preload_json;dur={float((timing or {}).get('json_bytes_ms', 0) or 0):.3f}",
+                f"login_preload_total;dur={float((timing or {}).get('total_ms', 0) or 0):.3f}",
+            ])
+            self.send_bytes(
+                200,
+                row.get("bytes", b""),
+                "application/json; charset=utf-8",
+                cache_control="private, max-age=0, must-revalidate",
+                etag=clean(row.get("etag", "")),
+                extra_headers={
+                    "X-Future-Cache-Hit": "login-preload-bytes" if row.get("cache_hit") else "login-preload-build",
+                    "Server-Timing": server_timing,
+                },
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/codex-local-login":
+        try:
+            if not self.is_local_admin_request():
+                self.send_json(404, {"ok": False, "error": "Not found."})
+                return
+            query = parse_qs(parsed.query)
+            marker = clean((query.get("marker") or query.get("codex") or [""])[0])
+            if marker != "1":
+                self.send_json(403, {"ok": False, "error": "Missing local Codex test marker."})
+                return
+            username = normalize_username((query.get("username") or query.get("user") or [""])[0])
+            if not username:
+                self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
+                return
+            if not read_user_lines(username):
+                self.send_json(404, {"ok": False, "error": "Tài khoản không tồn tại.", "reason": "nouser"})
+                return
+            # Added 2026-07-06: local-only browser test login for Codex DOM checks without normal password entry.
+            session = create_auth_session(username)
+            next_path = clean((query.get("next") or ["/lesson_vault"])[0]) or "/lesson_vault"
+            if not next_path.startswith("/") or next_path.startswith("//"):
+                next_path = "/lesson_vault"
+            self.send_response(302)
+            self.send_header("Location", next_path)
+            self.send_header(
+                "Set-Cookie",
+                f"{AUTH_COOKIE_NAME}={session.get('token', '')}; Max-Age=86400; Path=/; SameSite=Lax",
+            )
+            self.send_header("Cache-Control", "no-store, no-cache, max-age=0")
+            self.safe_finish_response()
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/me":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        username = session.get("username", "")
+        chat_mark_online(username)
+        touch_user_activity_seen(username)
+        self.send_json(200, auth_me_payload(username, include_rewards=True))
+        return
+    if path == "/auth/admin-users":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        username = normalize_username(session.get("username", ""))
+        if not is_admin_user(username):
+            self.send_json(403, {"ok": False, "error": "Only admins can view this list."})
+            return
+        chat_mark_online(username)
+        picker_query = parse_qs(parsed.query)
+        if clean((picker_query.get("picker") or [""])[0]).lower() in {"1", "true", "yes"}:
+            picker = dashboard_admin_user_picker_payload(
+                (picker_query.get("search") or picker_query.get("q") or [""])[0],
+                int((picker_query.get("page") or ["1"])[0] or 1),
+                int((picker_query.get("page_size") or ["10"])[0] or 10),
+            )
+            self.send_json(200, {"ok": True, **picker})
+            return
+        self.send_json(200, {"ok": True, **dashboard_admin_payload()})
+        return
+    if path == "/server-data/vault-folders":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        viewer = normalize_username(session.get("username", ""))
+        query = parse_qs(parsed.query)
+        target = normalize_username((query.get("user") or query.get("target_user") or [viewer])[0]) or viewer
+        if target != viewer and not is_admin_user(viewer):
+            self.send_json(403, {"ok": False, "error": "Only admins can view another user's Vault folders."})
+            return
+        rows = server_database_vault_folder_rows(target)
+        self.send_json(200, {"ok": True, "username": target, "folders": rows, "vault_revision": server_database_vault_revision(target)})
+        return
+    if path == "/server-data/vault-revision":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        viewer = normalize_username(session.get("username", ""))
+        query = parse_qs(parsed.query)
+        target = normalize_username((query.get("user") or query.get("target_user") or [viewer])[0]) or viewer
+        if target != viewer and not is_admin_user(viewer):
+            self.send_json(403, {"ok": False, "error": "Only admins can view another user's Vault revision."})
+            return
+        self.send_json(200, {"ok": True, "username": target, "vault_revision": server_database_vault_revision(target)})
+        return
+    if path == "/profile/public":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        query = parse_qs(parsed.query)
+        username = normalize_username((query.get("username") or query.get("user") or [session.get("username", "")])[0])
+        if not username:
+            self.send_json(400, {"ok": False, "error": "Missing user."})
+            return
+        self.send_json(200, {"ok": True, "profile": public_user_profile_card(username)})
+        return
+    if path == "/inventory":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
+            self.send_json(200, {
+                "ok": True,
+                "response_schema": "inventory-compact-v1" if compact_response else "inventory-full-v1",
+                **public_inventory(session.get("username", ""), compact=compact_response),
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/pending":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server duoc duyet dang ky."})
+            return
+        self.send_json(200, {"ok": True, "pending": list_pending_registrations(), "password_resets": list_pending_password_resets()})
+        return
+    if path in ("/dashboard/login-log", "/dashboard/learning-log"):
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Dashboard logs are only available on the server machine."})
+            return
+        query = parse_qs(parsed.query)
+        day = clean((query.get("date") or [""])[0])[:10]
+        search = clean((query.get("search") or [""])[0])[:120]
+        try:
+            limit = int(clean((query.get("limit") or ["800"])[0]) or 800)
+        except Exception:
+            limit = 800
+        log_path = LOGIN_LOG_FILE if path.endswith("login-log") else LEARNING_LOG_FILE
+        rows = read_jsonl_log(log_path, limit=limit, date=day, search=search)
+        if path.endswith("login-log"):
+            rows = (rows + active_session_login_rows(day, search))
+            rows.sort(key=lambda item: clean(item.get("at", "")), reverse=True)
+            rows = rows[: max(1, min(5000, limit))]
+        self.send_json(200, {"ok": True, "date": day, "search": search, "rows": rows, "retention_days": 31})
+        return
+    if path == "/dashboard/admins":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Admin settings are only available on the server machine."})
+            return
+        self.send_json(200, {"ok": True, **dashboard_admin_payload()})
+        return
+    if path == "/dashboard/email-routing":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Email Routing is only available on the server machine."})
+            return
+        self.send_html(200, cloudflare_email_routing_admin_page())
+        return
+    if path == "/dashboard/email-routing/state":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Email Routing is only available on the server machine."})
+            return
+        query = parse_qs(parsed.query)
+        live = truthy((query.get("live") or ["false"])[0], False)
+        self.send_json(200, {"ok": True, **cloudflare_email_routing_public_config(live=live)})
+        return
+    if path == "/dashboard/email-routing/worker.js":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Email Routing worker script is only available on the server machine."})
+            return
+        query = parse_qs(parsed.query)
+        endpoint = clean((query.get("endpoint") or [""])[0])
+        data = cloudflare_email_routing_worker_script(endpoint).encode("utf-8")
+        self.send_bytes(200, data, "text/javascript; charset=utf-8", cache_control="private, no-store, no-cache, max-age=0")
+        return
+    if path == "/server-data/manifest-status":
+        try:
+            session = self.auth_session()
+            if not session and not self.is_local_admin_request():
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            manifest = get_server_data_manifest()
+            folders = manifest.get("folders") if isinstance(manifest.get("folders"), dict) else {}
+            self.send_json(200, {
+                "ok": True,
+                "updated_at": clean(manifest.get("updated_at", "")),
+                "signature": server_data_tree_runtime_revision(
+                    normalize_username(session.get("username", "")) if session else "",
+                    bool((session and is_admin_user(session.get("username", ""))) or self.is_local_admin_request()),
+                    manifest,
+                ),
+                "integrity_signature": clean(manifest.get("signature", "")),
+                "folder_count": len(folders),
+                "entry_count": sum(len(rows) for rows in folders.values() if isinstance(rows, list)),
+            })
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/list":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            task_owner = clean((query.get("task_owner") or query.get("owner") or [""])[0])
+            fresh = truthy((query.get("fresh") or query.get("force") or [""])[0], False)
+            defer_task_board = truthy((query.get("defer_task_board") or query.get("deferTaskBoard") or [""])[0], False)
+            include_space_task = truthy((query.get("include_space_task") or query.get("includeSpaceTask") or [""])[0], False)
+            username = session.get("username", "")
+            payload = dict(list_server_data(
+                rel_path,
+                username,
+                admin=is_admin_user(username),
+                task_owner_hint=task_owner,
+                fresh=fresh,
+                include_task_board=not defer_task_board,
+                include_space_task=include_space_task,
+            ))
+            server_timing = clean(payload.pop("_server_timing", ""))
+            self.send_json(200, payload, extra_headers={"Server-Timing": server_timing} if server_timing else None)
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/last-file":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            row = lesson_last_file_response_cache_row(username)
+            self.send_bytes(
+                200,
+                row.get("bytes", b""),
+                "application/json; charset=utf-8",
+                cache_control="private, max-age=0, must-revalidate",
+                etag=clean(row.get("etag", "")),
+                extra_headers={"X-Future-Cache-Hit": "last-file-bytes" if row.get("cache_hit") else "last-file-build"},
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/item-study":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            if not rel_path:
+                self.send_json(400, {"ok": False, "error": "Thieu path."})
+                return
+            username = normalize_username(session.get("username", ""))
+            admin_view = is_admin_user(username)
+            task_owner = normalize_username((query.get("task_owner") or query.get("owner") or [""])[0]) if admin_view else ""
+            if task_owner and (not learner_user_exists(task_owner) or not (SERVER_DATA_ROOT / task_owner).is_dir()):
+                task_owner = ""
+            study_user = task_owner or lesson_task_owner_for_path(rel_path, username, admin=admin_view) or username
+            aliases = [rel_path]
+            for alias in query.get("alias") or query.get("aliases") or []:
+                alias = clean_path_value(alias)
+                if alias:
+                    aliases.append(alias)
+            target = safe_server_data_path(rel_path, username, admin=admin_view)
+            effective_target = server_data_effective_file_path(target, username=username, admin=admin_view)
+            study_path = clean_path_value(server_data_relative(effective_target)) or rel_path
+            if study_path:
+                aliases.append(study_path)
+            progress_index = lesson_progress_record_index(study_user)
+            time_index = lesson_time_state_index(study_user)
+            study = summarize_lesson_study(
+                effective_target,
+                study_user,
+                progress_index,
+                time_index,
+                include_admin=admin_view,
+                progress_relative_path=study_path,
+                path_is_effective=True,
+                progress_relative_paths=aliases,
+            )
+            viewer_study = {}
+            viewer_progress_user = username if admin_view and study_user and normalize_username(username) != normalize_username(study_user) else ""
+            if viewer_progress_user:
+                viewer_study = summarize_lesson_study(
+                    effective_target,
+                    viewer_progress_user,
+                    lesson_progress_record_index(viewer_progress_user),
+                    lesson_time_state_index(viewer_progress_user),
+                    include_admin=True,
+                    progress_relative_path=study_path,
+                    path_is_effective=True,
+                    progress_relative_paths=aliases,
+                )
+            self.send_json(200, {
+                "ok": True,
+                "username": username,
+                "task_owner": study_user,
+                "path": rel_path,
+                "effective_path": study_path,
+                "study": study,
+                "viewer_study": viewer_study,
+            })
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson-tasks/status":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            query = parse_qs(parsed.query)
+            target_user = normalize_username((query.get("user") or [""])[0])
+            if target_user and target_user != username and not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can view another user's tasks."})
+                return
+            task_user = target_user or username
+            status = space_task_payload_refresh_status(task_user, username, include_admin=is_admin_user(username))
+            self.send_json(200, {"ok": True, "task_owner": task_user, **status})
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson-tasks":
+        try:
+            lesson_tasks_request_started = time.perf_counter()
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            query = parse_qs(parsed.query)
+            target_user = normalize_username((query.get("user") or [""])[0])
+            if target_user and target_user != username and not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can view another user's tasks."})
+                return
+            task_user = target_user or username
+            viewer_is_admin = is_admin_user(username)
+            row = get_or_build_lesson_tasks_response_cache_row(task_user, username, viewer_is_admin)
+            request_ms = (time.perf_counter() - lesson_tasks_request_started) * 1000
+            timing_parts = [f"lesson_tasks_total;dur={request_ms:.3f}"]
+            if not row.get("cache_hit"):
+                for timing_name, timing_value in (row.get("timing") or {}).items():
+                    timing_parts.append(f"lesson_tasks_{clean(timing_name)};dur={float(timing_value or 0.0):.3f}")
+            self.send_bytes(
+                200,
+                row.get("bytes", b""),
+                "application/json; charset=utf-8",
+                cache_control="private, max-age=0, must-revalidate",
+                etag=clean(row.get("etag", "")),
+                extra_headers={
+                    "X-Future-Cache-Hit": "lesson-tasks-bytes" if row.get("cache_hit") else "lesson-tasks-build",
+                    "Server-Timing": ", ".join(timing_parts),
+                },
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson-task-notices":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            query = parse_qs(parsed.query)
+            target_user = normalize_username((query.get("user") or [""])[0])
+            immediate_after_raw = (query.get("immediate_after") or query.get("instant_after") or [None])[0]
+            if target_user and target_user != username and not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can view another user's task notices."})
+                return
+            notice_user = target_user or username
+            immediate_payload = {}
+            if immediate_after_raw is not None:
+                try:
+                    immediate_after = int(immediate_after_raw or 0)
+                except Exception:
+                    immediate_after = 0
+                immediate_payload = lesson_task_notice_immediate_payload(notice_user, immediate_after)
+            self.send_json(200, {
+                "ok": True,
+                "task_owner": notice_user,
+                "task_notices": lesson_task_notices_for_user(notice_user, admin_view=bool(is_admin_user(username) and username != notice_user)),
+                "admin": is_admin_user(username),
+                **immediate_payload,
+            })
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/file":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            username = session.get("username", "")
+            admin_view = is_admin_user(username)
+            target = safe_server_data_path(rel_path, username, admin=admin_view)
+            target = server_data_effective_file_path(target, username=username, admin=admin_view)
+            suffix = target.suffix.lower()
+            if suffix not in {".space_w", ".space_v", ".space_b", ".space_q", ".space_p", ".space_s", ".space_l", ".pdf", ".txt"}:
+                raise RuntimeError("Chi duoc nap file Space_W/Space_V/Space_B/Space_Q/Space_P/TXT trong C:\\server data.")
+            if suffix == ".space_v":
+                qmdict_sig = qmdict_source_signature()
+                qmdict_mtime_ns = int(qmdict_sig.get("mtime_ns", 0) or 0)
+                qmdict_size = int(qmdict_sig.get("size", -1) or -1)
+                etag = render_variant_etag(
+                    target,
+                    "server-data-space-v-qmdict",
+                    qmdict_mtime_ns,
+                    qmdict_size,
+                )
+                request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+                if etag and (etag in request_etags or "*" in request_etags):
+                    # Added 2026-07-20: avoid decoding/hydrating Space_V when the client already owns this exact dependency revision.
+                    self.send_bytes(
+                        200,
+                        b"",
+                        "text/plain; charset=utf-8",
+                        cache_control="private, no-cache, max-age=0, must-revalidate",
+                        etag=etag,
+                        extra_headers={"X-Future-Cache-Hit": "file-etag-preflight"},
+                    )
+                    return
+                payload_bytes, _hydrate_meta = cached_space_v_qmdict_file_bytes(target)
+                self.send_bytes(
+                    200,
+                    payload_bytes,
+                    "text/plain; charset=utf-8",
+                    cache_control="private, no-cache, max-age=0, must-revalidate",
+                    etag=etag,
+                )
+                return
+            etag = public_file_etag(target, "server-data-file")
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag and (etag in request_etags or "*" in request_etags):
+                self.send_bytes(
+                    200,
+                    b"",
+                    "application/pdf" if suffix == ".pdf" else "text/plain; charset=utf-8",
+                    cache_control="private, no-cache, max-age=0, must-revalidate",
+                    accept_ranges=suffix == ".pdf",
+                    etag=etag,
+                    extra_headers={"X-Future-Cache-Hit": "file-etag-preflight"},
+                )
+                return
+            self.send_bytes(
+                200,
+                cached_server_data_file_bytes(target),
+                "application/pdf" if suffix == ".pdf" else "text/plain; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                accept_ranges=suffix == ".pdf",
+                etag=etag,
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return

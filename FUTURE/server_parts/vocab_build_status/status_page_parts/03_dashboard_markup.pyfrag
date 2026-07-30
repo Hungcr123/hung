@@ -1,0 +1,647 @@
+</head>
+<body>
+  <main>
+    <section class="top">
+      <div>
+        <h1>Future Whisper</h1>
+        <p class="sub">Live server dashboard for Future learning, voice scoring, chat, screen, and stream tools.</p>
+        <div class="actions">
+          <button class="action" id="kill-other-servers" type="button">Kill old Future servers</button>
+          <button class="action is-danger" id="clean-close-all-runtime" type="button">Close server + tunnel</button>
+          <button class="action" id="frontend-update-clients" type="button">Update clients</button>
+          <button class="action" id="dashboard-close-server" type="button">Close server</button>
+        </div>
+      </div>
+      <div class="dashboard-status-stack">
+        <div class="dashboard-freshness" id="dashboard-freshness">NEW | 60s</div>
+        <div class="pill" id="status"><span class="pulse"></span>Checking</div>
+        <div class="dashboard-warm-log" id="dashboard-warm-log">Warm queue starting...</div>
+      </div>
+    </section>
+    <nav class="tabs" aria-label="Server tabs">
+      <button class="tab is-active" id="tab-main" type="button">Server</button>
+      <button class="tab" id="tab-users" type="button">Online users <span class="chat-badge is-empty" id="tab-chat-badge">0</span></button>
+      <button class="tab" id="tab-login-log" type="button">Login log</button>
+      <button class="tab" id="tab-learning-log" type="button">Learning log</button>
+      <button class="tab" id="tab-admins" type="button">Admins</button>
+      <button class="tab" id="tab-password-reset" type="button">Password resets <span class="chat-badge is-empty" id="tab-password-reset-badge">0</span></button>
+      <button class="tab" id="tab-security" type="button">Security <span class="chat-badge is-empty" id="tab-security-badge">!</span></button>
+      <button class="tab" id="tab-email-routing" type="button">Gmail</button>
+      <button class="tab" id="tab-workers" type="button">Workers</button>
+      <button class="tab" id="tab-rewards" type="button">Top rewards</button>
+      <button class="tab" id="tab-qm-city" type="button">QM-City</button>
+      <button class="tab" id="tab-qm-city-npc" type="button">QM-City NPC</button>
+      <button class="tab" id="tab-qm-city-levels" type="button">QM-City levels</button>
+    </nav>
+    <section class="grid tab-panel" id="panel-main">
+      <div class="card">
+        <div class="label">Model</div>
+        <div class="value" id="model">small</div>
+      </div>
+      <div class="card">
+        <div class="label">Language</div>
+        <div class="value" id="language">en</div>
+      </div>
+      <div class="card wide">
+        <div class="label">Model path</div>
+        <div class="value" id="model-ref">Loading...</div>
+      </div>
+      <div class="card wide">
+        <div class="label">Public learning link</div>
+        <div class="value"><code id="public-url">Building Cloudflare Tunnel...</code></div>
+        <button class="copy" id="copy-public" type="button">Copy learning link</button>
+      </div>
+      <div class="card">
+        <div class="label">Endpoint</div>
+        <div class="value"><code id="endpoint"></code></div>
+      </div>
+      <div class="card">
+        <div class="label">Queue</div>
+        <div class="value" id="queue-status">0 waiting</div>
+      </div>
+      <div class="card">
+        <div class="label">Jobs</div>
+        <div class="value" id="queue-jobs">0 done / 0 failed</div>
+      </div>
+      <div class="card">
+        <div class="label">CPU guard</div>
+        <div class="value" id="cpu-guard-status">Loading...</div>
+      </div>
+      <div class="card wide">
+        <div class="label">Learning activity</div>
+        <div class="value" id="learning-event">No completed lesson yet.</div>
+      </div>
+      <div class="card">
+        <div class="label">Uptime</div>
+        <div class="value" id="uptime">0s</div>
+      </div>
+      <div class="card wide">
+        <div class="label">Server message</div>
+        <div class="value" id="message">Server is starting...</div>
+      </div>
+      <div class="card wide">
+        <div class="label">Mic receive mode</div>
+        <div class="stream-audio-mode" id="admin-stream-audio-mode">
+          <button class="stream-mode-button" type="button" data-admin-stream-mode="relay">Relay</button>
+          <button class="stream-mode-button" type="button" data-admin-stream-mode="inbound">Inbound</button>
+        </div>
+        <div class="stream-mode-note" id="admin-stream-mode-note">Relay: user mic goes through server. Inbound: direct WebRTC track.</div>
+      </div>
+      <div class="card wide">
+        <div class="label">AI System login feed</div>
+        <div class="notice-editor">
+          <textarea class="notice-input" id="announcement-input" maxlength="1400" spellcheck="false" placeholder="Enter one announcement per line. Example: Class starts at 19:30 today."></textarea>
+          <div class="notice-actions">
+            <button class="notice-save" id="announcement-save" type="button">Save announcements</button>
+            <span class="notice-state" id="announcement-state">Loading announcements...</span>
+          </div>
+          <div class="notice-preview" id="announcement-preview"></div>
+        </div>
+      </div>
+      <div class="card wide">
+        <div class="label">Learning settings</div>
+        <div class="setting-editor">
+          <div class="setting-row">
+            <div class="setting-copy">
+              Word scoring hint orbit duration. The hologram clock reveals the next word after one full cycle.
+            </div>
+            <input class="setting-input" id="hint-cycle-input" type="number" min="5" max="180" step="1" value="30" aria-label="Hint orbit seconds">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Space_P auto hint duration. Paragraph Rewrite reveals the next hidden token after this timer.
+            </div>
+            <input class="setting-input" id="paragraph-hint-input" type="number" min="3" max="300" step="1" value="30" aria-label="Space_P hint seconds">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Question Root hologram globe lines. One English HUD line per row, maximum 4 lines.
+            </div>
+            <textarea class="notice-input" id="question-hud-input" maxlength="420" spellcheck="false" placeholder="MISSION NODE ONLINE&#10;ORBITAL MEMORY LINK&#10;QUESTION SIGNAL READY"></textarea>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Chat attachment limit per user. When a conversation exceeds this total, old images and files are pruned.
+            </div>
+            <input class="setting-input" id="chat-attachment-limit-input" type="number" min="1" max="4096" step="10" value="100" aria-label="Chat attachment limit MB">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Heavy action quota per user. Applies to translate, OCR, TTS, Gemini, and Ghost Eye actions only; admin, builders, and workers are exempt.
+            </div>
+            <input class="setting-input" id="heavy-user-quota-input" type="number" min="1" max="120" step="1" value="5" aria-label="Heavy action quota per minute">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Minimum seconds between heavy actions for the same user and job group. Real users get a retry message, not a logout.
+            </div>
+            <input class="setting-input" id="heavy-user-interval-input" type="number" min="0" max="60" step="1" value="5" aria-label="Heavy action interval seconds">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              AI Agent notice voice. Detailed mode only speaks one short signal sentence with this voice to keep the server light.
+            </div>
+            <input class="setting-input" id="ai-agent-notice-voice-input" type="text" maxlength="160" spellcheck="false" value="kokoro:am_michael" aria-label="AI Agent notice voice">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Space_W Speak scoring source. On allows users to choose server Whisper or browser check; Off forces browser live voice check for everyone.
+            </div>
+            <div class="cpu-guard-control">
+              <button class="notice-save cpu-guard-toggle is-on" id="space-w-ai-check-toggle" type="button" aria-pressed="true">Whisper On</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Leaderboard reaction icons. One reaction per line. Use label|icon so the top status bubble can open exactly this reaction set.
+            </div>
+            <textarea class="notice-input" id="leaderboard-reactions-input" maxlength="520" spellcheck="false" placeholder="Love|💕⃝&#10;Fire heart|❤️‍🔥&#10;Mischief|😈&#10;Cool|🥶"></textarea>
+          </div>
+          <div class="setting-row cpu-guard-row">
+            <div class="setting-copy">
+              Adaptive CPU guard. Heavy jobs keep running normally until CPU reaches this threshold, then the server queues them to protect light requests.
+            </div>
+            <div class="cpu-guard-control">
+              <input class="setting-input" id="cpu-threshold-input" type="number" min="45" max="98" step="1" value="90" aria-label="CPU queue threshold percent">
+              <button class="notice-save cpu-guard-toggle is-on" id="cpu-guard-toggle" type="button" aria-pressed="true">CPU Guard On</button>
+              <button class="notice-save cpu-guard-apply" id="cpu-guard-apply" type="button">Apply Limit</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              QmDict UK/US word audio. Re-download Sound of Text audio for every word in QmDict and overwrite broken UK/US files.
+            </div>
+            <div class="cpu-guard-control">
+              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-refresh" type="button">Refresh QmDict UK/US Audio</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-meaning-audio-refresh" type="button">Refresh Vietnamese SOT Audio</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-retry" type="button">Retry Failed Audio</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-reload" type="button">Reload QmDict</button>
+            </div>
+            <span class="notice-state" id="qmdict-reload-state">QmDict status is idle.</span>
+            <div class="qmdict-audio-progress" id="qmdict-audio-progress" hidden>
+              <span class="qmdict-audio-bar"><i id="qmdict-audio-progress-fill"></i></span>
+              <span class="qmdict-audio-copy" id="qmdict-audio-progress-copy">Vietnamese audio refresh is idle.</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Lesson Vault manifest. Reload the cached server-data tree after adding, moving, or deleting files in C:\\server data.
+            </div>
+            <div class="cpu-guard-control">
+              <button class="notice-save cpu-guard-apply" id="server-data-manifest-refresh" type="button">Refresh Manifest</button>
+            </div>
+            <span class="notice-state" id="server-data-manifest-state">Manifest refresh is idle.</span>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Cloudflare Tunnel public domain. Example: qm-tech.io.vn. When saved, the server creates or updates the DNS route for this hostname.
+            </div>
+            <input class="setting-input" id="cloudflare-hostname-input" type="text" maxlength="253" spellcheck="false" placeholder="qm-tech.io.vn" aria-label="Cloudflare public domain">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Cloudflare named tunnel. Keep this stable so the domain always points to the same tunnel.
+            </div>
+            <input class="setting-input" id="cloudflare-tunnel-name-input" type="text" maxlength="80" spellcheck="false" value="future-whisper" aria-label="Cloudflare tunnel name">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Hosted client obfuscation password. Leave blank to keep the current key; changing it rebuilds the hosted HTML cache.
+            </div>
+            <input class="setting-input" id="hosted-client-secret-input" type="password" maxlength="96" autocomplete="new-password" placeholder="New obfuscation password" aria-label="Hosted client obfuscation password">
+          </div>
+          <div class="notice-actions">
+            <button class="notice-save" id="settings-save" type="button">Save settings</button>
+            <span class="notice-state" id="settings-state">Loading settings...</span>
+          </div>
+        </div>
+      </div>
+      <div class="card wide">
+        <div class="label">Pending registrations</div>
+        <div class="value pending-list" id="pending-users">Checking...</div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-password-reset" hidden>
+      <div class="card wide">
+        <div class="label">Password reset requests</div>
+        <div class="setting-copy">User requests appear here for admin approval. Set a new password or reject the request.</div>
+      </div>
+      <div class="value pending-list" id="password-reset-users">Checking...</div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-security" hidden>
+      <div class="card wide">
+        <div class="label">Security / poll pressure</div>
+        <div class="setting-copy">Light RAM-only poll pressure and block alerts. Use Block 10m only when one user or IP is clearly flooding.</div>
+      </div>
+      <div class="dashboard-log-list" id="security-poll-list">No poll pressure detected.</div>
+    </section>
+    <section class="online-users tab-panel" id="panel-users" hidden>
+      <div class="card wide">
+        <div class="label">Online users</div>
+        <div class="value" id="online-users">Checking...</div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-login-log" hidden>
+      <div class="card wide">
+        <div class="label">Login history</div>
+        <div class="dashboard-log-toolbar">
+          <input class="dashboard-log-input" id="login-log-date" type="date" aria-label="Login log date">
+          <input class="dashboard-log-input" id="login-log-search" type="search" placeholder="Search user or device..." aria-label="Search login log">
+          <button class="notice-save" id="login-log-refresh" type="button">Refresh</button>
+        </div>
+      </div>
+      <div class="dashboard-log-list" id="login-log-list">Choose a date or search to load login history.</div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-learning-log" hidden>
+      <div class="card wide">
+        <div class="label">Completed lessons</div>
+        <div class="dashboard-log-toolbar">
+          <input class="dashboard-log-input" id="learning-log-date" type="date" aria-label="Learning log date">
+          <input class="dashboard-log-input" id="learning-log-search" type="search" placeholder="Search user, file, or title..." aria-label="Search learning log">
+          <button class="notice-save" id="learning-log-refresh" type="button">Refresh</button>
+        </div>
+      </div>
+      <div class="dashboard-log-list" id="learning-log-list">Choose a date or search to load completed lessons.</div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-admins" hidden>
+      <div class="card wide">
+        <div class="label">Admin access</div>
+        <div class="setting-copy">Admin users can browse common lessons and every user's server-data folder. Their study runs are recorded separately as admin runs.</div>
+        <div class="dashboard-log-toolbar">
+          <input class="dashboard-log-input" id="admin-user-search" type="search" placeholder="Search username, name, or data..." aria-label="Search admin users">
+        </div>
+      </div>
+      <div class="dashboard-log-list" id="admin-user-list">Loading admin users...</div>
+    </section>
+    <section class="gmail-panel tab-panel" id="panel-email-routing" hidden>
+      <div class="gmail-mailbox">
+        <div class="gmail-topbar">
+          <div>
+            <div class="gmail-title">Future Gmail</div>
+            <div class="gmail-subtitle">Secure domain inbox for OTP and routed messages</div>
+          </div>
+          <div class="gmail-status" id="email-routing-state">Connecting...</div>
+        </div>
+        <div class="gmail-readiness" id="email-routing-readiness">
+          <div class="gmail-ready-summary">
+            <span class="gmail-ready-badge" id="email-routing-ready-badge">Checking</span>
+            <div>
+              <div class="gmail-ready-title" id="email-routing-ready-title">Checking mail setup</div>
+              <div class="gmail-ready-copy" id="email-routing-ready-copy">Future is checking Cloudflare MX, public webhook, and inbox state.</div>
+            </div>
+          </div>
+          <div class="gmail-ready-grid">
+            <div class="gmail-ready-card" id="email-routing-ready-mx-card">
+              <span>Cloudflare MX</span>
+              <strong id="email-routing-ready-mx">Checking</strong>
+              <small id="email-routing-ready-mx-detail">DNS lookup pending</small>
+            </div>
+            <div class="gmail-ready-card" id="email-routing-ready-webhook-card">
+              <span>Future Webhook</span>
+              <strong id="email-routing-ready-webhook">Checking</strong>
+              <small id="email-routing-ready-webhook-detail">Secret and public endpoint</small>
+            </div>
+            <div class="gmail-ready-card" id="email-routing-ready-worker-card">
+              <span>Worker Route</span>
+              <strong id="email-routing-ready-worker">Manual</strong>
+              <small id="email-routing-ready-worker-detail">Send to Worker must stay Active</small>
+            </div>
+            <div class="gmail-ready-card" id="email-routing-ready-inbox-card">
+              <span>Inbox</span>
+              <strong id="email-routing-ready-inbox">0 messages</strong>
+              <small id="email-routing-ready-inbox-detail">Waiting for incoming mail</small>
+            </div>
+          </div>
+        </div>
+        <div class="gmail-address-card">
+          <div class="gmail-address-line">
+            <input class="gmail-local-input" id="email-routing-alias-input" type="text" maxlength="90" spellcheck="false" placeholder="admin" aria-label="Gmail alias">
+            <span class="gmail-at">@</span>
+            <input class="gmail-domain-input" id="email-routing-domain-input" type="text" maxlength="253" spellcheck="false" placeholder="qm-tech.io.vn" aria-label="Gmail routing domain">
+          </div>
+          <div class="gmail-preview-row">
+            <code id="email-routing-current-address">admin@qm-tech.io.vn</code>
+            <button class="notice-save" id="email-routing-random" type="button">Random</button>
+            <button class="notice-save" id="email-routing-copy" type="button">Copy</button>
+            <button class="notice-save" id="email-routing-create-alias" type="button">Create mail</button>
+            <button class="notice-save" id="email-routing-address-history" type="button">Received aliases</button>
+            <button class="notice-save" id="email-routing-refresh" type="button">Refresh</button>
+          </div>
+          <div class="gmail-history-panel" id="email-routing-address-history-panel" hidden>
+            <input class="gmail-history-search" id="email-routing-address-search" type="search" maxlength="90" spellcheck="false" placeholder="Search received aliases" aria-label="Search received aliases">
+            <div class="gmail-history-list" id="email-routing-received-address-list"></div>
+          </div>
+          <div class="gmail-expiry">Future keeps the newest inbound messages in the server inbox.</div>
+        </div>
+        <div class="gmail-config-strip" hidden>
+          <input class="setting-input" id="email-routing-default-destination-input" type="email" maxlength="90" spellcheck="false" placeholder="Forward Gmail destination" aria-label="Default Gmail destination">
+          <input class="setting-input" id="email-routing-alias-destination-input" type="email" maxlength="90" spellcheck="false" placeholder="Alias forward destination" aria-label="Alias forward destination">
+          <input class="setting-input" id="email-routing-alias-name-input" type="text" maxlength="256" spellcheck="false" placeholder="Rule name" aria-label="Alias rule name">
+          <input class="setting-input" id="email-routing-account-id-input" type="text" maxlength="120" spellcheck="false" placeholder="Cloudflare Account ID" aria-label="Cloudflare Account ID">
+          <input class="setting-input" id="email-routing-zone-id-input" type="text" maxlength="120" spellcheck="false" placeholder="Cloudflare Zone ID" aria-label="Cloudflare Zone ID">
+          <input class="setting-input" id="email-routing-api-token-input" type="password" maxlength="512" autocomplete="new-password" placeholder="Cloudflare API token" aria-label="Cloudflare API token">
+          <input class="setting-input" id="email-routing-inbound-secret-input" type="text" maxlength="160" spellcheck="false" placeholder="Webhook secret" aria-label="Gmail inbound webhook secret">
+          <button class="notice-save" id="email-routing-save" type="button">Save settings</button>
+          <button class="notice-save" id="email-routing-verify-destination" type="button">Verify Gmail</button>
+          <button class="notice-save" id="email-routing-create-route" type="button">Create Cloudflare route</button>
+          <button class="notice-save" id="email-routing-regenerate-secret" type="button">New secret</button>
+          <button class="notice-save" id="email-routing-worker" type="button">Worker script</button>
+          <button class="notice-save" id="email-routing-open-full" type="button">Full page</button>
+        </div>
+        <div class="gmail-alias-chips" id="email-routing-alias-list" hidden>Loading Gmail addresses...</div>
+        <div class="gmail-layout">
+          <section class="gmail-inbox">
+            <div class="gmail-section-head">
+              <span>Your Inbox</span>
+              <span id="email-routing-message-count">0 emails</span>
+            </div>
+            <div class="gmail-table-head">
+              <span>Time</span>
+              <span>Sender</span>
+              <span>OTP Code</span>
+              <span>Action</span>
+            </div>
+            <div class="gmail-message-list" id="email-routing-message-list">Loading inbound messages...</div>
+          </section>
+          <section class="gmail-reader">
+            <button class="gmail-back" id="email-routing-reader-back" type="button">Back</button>
+            <div class="gmail-reader-subject" id="email-routing-reader-subject">Subject</div>
+            <div class="gmail-reader-meta">
+              <span id="email-routing-reader-sender">Sender</span>
+              <span id="email-routing-reader-time">Time</span>
+            </div>
+            <div class="gmail-reader-code">
+              <span>Verification Code</span>
+              <strong id="email-routing-reader-code">-</strong>
+            </div>
+            <pre class="gmail-reader-body" id="email-routing-reader-body">Select an email to read it.</pre>
+          </section>
+        </div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-rewards" hidden>
+      <div class="card wide">
+        <div class="label">Leaderboard reward settings</div>
+        <div class="setting-copy">Set rare first-learn crystals and easy review crystals for the leaderboard reward chamber. Rank #1 receives the badge; ranks #2 and #3 receive fewer crystals without a badge.</div>
+      </div>
+      <div class="reward-settings-grid" id="reward-settings-grid">Loading reward settings...</div>
+      <div class="card wide">
+        <div class="notice-actions">
+          <button class="notice-save" id="reward-settings-save" type="button">Save reward settings</button>
+          <button class="notice-save" id="leaderboard-reset-day" type="button">Reset day top</button>
+          <button class="notice-save" id="leaderboard-reset-week" type="button">Reset week top</button>
+          <button class="notice-save" id="leaderboard-reset-month" type="button">Reset month top</button>
+          <button class="notice-save" id="space-leaderboard-reset-today-test" type="button">Reset Space Top Today test</button>
+          <span class="notice-state" id="reward-settings-state">Loading rewards...</span>
+        </div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-workers" hidden>
+      <div class="card wide">
+        <div class="label">Distributed workers</div>
+        <div class="setting-copy">Remote machines can help this server with Translate, TTS, STT, and Gemini by polling for jobs over the public learning link.</div>
+        <div class="notice-actions">
+          <button class="notice-save" id="distributed-worker-copy-command" type="button">Copy command</button>
+          <span class="notice-state" id="distributed-worker-state">Waiting for worker data...</span>
+        </div>
+        <div class="value"><code id="distributed-worker-command">Loading command...</code></div>
+        <div class="setting-row worker-capacity-row">
+          <div class="setting-copy">
+            Worker capacity. The server shares work across online workers first and uses local processing only when these lanes are full.
+          </div>
+          <div class="cpu-guard-control">
+            <label class="worker-limit-field" title="Maximum translation jobs the whole worker pool may run at the same time. Used by builders, notices, PDF/Picture translate, and lesson tools.">
+              <span>Translate</span>
+              <input class="setting-input" id="distributed-worker-limit-translate" type="number" min="0" max="64" step="1" value="4" aria-label="Translate worker jobs">
+            </label>
+            <label class="worker-limit-field" title="Maximum voice/TTS jobs the worker pool may run at the same time. Used by Space V/W/P/Q/S/L audio, Ghost AI voice, notices, and AI Question audio.">
+              <span>Voice</span>
+              <input class="setting-input" id="distributed-worker-limit-tts" type="number" min="0" max="64" step="1" value="4" aria-label="TTS worker jobs">
+            </label>
+            <label class="worker-limit-field" title="Maximum speech-to-text jobs the worker pool may run at the same time. Used by Whisper/STT pronunciation and speaking checks.">
+              <span>STT</span>
+              <input class="setting-input" id="distributed-worker-limit-stt" type="number" min="0" max="64" step="1" value="4" aria-label="STT worker jobs">
+            </label>
+            <label class="worker-limit-field" title="Maximum Gemini jobs the worker pool may run at the same time. Workers ask Server 2 for the key only when processing a Gemini job.">
+              <span>Gemini</span>
+              <input class="setting-input" id="distributed-worker-limit-gemini" type="number" min="0" max="64" step="1" value="4" aria-label="Gemini worker jobs">
+            </label>
+            <label class="worker-limit-field" title="Maximum IPA/phonemize jobs the worker pool may run at the same time. Used by Space builders for IPA and spaCy-assisted analysis.">
+              <span>IPA</span>
+              <input class="setting-input" id="distributed-worker-limit-phonemize" type="number" min="0" max="64" step="1" value="8" aria-label="IPA phonemize worker jobs">
+            </label>
+            <label class="worker-limit-field" title="Maximum FutureWorkerAuto instances that one client machine should run. Default is 2 to prevent runaway worker windows.">
+              <span>Worker apps/machine</span>
+              <input class="setting-input" id="distributed-worker-machine-limit" type="number" min="1" max="32" step="1" value="2" aria-label="Worker instances per machine">
+            </label>
+            <button class="notice-save cpu-guard-apply" id="distributed-worker-limit-save" type="button">Save worker limit</button>
+          </div>
+          <div class="worker-limit-help">
+            Lane numbers are global pool limits. Keep worker apps per machine at 1; raise lanes to use more CPU without opening duplicate worker windows. If every matching worker lane is busy, Server 2 uses its local fallback so the request still completes.
+          </div>
+        </div>
+      </div>
+      <div class="card wide">
+        <div class="label">Worker list</div>
+        <div class="dashboard-log-list" id="distributed-worker-list">No workers connected.</div>
+      </div>
+      <div class="card wide">
+        <div class="label">Worker logs</div>
+        <button class="notice-save worker-log-toggle" id="distributed-worker-log-toggle" type="button">Hide worker logs</button>
+        <div class="dashboard-log-list" id="distributed-worker-log-list">No worker logs yet.</div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-qm-city" hidden>
+      <div class="card wide">
+        <div class="label">QM-City chat gate</div>
+        <div class="setting-copy">Controls the English-only chat validator for the QM-City shared world. Messages with Vietnamese accents are always rejected.</div>
+      </div>
+      <div class="card wide">
+        <div class="setting-editor">
+          <div class="setting-row">
+            <div class="setting-copy">
+              Minimum valid English word ratio. Example: 50 means at least half of detected word tokens must be valid English vocabulary.
+            </div>
+            <input class="setting-input" id="qm-city-min-english-input" type="number" min="1" max="100" step="1" value="50" aria-label="QM-City minimum English percent">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Consecutive invalid token limit. Example: 4 rejects messages with four invalid word tokens in a row.
+            </div>
+            <input class="setting-input" id="qm-city-invalid-run-input" type="number" min="1" max="20" step="1" value="4" aria-label="QM-City invalid token run limit">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              Transformation skins. One skin per line: name|price|image path or URL|description. The shop uses Space_V vocabulary crystals as currency.
+            </div>
+            <textarea class="notice-input" id="qm-city-skins-input" maxlength="6000" spellcheck="false" placeholder="Slime|35||A soft crystal slime form.&#10;Cloud|45||A floating cloud spirit form."></textarea>
+          </div>
+          <div class="notice-actions">
+            <button class="notice-save" id="qm-city-save" type="button">Save QM-City</button>
+            <span class="notice-state" id="qm-city-state">Loading QM-City settings...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-qm-city-npc" hidden>
+      <div class="card wide">
+        <div class="label">QM-City NPC racers</div>
+        <div class="setting-copy">Controls QM-City background characters. Top racers come from <code>C:/server data/NPC_TOP</code>; city residents are 10 lightweight resident characters that keep the city alive when racers are off.</div>
+      </div>
+      <div class="card wide">
+        <div class="setting-editor">
+          <div class="setting-row">
+            <div class="setting-copy">Choose city population mode. Off now means city residents only; racers already online leave gradually instead of vanishing together.</div>
+            <button class="admin-chat-audio-toggle" id="qm-city-npc-enabled-toggle" type="button" aria-pressed="true">NPC city on</button>
+            <button class="admin-chat-audio-toggle" id="qm-city-npc-mix-toggle" type="button" aria-pressed="false">Mix</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">Spawn chance percent when real users are in QM-City.</div>
+            <input class="setting-input" id="qm-city-npc-spawn-chance-input" type="number" min="0" max="100" step="1" value="55" aria-label="NPC spawn chance percent">
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">Active NPC range. The server keeps a random target inside this range when NPC spawning succeeds.</div>
+            <div class="dashboard-log-toolbar">
+              <input class="setting-input" id="qm-city-npc-min-active-input" type="number" min="0" max="5" step="1" value="1" aria-label="Minimum active NPCs">
+              <input class="setting-input" id="qm-city-npc-max-active-input" type="number" min="1" max="8" step="1" value="5" aria-label="Maximum active NPCs">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">Online session duration in minutes. Each NPC leaves automatically after a random duration in this range.</div>
+            <div class="dashboard-log-toolbar">
+              <input class="setting-input" id="qm-city-npc-online-min-input" type="number" min="5" max="180" step="1" value="20" aria-label="NPC minimum online minutes">
+              <input class="setting-input" id="qm-city-npc-online-max-input" type="number" min="5" max="240" step="1" value="40" aria-label="NPC maximum online minutes">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">Battle intelligence. First value is the chance NPC answers its own question correctly; second is chance NPC steals after the opponent misses.</div>
+            <div class="dashboard-log-toolbar">
+              <input class="setting-input" id="qm-city-npc-answer-input" type="number" min="0" max="100" step="1" value="58" aria-label="NPC answer correct percent">
+              <input class="setting-input" id="qm-city-npc-steal-input" type="number" min="0" max="100" step="1" value="34" aria-label="NPC steal correct percent">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">Random battle invite chance and cooldown. NPCs never spam the same moment; each active NPC rolls after its cooldown.</div>
+            <div class="dashboard-log-toolbar">
+              <input class="setting-input" id="qm-city-npc-invite-input" type="number" min="0" max="100" step="1" value="8" aria-label="NPC invite chance percent">
+              <input class="setting-input" id="qm-city-npc-invite-min-input" type="number" min="15" max="900" step="1" value="70" aria-label="NPC minimum invite cooldown seconds">
+              <input class="setting-input" id="qm-city-npc-invite-max-input" type="number" min="20" max="1200" step="1" value="180" aria-label="NPC maximum invite cooldown seconds">
+            </div>
+          </div>
+          <div class="notice-actions">
+            <button class="notice-save" id="qm-city-npc-save" type="button">Save NPC settings</button>
+            <span class="notice-state" id="qm-city-npc-state">Loading NPC settings...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="dashboard-log-panel tab-panel" id="panel-qm-city-levels" hidden>
+      <div class="card wide">
+        <div class="label">QM-City level curve</div>
+        <div class="setting-copy">Each level uses total vocabulary EXP. EXP is measured from learned vocabulary count, so spending crystals does not reduce the character level.</div>
+      </div>
+      <div class="card wide">
+        <div class="level-settings-list" id="qm-city-level-list">Loading levels...</div>
+        <div class="notice-actions">
+          <button class="notice-save" id="qm-city-level-add" type="button">Add level</button>
+          <button class="notice-save" id="qm-city-level-save" type="button">Save levels</button>
+          <span class="notice-state" id="qm-city-level-state">Loading levels...</span>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div class="admin-chat-modal" id="admin-chat-modal">
+    <section class="admin-chat-card">
+      <div class="admin-chat-head">
+        <span id="admin-chat-title">Chat</span>
+        <button class="pending-action reject" id="admin-chat-close" type="button">Close</button>
+      </div>
+      <div class="admin-chat-log" id="admin-chat-log"></div>
+      <div class="admin-chat-compose">
+        <div class="admin-chat-tools">
+          <button class="notice-save admin-chat-translate" id="admin-chat-translate" type="button">Translate to English</button>
+          <button class="admin-chat-attach" id="admin-chat-attach" type="button">Attach file</button>
+          <button class="admin-chat-attach" id="admin-chat-mic" type="button">Mic</button>
+          <select class="admin-chat-speech-mode" id="admin-chat-speech-mode" aria-label="Admin chat speech input mode" title="Speech input mode">
+            <option value="browser">Browser VI+EN</option>
+            <option value="zipformer">Zipformer VI</option>
+          </select>
+          <button class="admin-chat-attach" id="admin-chat-text-mic" type="button" aria-pressed="false">Text Mic</button>
+          <button class="admin-chat-attach" id="admin-chat-voice-send" type="button" hidden>Send voice</button>
+          <button class="admin-chat-attach" id="admin-chat-voice-cancel" type="button" hidden>Cancel</button>
+          <input id="admin-chat-file" type="file" multiple hidden>
+          <span class="admin-chat-small-note" id="admin-chat-voice-state">Loading voices...</span>
+        </div>
+        <div class="admin-chat-row">
+          <select class="admin-chat-select" id="admin-chat-vi-voice" aria-label="Vietnamese voice"></select>
+          <textarea class="notice-input admin-chat-input-vi" id="admin-chat-input" rows="2" maxlength="1200" placeholder="Vietnamese message..."></textarea>
+          <button class="admin-chat-audio-toggle is-on" id="admin-chat-vi-audio-toggle" type="button" aria-pressed="true">VI audio on</button>
+          <button class="notice-save" id="admin-chat-send" type="button">Send Vietnamese</button>
+        </div>
+        <div class="admin-chat-row">
+          <select class="admin-chat-select" id="admin-chat-en-voice" aria-label="English voice"></select>
+          <textarea class="notice-input admin-chat-input-en" id="admin-chat-en-input" rows="2" maxlength="1200" placeholder="English message..."></textarea>
+          <button class="admin-chat-audio-toggle is-on" id="admin-chat-en-audio-toggle" type="button" aria-pressed="true">EN audio on</button>
+          <button class="notice-save" id="admin-chat-en-send" type="button">Send English</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="admin-image-viewer" id="admin-image-viewer">
+    <div class="admin-image-tools" aria-label="Image viewer tools">
+      <button class="admin-image-zoom" id="admin-image-zoom-out" type="button">Zoom -</button>
+      <button class="admin-image-zoom" id="admin-image-zoom-reset" type="button">100%</button>
+      <button class="admin-image-zoom" id="admin-image-zoom-in" type="button">Zoom +</button>
+      <a class="admin-image-download" id="admin-image-download" href="#" download>Download</a>
+      <button class="admin-image-close" id="admin-image-close" type="button">Close</button>
+    </div>
+    <img id="admin-image-viewer-img" alt="">
+  </div>
+  <div class="admin-chat-modal admin-screen-modal" id="admin-screen-modal">
+    <section class="admin-chat-card admin-screen-card" id="admin-screen-card">
+      <div class="admin-chat-head">
+        <span id="admin-screen-title">Screen preview</span>
+        <div class="admin-screen-head-tools">
+          <button class="notice-save" id="admin-screen-mic" type="button">Mic stream</button>
+          <button class="notice-save" id="admin-screen-fullscreen" type="button">Fullscreen</button>
+          <button class="pending-action reject" id="admin-screen-close" type="button">Close</button>
+        </div>
+      </div>
+      <div class="admin-screen-view" id="admin-screen-view">
+        <video id="admin-screen-video" autoplay playsinline muted></video>
+        <img id="admin-screen-img" alt="User screen preview">
+      </div>
+      <div class="admin-screen-status" id="admin-screen-status">Waiting for user permission...</div>
+    </section>
+  </div>
+  <div class="admin-chat-modal admin-paint-modal" id="admin-paint-modal">
+    <section class="admin-chat-card admin-paint-card" id="admin-paint-card">
+      <div class="admin-chat-head">
+        <span id="admin-paint-title">Paint board</span>
+        <button class="pending-action reject" id="admin-paint-close" type="button">Close</button>
+      </div>
+      <div class="admin-paint-tools" aria-label="Admin paint tools">
+        <button class="pending-action admin-paint-tool" type="button" data-admin-paint-mode="select">Select</button>
+        <button class="pending-action admin-paint-tool is-active" type="button" data-admin-paint-mode="pen">Pen</button>
+        <button class="pending-action admin-paint-tool" type="button" data-admin-paint-mode="eraser">Eraser</button>
+        <button class="pending-action admin-paint-tool" type="button" data-admin-paint-mode="text">Text</button>
+        <button class="pending-action reject" id="admin-paint-clear" type="button">Clear</button>
+        <input class="admin-paint-color" id="admin-paint-color" type="color" value="#0f172a" aria-label="Paint color">
+        <input class="admin-paint-size" id="admin-paint-size" type="range" min="2" max="34" value="6" aria-label="Paint size">
+        <input class="admin-paint-text" id="admin-paint-text" type="text" maxlength="160" placeholder="Text" aria-label="Paint text">
+        <button class="pending-action" id="admin-paint-image" type="button">Picture</button>
+        <button class="pending-action" id="admin-paint-paste" type="button">Paste</button>
+        <button class="pending-action reject" id="admin-paint-delete" type="button">Delete</button>
+        <button class="pending-action" id="admin-paint-zoom-out" type="button">Zoom -</button>
+        <span class="admin-paint-zoom-label" id="admin-paint-zoom-label">100%</span>
+        <button class="pending-action" id="admin-paint-zoom-in" type="button">Zoom +</button>
+        <button class="pending-action" id="admin-paint-fullscreen" type="button">Full</button>
+        <button class="pending-action" id="admin-paint-tab" type="button">New tab</button>
+        <input id="admin-paint-image-file" type="file" accept="image/*" hidden>
+      </div>
+      <div class="admin-paint-stage">
+        <canvas class="admin-paint-canvas" id="admin-paint-canvas" aria-label="Connected user paint board"></canvas>
+      </div>
+      <div class="admin-paint-status" id="admin-paint-status">Paint sync waiting.</div>
+    </section>
+  </div>

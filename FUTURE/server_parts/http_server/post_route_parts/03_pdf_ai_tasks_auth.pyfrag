@@ -1,0 +1,741 @@
+    if path == "/ai-agent/history":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            payload = self.read_json_body()
+            action = clean(payload.get("action", "save")).lower()
+            if action in {"list", "load"}:
+                limit = space_w_int(payload.get("limit", 80), 80)
+                self.send_json(200, {"ok": True, "history": list_ai_agent_history(username, limit)})
+                return
+            if action in {"remove", "delete"}:
+                result = remove_ai_agent_history(username, payload.get("id", ""))
+                self.send_json(200, {"ok": True, **result})
+                return
+            entry = save_ai_agent_history(username, payload)
+            self.send_json(200, {"ok": True, "entry": entry, "history": list_ai_agent_history(username, 80)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/ai-agent/space-p/followup":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            payload = self.read_json_body()
+            context = payload.get("context", {}) if isinstance(payload.get("context", {}), dict) else {}
+            result = build_ai_agent_space_p_followup(username, context=context)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/ai-agent/ask":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if not enforce_user_heavy_quota_response(self, username, "gemini"):
+                return
+            payload = self.read_json_body()
+            message = lesson_task_notice_text(payload.get("message", payload.get("text", "")), limit=3600)
+            mode = normalize_ai_agent_answer_mode(payload.get("mode", payload.get("answer_mode", payload.get("answerMode", "spoken"))))
+            context = payload.get("context", {}) if isinstance(payload.get("context", {}), dict) else {}
+            notice = build_ai_agent_notice(username, message, context=context, mode=mode)
+            self.send_json(200, {"ok": True, "notice": notice, "answer_en": notice.get("translation_en") or notice.get("text", ""), "answer_vi": notice.get("translation_vi", "")})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/ai-agent/translate":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if not enforce_user_heavy_quota_response(self, username, "gemini"):
+                return
+            payload = self.read_json_body()
+            source_text = lesson_task_notice_text(payload.get("message", payload.get("text", "")), limit=3600)
+            target = clean(payload.get("target", payload.get("dest", "en"))).lower()
+            src = clean(payload.get("source", payload.get("src", "auto"))).lower()
+            force_translate = truthy(payload.get("force", payload.get("force_translate", payload.get("forceTranslate", False))), False)
+            if target not in {"vi", "en"}:
+                target = "en"
+            if not source_text:
+                raise RuntimeError("Text is empty.")
+            try:
+                translated = chat_translate_text(source_text, dest=target, src=src if src in {"vi", "en"} else "auto", limit=3600, max_wait_seconds=120, force_refresh=force_translate)
+            except Exception:
+                translated = request_gemini_vietnamese_translation(source_text, structured=True) if target == "vi" else ""
+            if not clean(translated):
+                raise RuntimeError("Khong dich duoc van ban bang bo dich hien tai.")
+            vocabulary = qmdict_vocabulary_stats_queued(translated, username) if target == "en" else {}
+            self.send_json(200, {
+                "ok": True,
+                "text": source_text,
+                "source": source_text,
+                "target": target,
+                "translation": translated,
+                "translated": translated,
+                "forced": force_translate,
+                "vocabulary": vocabulary,
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/word-agent/ask":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if not enforce_user_heavy_quota_response(self, username, "translate"):
+                return
+            payload = self.read_json_body()
+            raw_detail = payload.get("detail") if isinstance(payload.get("detail"), dict) else payload
+            detail = normalize_word_agent_detail(raw_detail)
+            word = lesson_task_notice_text(payload.get("word") or detail.get("word") or detail.get("surface"), limit=180)
+            if not word:
+                self.send_json(400, {"ok": False, "error": "Missing word or phrase."})
+                return
+            page = space_w_int(payload.get("page", 0), 0)
+            source = {
+                "space": clean(payload.get("space", ""))[:80],
+                "file": clean_path_value(payload.get("file", ""))[:420],
+                "title": lesson_task_notice_text(payload.get("title", ""), limit=220),
+                "page": page,
+            }
+            question = lesson_task_notice_text(payload.get("question", ""), limit=1200)
+            result = request_gemini_word_vietnamese_explanation(
+                word=word,
+                detail=detail,
+                username=username,
+                question=question,
+                source=source,
+            )
+            entry = save_word_agent_history({
+                "word": word,
+                "surface": payload.get("surface") or detail.get("surface"),
+                "kind": detail.get("kind"),
+                "username": username,
+                "question": question or f"Explain {word}",
+                "answer_vi": result.get("answer_vi", ""),
+                "model": result.get("model", ""),
+                "detail": detail,
+                **source,
+            })
+            self.send_json(200, {
+                "ok": True,
+                **result,
+                "entry": entry,
+                "history": list_word_agent_history(word, 80),
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/phonetic/ipa":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            term = lesson_task_notice_text(payload.get("term") or payload.get("word") or payload.get("text"), limit=160)
+            if not term:
+                self.send_json(400, {"ok": False, "error": "Missing word or phrase."})
+                return
+            entry = get_or_create_phonetic_ipa_queued(term, generate=True)
+            self.send_json(200, {
+                "ok": True,
+                "key": phonetic_ipa_key(term),
+                "entry": entry,
+                "phonetic_ipa": {entry.get("key"): entry} if isinstance(entry, dict) and entry.get("key") else {},
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/agent-explain":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if not enforce_user_heavy_quota_response(self, username, "gemini"):
+                return
+            payload = self.read_json_body()
+            text = lesson_task_notice_text(payload.get("text", ""), limit=9000)
+            if not text:
+                self.send_json(400, {"ok": False, "error": "Text to Explore is empty."})
+                return
+            page = 0
+            try:
+                page = int(payload.get("page", 0) or 0)
+            except Exception:
+                page = 0
+            result = request_gemini_pdf_vietnamese_explanation(
+                question=payload.get("question", ""),
+                text=text,
+                username=username,
+                title=payload.get("title", ""),
+                page=page,
+            )
+            entry_title_source = lesson_task_notice_text(payload.get("question", ""), limit=90) or "Ghost Eye explanation"
+            pdf_title = lesson_task_notice_text(payload.get("title", ""), limit=90)
+            source_path = clean_path_value(payload.get("path", ""))
+            source_space = "space_picture" if Path(source_path).suffix.lower() in IMAGE_FILE_SUFFIXES else "space_pdf"
+            history_entry = save_ai_agent_history(username, {
+                "title": f"{pdf_title or 'PDF'} p.{page or '?'} | {entry_title_source}",
+                "answer_vi": result.get("answer_vi", ""),
+                "user_prompt": payload.get("question", ""),
+                "space": source_space,
+                "file": source_path,
+                "context": {
+                    "kind": "space_picture_ghost_eye" if source_space == "space_picture" else "space_pdf_ghost_eye",
+                    "pdf_title": pdf_title,
+                    "pdf_page": page,
+                    "text_to_explore": lesson_task_notice_text(text, limit=2200),
+                },
+            })
+            self.send_json(200, {"ok": True, **result, "history_entry": history_entry})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson-task-notices":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            payload = self.read_json_body()
+            action = clean(payload.get("action", "")).lower()
+            if action in {"read", "ack", "acknowledge"}:
+                result = mark_lesson_task_notice_read(username, payload.get("id", ""))
+                self.send_json(200, {"ok": True, "task_owner": username, **result})
+                return
+            if action in {"seen", "view", "viewed"}:
+                result = mark_lesson_task_notice_seen(username, payload.get("id", ""))
+                self.send_json(200, {"ok": True, "task_owner": username, **result})
+                return
+            if not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can edit task notices."})
+                return
+            if action in {"translate", "translate_notice", "task_translate"}:
+                source_text = lesson_task_notice_text(payload.get("text", ""))
+                target = clean(payload.get("target", payload.get("dest", ""))).lower()
+                src = clean(payload.get("source", payload.get("src", "auto"))).lower()
+                if target not in {"vi", "en"}:
+                    raise RuntimeError("Target language must be vi or en.")
+                if not source_text:
+                    raise RuntimeError("Text is empty.")
+                translated = chat_translate_text(source_text, dest=target, src=src if src in {"vi", "en"} else "auto")
+                self.send_json(200, {"ok": True, "translation": translated, "target": target, "source": src or "auto"})
+                return
+            target_user = normalize_username(payload.get("user", "") or payload.get("target_user", ""))
+            if action in {"remove", "delete"}:
+                result = remove_lesson_task_notice(target_user, payload.get("id", ""))
+            elif action in {"send", "send_now", "immediate", "now"}:
+                notice = build_lesson_task_notice_record(target_user, payload, username, transient=True)
+                result = queue_lesson_task_notice_immediate(target_user, notice)
+                result["notice"] = result.get("immediate_notice", {})
+                result["task_notices"] = lesson_task_notices_for_user(target_user, admin_view=True)
+                result["target_online"] = user_recently_online(target_user)
+                result["target_user"] = target_user
+            else:
+                result = save_lesson_task_notice(target_user, payload, username)
+            self.send_json(200, {"ok": True, "task_owner": target_user, "admin": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson-task-notice-avatar":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can upload task notice avatars."})
+                return
+            _fields, files = parse_multipart_form(self.headers, self.rfile, max_bytes=9 * 1024 * 1024)
+            upload = files.get("file") or files.get("avatar") or (next(iter(files.values())) if files else None)
+            if not upload:
+                raise RuntimeError("No avatar file selected.")
+            result = save_lesson_task_notice_avatar(upload, username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/avatar":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            _fields, files = parse_multipart_form(self.headers, self.rfile, max_bytes=11 * 1024 * 1024)
+            upload = files.get("file") or files.get("avatar") or (next(iter(files.values())) if files else None)
+            if not upload:
+                raise RuntimeError("No avatar file selected.")
+            result = save_user_avatar(upload, username)
+            self.send_json(200, {"ok": True, "username": username, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/profile-photo":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            fields, files = parse_multipart_form(self.headers, self.rfile, max_bytes=19 * 1024 * 1024)
+            upload = files.get("file") or files.get("photo") or (next(iter(files.values())) if files else None)
+            if not upload:
+                raise RuntimeError("No profile photo selected.")
+            try:
+                slot = int(clean(fields.get("slot", "-1")) or -1)
+            except Exception:
+                slot = -1
+            result = save_user_profile_photo(upload, username, slot=slot)
+            self.send_json(200, {"ok": True, "username": username, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/profile-card":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            payload = self.read_json_body()
+            result = save_user_profile_card(username, payload)
+            self.send_json(200, {"ok": True, "username": username, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson-tasks":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            viewer_is_admin = is_admin_user(username)
+            payload = self.read_json_body()
+            action = clean(payload.get("action", "")).lower()
+            target_user = normalize_username(payload.get("user", "") or payload.get("target_user", "") or username)
+            if target_user != username and not viewer_is_admin:
+                self.send_json(403, {"ok": False, "error": "Only admins can edit another user's lesson tasks."})
+                return
+            if action == "add":
+                creator_role = "admin" if viewer_is_admin and target_user != username else "user"
+                result = add_lesson_task(
+                    target_user,
+                    payload.get("path", ""),
+                    username,
+                    payload.get("severity", "normal"),
+                    creator_role,
+                    effective_path=payload.get("effective_path", ""),
+                    link_target=payload.get("link_target", ""),
+                    title=payload.get("title", ""),
+                    name=payload.get("name", ""),
+                    folder_id=payload.get("folder_id", ""),
+                    folder_path=payload.get("folder_path", payload.get("folder", "")),
+                )
+                invalidate_space_task_payload_cache(target_user)
+            elif action in {"severity", "priority", "update"}:
+                if not viewer_is_admin:
+                    self.send_json(403, {"ok": False, "error": "Only admins can change task severity."})
+                    return
+                result = update_lesson_task_severity(
+                    target_user,
+                    payload.get("id", ""),
+                    payload.get("path", ""),
+                    payload.get("severity", "normal"),
+                    username,
+                )
+                invalidate_space_task_payload_cache(target_user)
+            elif action in {"remove", "delete"}:
+                result = remove_space_task_group(
+                    target_user,
+                    relative_path=payload.get("path", ""),
+                    task_id=payload.get("id", ""),
+                    folder_group_key=payload.get("folder_group_key", ""),
+                    folder_path=payload.get("folder_path", payload.get("folder", "")),
+                    actor_username=username,
+                    base_revision=payload.get("baseRevision") if "baseRevision" in payload else None,
+                )
+                invalidate_space_task_payload_cache(target_user)
+            elif action in {"space-folders", "space_folders", "space-task-folders", "space_task_folders"}:
+                folder_source = payload.get("folders", payload.get("preferred_folders", payload.get("folder_text", "")))
+                settings_result = save_space_task_settings(
+                    target_user,
+                    folder_source,
+                    username,
+                    allow_any_top=viewer_is_admin,
+                    base_revision=payload.get("baseRevision") if "baseRevision" in payload else None,
+                )
+                if settings_result.get("changed"):
+                    invalidate_space_task_payload_cache(target_user)
+                    # ACK the durable SQLite setting immediately; derived task
+                    # discovery runs in the bounded shared pool.
+                    space_task = queue_space_task_payload_refresh_for_user(
+                        target_user,
+                        username,
+                        include_admin=viewer_is_admin,
+                    )
+                    result = {"space_task": space_task, "space_tasks": space_task.get("tasks", [])}
+                else:
+                    # Exact retries are durable no-ops: return the new revision
+                    # without invalidating or rebuilding any derived payload.
+                    space_task = {
+                        "enabled": bool(settings_result.get("preferred_folders")),
+                        **settings_result,
+                        "tasks": [],
+                        "pending": False,
+                        "stale": False,
+                    }
+                    result = {
+                        "space_task": space_task,
+                        "space_tasks": [],
+                        "duplicate": True,
+                        "changed": False,
+                    }
+            else:
+                raise RuntimeError("Unknown lesson task action.")
+            response = {"ok": True, "task_owner": target_user, "admin": viewer_is_admin, **result}
+            cached_stats = read_cached_lesson_user_learning_summary(target_user)
+            if cached_stats:
+                response["learning_stats"] = cached_stats
+            self.send_json(200, response)
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/op":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            result = server_data_operation(self.read_json_body(), username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/manifest-refresh":
+        try:
+            session = self.auth_session()
+            local_admin = self.is_local_admin_request()
+            if not session and not local_admin:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", "")) if session else ""
+            if session and not is_admin_user(username) and not local_admin:
+                self.send_json(403, {"ok": False, "error": "Only admins can refresh the lesson manifest."})
+                return
+            source = self.read_json_body()
+            refresh_paths = [
+                clean_path_value(item)
+                for item in (source.get("paths") if isinstance(source.get("paths"), list) else [])
+                if clean_path_value(item)
+            ][:200]
+            manifest = refresh_server_data_manifest_paths_now(refresh_paths, "manual-paths") if refresh_paths else refresh_server_data_manifest_now("manual")
+            folders = manifest.get("folders") if isinstance(manifest.get("folders"), dict) else {}
+            self.send_json(200, {
+                "ok": True,
+                "mode": "paths" if refresh_paths else "full",
+                "paths": refresh_paths,
+                "updated_at": clean(manifest.get("updated_at", "")),
+                "signature": server_data_manifest_runtime_revision(manifest),
+                "integrity_signature": clean(manifest.get("signature", "")),
+                "folder_count": len(folders),
+                "entry_count": sum(len(rows) for rows in folders.values() if isinstance(rows, list)),
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/codex-local-login":
+        try:
+            if not self.is_local_admin_request():
+                self.send_json(404, {"ok": False, "error": "Not found."})
+                return
+            marker = clean(self.headers.get("X-Future-Codex-Local-Login", ""))
+            if marker != "1":
+                self.send_json(403, {"ok": False, "error": "Missing local Codex test marker."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(payload.get("username", ""))
+            if not username:
+                self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
+                return
+            if not read_user_lines(username):
+                self.send_json(404, {"ok": False, "error": "Tài khoản không tồn tại.", "reason": "nouser"})
+                return
+            # Added 2026-07-06: lets Codex inspect the local DOM as a real user without exposing a tunnel login bypass.
+            session = create_auth_session(username)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            profile = read_user_profile(username)
+            preferences = read_user_preferences(username)
+            server_data = ensure_server_data_folders(username)
+            self.send_json(
+                200,
+                {
+                    "ok": True,
+                    "username": username,
+                    "is_admin": is_admin_user(username),
+                    "profile": profile,
+                    "preferences": preferences,
+                    "needs_profile": bool(profile_missing(profile)),
+                    "missing": profile_missing(profile),
+                    "server_data": server_data,
+                    "codex_local_login": True,
+                    **session,
+                },
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/login":
+        try:
+            payload = self.read_json_body()
+            username = normalize_username(payload.get("username", ""))
+            password = str(payload.get("password", "") or "")
+            if not username:
+                self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
+                return
+            if not password:
+                self.send_json(400, {"ok": False, "error": "Vui lòng nhập mật khẩu.", "reason": "missing_password"})
+                return
+            fail_status = login_failure_status(self.anti_robot_client_key(), username)
+            if fail_status.get("locked"):
+                self.send_json(429, {
+                    "ok": False,
+                    "error": "Dang nhap sai qua 5 lan. Vui long doi 5 phut roi thu lai.",
+                    "reason": "login_locked",
+                    "retry_after": fail_status.get("retry_after", LOGIN_FAILURE_LOCK_SECONDS),
+                })
+                return
+            if server_database_is_test_user(username) and not self.is_local_admin_request():
+                self.send_json(403, {"ok": False, "error": "Load-test accounts are local-only.", "reason": "load_test_local_only"})
+                return
+            ok, reason, profile = check_user_login(username, password)
+            if not ok:
+                if reason == "blocked":
+                    self.send_json(403, {
+                        "ok": False,
+                        "error": "Tai khoan nay dang bi admin chan dang nhap.",
+                        "reason": "login_blocked",
+                    })
+                    return
+                fail_status = record_login_failure(self.anti_robot_client_key(), username)
+                if fail_status.get("locked"):
+                    self.send_json(429, {
+                        "ok": False,
+                        "error": "Dang nhap sai qua 5 lan. Vui long doi 5 phut roi thu lai.",
+                        "reason": "login_locked",
+                        "retry_after": fail_status.get("retry_after", LOGIN_FAILURE_LOCK_SECONDS),
+                    })
+                    return
+                status = 404 if reason == "nouser" else 401
+                message = (
+                    "Tài khoản không tồn tại. Hãy kiểm tra lại tên đăng nhập."
+                    if reason == "nouser"
+                    else "Mật khẩu không đúng. Hãy nhập lại mật khẩu."
+                )
+                self.send_json(status, {"ok": False, "error": message, "reason": reason})
+                return
+            clear_login_failures(self.anti_robot_client_key(), username)
+            session = create_auth_session(username)
+            if server_database_is_test_user(username):
+                self.send_json(200, {
+                    "ok": True,
+                    "username": username,
+                    "is_admin": False,
+                    "profile": profile,
+                    "preferences": read_user_preferences(username),
+                    "needs_profile": False,
+                    "missing": [],
+                    "server_data": {"load_test": True},
+                    "leaderboard_rewards_claimed": {"claims": [], "items": [], "scheduled": False},
+                    **session,
+                })
+                return
+            chat_mark_online(username)
+            mark_user_activity(username, {"status": "Logged in"})
+            start_main_vocab_sync_user(username, force=False, reason="future-login")
+            record_login_event(username, {
+                "client": self.client_address[0] if self.client_address else "",
+                "user_agent": self.headers.get("User-Agent", ""),
+            })
+            server_data = ensure_server_data_folders(username)
+            leaderboard_rewards_claimed = {"claims": [], "items": [], "scheduled": "login-background"}
+            schedule_login_reward_claim(username)
+            missing = profile_missing(profile)
+            preferences = read_user_preferences(username)
+            self.send_json(
+                200,
+                {
+                    "ok": True,
+                    "username": username,
+                    "is_admin": is_admin_user(username),
+                    "profile": profile,
+                    "preferences": preferences,
+                    "needs_profile": bool(missing),
+                    "missing": missing,
+                    "server_data": server_data,
+                    "leaderboard_rewards_claimed": leaderboard_rewards_claimed,
+                    **session,
+                },
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/password-reset/request":
+        try:
+            payload = self.read_json_body()
+            result = request_password_reset_code(payload, client_key=self.anti_robot_client_key())
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/password-reset/confirm":
+        try:
+            payload = self.read_json_body()
+            result = confirm_password_reset_code(payload, client_key=self.anti_robot_client_key())
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/password-reset/admin":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server duoc duyet doi mat khau."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = approve_password_reset_request(payload.get("username", ""), payload.get("action", "accept"))
+            self.send_json(200, {"ok": True, **result, "password_resets": list_pending_password_resets(), "pending": list_pending_registrations()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/register":
+        try:
+            payload = self.read_json_body()
+            result = submit_pending_registration(payload)
+            self.send_json(
+                202,
+                {
+                    "ok": True,
+                    "pending": True,
+                    "message": "Da gui dang ky. Cho may server chap nhan.",
+                    **result,
+                },
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/password/change":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            current_password = str(payload.get("current_password", payload.get("currentPassword", "")) or "")
+            new_password = str(payload.get("new_password", payload.get("newPassword", "")) or "")
+            ok, reason, _profile = check_user_login(username, current_password)
+            if not ok:
+                self.send_json(401, {"ok": False, "error": "Mat khau hien tai khong dung.", "reason": reason})
+                return
+            ok, message = validate_register_password(new_password)
+            if not ok:
+                self.send_json(400, {"ok": False, "error": message})
+                return
+            set_user_password_hash(username, new_password)
+            self.send_json(200, {"ok": True, "username": username, "changed": True})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/profile":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            profile = save_user_profile(username, payload)
+            server_data = ensure_server_data_folders(username)
+            preferences = read_user_preferences(username)
+            self.send_json(200, {"ok": True, "username": username, "profile": profile, "preferences": preferences, "needs_profile": False, "server_data": server_data})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/preferences":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            preferences = save_user_preferences(username, payload)
+            if clean(self.headers.get("X-Future-Response-Mode", "")).lower() == "preferences-compact-v1":
+                self.send_json(200, {
+                    "ok": True,
+                    "username": username,
+                    "server_revision": max(0, int(preferences.get("_serverRevision", 0) or 0)),
+                    "updated_at": clean(preferences.get("updated_at", "")),
+                })
+            else:
+                self.send_json(200, {"ok": True, "username": username, "preferences": preferences})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/last-file":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            state = remember_lesson_last_file(username, payload)
+            self.send_json(200, {"ok": True, "username": username, "state": state})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/auth/approve":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server duoc duyet dang ky."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = approve_pending_registration(payload.get("username", ""), payload.get("action", "accept"))
+            self.send_json(200, {"ok": True, **result, "pending": list_pending_registrations(), "password_resets": list_pending_password_resets()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

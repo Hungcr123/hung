@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "source": "FUTURE/server_parts/http_server/04_handler_post_routes.py",
+  "mode": "post_route_method_fragments",
+  "source_sha256": "eaf6d9cdd2065d01a41005206618cfa5ce9f16d7aea7f3cc834c652cf065348a",
+  "parts": [
+    {
+      "file": "01_entry_dashboard_admin.pyfrag",
+      "line_start": 1,
+      "line_end": 159,
+      "bytes": 8012,
+      "sha256": "4483cc6768f862bf499709d22a263a1d1d28766d3125793264b4236e0690c89f",
+      "first": "if path in (\"/dashboard/open\", \"/dashboard/ping\", \"/dashboard/close\"):",
+      "last": "if path == \"/qmdict/update\":"
+    },
+    {
+      "file": "02_pdf_ocr_scan.pyfrag",
+      "line_start": 160,
+      "line_end": 378,
+      "bytes": 9917,
+      "sha256": "87dfd8cad1d58174a23b535d0fbefedc5513dc7db921636f4fb25edc3615d40a",
+      "first": "if path == \"/pdf/ocr\":",
+      "last": "if path == \"/pdf/speak-training/reference\":"
+    },
+    {
+      "file": "03_pdf_ai_tasks_auth.pyfrag",
+      "line_start": 379,
+      "line_end": 846,
+      "bytes": 24578,
+      "sha256": "f966c01afa197820032c58a539c3bd102dea88d9487fcafa548f3124433b3fa2",
+      "first": "if path == \"/ai-agent/history\":",
+      "last": "if path == \"/auth/approve\":"
+    },
+    {
+      "file": "04_chat_stream_screen_paint.pyfrag",
+      "line_start": 847,
+      "line_end": 1345,
+      "bytes": 25504,
+      "sha256": "3997abe0906c17950b6aa336f5a12633fdda999fcda73bb10d7ad1d5f614a1c4",
+      "first": "if path == \"/chat/upload\":",
+      "last": "if path == \"/settings\":"
+    },
+    {
+      "file": "05_vocab_progress_leaderboard.pyfrag",
+      "line_start": 1346,
+      "line_end": 1631,
+      "bytes": 14781,
+      "sha256": "f2549c0f1656e0c1f928ae0ad5fc36f40f3e6acd533eb2b14f901362443871b1",
+      "first": "if path == \"/vocab/scan-space-w\":",
+      "last": "if path == \"/vocab/leaderboard/chat\":"
+    },
+    {
+      "file": "06_world_battle_game_lesson.pyfrag",
+      "line_start": 1632,
+      "line_end": 2044,
+      "bytes": 19058,
+      "sha256": "007a05ee10e4ec505552e9c9fc0c5ee82cad9f86c14a68500fca751dbfa02cea",
+      "first": "if path == \"/world/move\":",
+      "last": "if path == \"/lesson/complete\":"
+    },
+    {
+      "file": "07_transcribe_upload.pyfrag",
+      "line_start": 2045,
+      "line_end": 2131,
+      "bytes": 4974,
+      "sha256": "aef2c53d26c5a31e42eacd41fb6d556b6976462baa014c98cfb801906f5d5978",
+      "first": "def do_POST(self)",
+      "last": "if path != \"/transcribe\":"
+    }
+  ]
+}

@@ -1,0 +1,1880 @@
+        setAdminPaintStatus(String(error && error.message ? error.message : error));
+      }}
+    }};
+    const handleAdminPaintPointerDown = (event) => {{
+      if (!adminPaintCanvas || !adminPaintUser) return;
+      event.preventDefault();
+      resizeAdminPaintCanvas();
+      const point = adminPaintPoint(event);
+      if (adminPaintMode === "select") {{
+        const selectionBounds = adminPaintSelectionBounds();
+        const handleBounds = selectionBounds ? adminPaintHandleBounds(selectionBounds) : null;
+        if (handleBounds && adminPaintPointInBounds(point, handleBounds, 2)) {{
+          adminPaintPointer = {{
+            type: "resize-selection",
+            start: point,
+            origin: {{
+              x: adminPaintSelection.x,
+              y: adminPaintSelection.y,
+              w: adminPaintSelection.w,
+              h: adminPaintSelection.h,
+            }},
+          }};
+          try {{ adminPaintCanvas.setPointerCapture(event.pointerId); }} catch (error) {{}}
+          return;
+        }}
+        if (selectionBounds && adminPaintPointInBounds(point, selectionBounds, 0)) {{
+          adminPaintPointer = {{
+            type: "move-selection",
+            start: point,
+            origin: {{ x: adminPaintSelection.x, y: adminPaintSelection.y }},
+          }};
+          try {{ adminPaintCanvas.setPointerCapture(event.pointerId); }} catch (error) {{}}
+          return;
+        }}
+        if (adminPaintSelection) {{
+          commitAdminPaintSelection();
+          scheduleAdminPaintSync(120);
+        }}
+        adminPaintPointer = {{ type: "select-region", start: point, current: point }};
+        resizeAdminPaintCanvas();
+        try {{ adminPaintCanvas.setPointerCapture(event.pointerId); }} catch (error) {{}}
+        return;
+      }}
+      if (adminPaintSelection) {{
+        commitAdminPaintSelection();
+        scheduleAdminPaintSync(120);
+      }}
+      if (adminPaintMode === "text") {{
+        showAdminPaintTextEditor(point);
+        return;
+      }}
+      adminPaintPointer = {{ type: "draw", last: point, eraser: adminPaintMode === "eraser" }};
+      drawAdminPaintLine(point, point, adminPaintPointer.eraser);
+      try {{ adminPaintCanvas.setPointerCapture(event.pointerId); }} catch (error) {{}}
+    }};
+    const handleAdminPaintPointerMove = (event) => {{
+      if (!adminPaintPointer || !adminPaintCanvas) return;
+      event.preventDefault();
+      const point = adminPaintPoint(event);
+      if (adminPaintPointer.type === "move-selection" && adminPaintSelection) {{
+        const dx = point.x - adminPaintPointer.start.x;
+        const dy = point.y - adminPaintPointer.start.y;
+        const maxX = Math.max(0, (adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH) - adminPaintSelection.w);
+        const maxY = Math.max(0, (adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT) - adminPaintSelection.h);
+        adminPaintSelection.x = adminPaintClamp(adminPaintPointer.origin.x + dx, 0, maxX);
+        adminPaintSelection.y = adminPaintClamp(adminPaintPointer.origin.y + dy, 0, maxY);
+        resizeAdminPaintCanvas();
+        scheduleAdminPaintSync(180);
+        return;
+      }}
+      if (adminPaintPointer.type === "resize-selection" && adminPaintSelection) {{
+        const dx = point.x - adminPaintPointer.start.x;
+        const dy = point.y - adminPaintPointer.start.y;
+        const origin = adminPaintPointer.origin || adminPaintSelection;
+        const maxW = Math.max(12, (adminPaintBufferCanvas ? adminPaintBufferCanvas.width : ADMIN_PAINT_BOARD_WIDTH) - origin.x);
+        const maxH = Math.max(12, (adminPaintBufferCanvas ? adminPaintBufferCanvas.height : ADMIN_PAINT_BOARD_HEIGHT) - origin.y);
+        adminPaintSelection.w = adminPaintClamp(origin.w + dx, 12, maxW);
+        adminPaintSelection.h = adminPaintClamp(origin.h + dy, 12, maxH);
+        resizeAdminPaintCanvas();
+        scheduleAdminPaintSync(180);
+        return;
+      }}
+      if (adminPaintPointer.type === "select-region") {{
+        adminPaintPointer.current = point;
+        resizeAdminPaintCanvas();
+        return;
+      }}
+      drawAdminPaintLine(adminPaintPointer.last || point, point, Boolean(adminPaintPointer.eraser));
+      adminPaintPointer.last = point;
+    }};
+    const handleAdminPaintPointerEnd = (event) => {{
+      if (!adminPaintPointer) return;
+      const pointerType = adminPaintPointer.type;
+      if (pointerType === "select-region") {{
+        const rect = adminPaintRect(adminPaintPointer.start, adminPaintPointer.current || adminPaintPointer.start);
+        createAdminPaintSelection(rect);
+        resizeAdminPaintCanvas();
+      }}
+      try {{ adminPaintCanvas.releasePointerCapture(event.pointerId); }} catch (error) {{}}
+      adminPaintPointer = null;
+      scheduleAdminPaintSync();
+    }};
+    const scrollAdminChatToBottom = () => {{
+      if (!adminChatLog) return;
+      const apply = () => {{ adminChatLog.scrollTop = adminChatLog.scrollHeight; }};
+      apply();
+      window.requestAnimationFrame(apply);
+      window.setTimeout(apply, 80);
+      window.setTimeout(apply, 260);
+    }};
+    const renderAdminAttachments = (msg, item = {{}}, scrollOnImageLoad = false) => {{
+      const attachments = adminChatAttachments(item);
+      if (!attachments.length) return;
+      const wrap = document.createElement("div");
+      wrap.className = "admin-attachments";
+      attachments.forEach((attachment) => {{
+        const name = String(attachment.name || "attachment");
+        const src = adminAttachmentUrl(attachment);
+        const downloadSrc = adminAttachmentUrl(attachment, true) || src;
+        const mime = String(attachment.mime || "");
+        const isImage = String(attachment.kind || "").toLowerCase() === "image" || mime.startsWith("image/");
+        const isAudio = String(attachment.kind || "").toLowerCase() === "audio" || mime.startsWith("audio/");
+        if (isImage) {{
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "admin-thumb";
+          button.title = name;
+          const img = document.createElement("img");
+          if (scrollOnImageLoad) {{
+            img.addEventListener("load", scrollAdminChatToBottom, {{ once: true }});
+          }}
+          img.src = src;
+          img.alt = name;
+          button.appendChild(img);
+          button.addEventListener("click", (event) => {{
+            event.stopPropagation();
+            openAdminImageViewer(src, downloadSrc, name);
+          }});
+          wrap.appendChild(button);
+        }} else if (isAudio) {{
+          const audioWrap = document.createElement("div");
+          audioWrap.className = "admin-audio-clip";
+          audioWrap.addEventListener("click", (event) => event.stopPropagation());
+          const audio = document.createElement("audio");
+          audio.controls = true;
+          audio.preload = "metadata";
+          audio.src = src;
+          audio.addEventListener("click", (event) => event.stopPropagation());
+          const link = document.createElement("a");
+          link.className = "admin-audio-download";
+          link.href = downloadSrc;
+          link.download = name;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.addEventListener("click", (event) => event.stopPropagation());
+          const size = formatAdminAttachmentSize(attachment.size);
+          link.textContent = size ? `${{name}} | ${{size}}` : name;
+          audioWrap.append(audio, link);
+          wrap.appendChild(audioWrap);
+        }} else {{
+          const link = document.createElement("a");
+          link.className = "admin-file";
+          link.href = downloadSrc;
+          link.download = name;
+          link.target = "_blank";
+          link.rel = "noopener";
+          const size = formatAdminAttachmentSize(attachment.size);
+          link.textContent = size ? `${{name}} | ${{size}}` : name;
+          wrap.appendChild(link);
+        }}
+      }});
+      msg.appendChild(wrap);
+    }};
+    const renderAdminChatLog = (username, autoplayMessageIds = null, options = {{}}) => {{
+      const record = adminChatUserRecord(username);
+      const rows = record && Array.isArray(record.messages) ? record.messages : [];
+      const autoplayIds = autoplayMessageIds instanceof Set ? autoplayMessageIds : null;
+      const shouldScroll = Boolean(options && options.scroll);
+      adminChatRenderedUser = username || "";
+      adminChatRenderedSignature = adminChatRowsSignature(rows);
+      adminChatLog.textContent = "";
+      if (!rows.length) {{
+        const empty = document.createElement("div");
+        empty.className = "admin-msg";
+        empty.textContent = "No messages yet.";
+        adminChatLog.appendChild(empty);
+        if (shouldScroll) scrollAdminChatToBottom();
+        return;
+      }}
+      rows.forEach((item) => {{
+        const msg = document.createElement("div");
+        msg.className = "admin-msg" + (item.sender === "admin" ? " is-admin" : "");
+        const voiceLabel = item.voice_label || (item.audio && item.audio.label) || "";
+        const text = document.createElement("div");
+        text.className = "admin-msg-text";
+        text.textContent = `${{item.sender === "admin" ? "Admin" : username}}: ${{item.text || ""}}${{voiceLabel ? " | " + voiceLabel : ""}}`;
+        msg.appendChild(text);
+        renderAdminAttachments(msg, item, shouldScroll);
+        if (item.sender === "admin") {{
+          const readState = document.createElement("div");
+          readState.className = "admin-read-state";
+          readState.textContent = item.peer_read ? "Seen" : "Sent";
+          msg.appendChild(readState);
+        }}
+        const audioPath = item.audio_path || (item.audio && item.audio.path) || "";
+        if (audioPath) {{
+          msg.title = "Click to play voice";
+          msg.addEventListener("click", () => {{
+            const audio = new Audio(`/server-data/asset?path=${{encodeURIComponent(audioPath)}}`);
+            audio.play().catch(() => {{}});
+          }});
+          const audioId = `${{item.id || ""}}:${{audioPath}}`;
+          if (item.sender === "user" && autoplayIds && autoplayIds.has(Number(item.id || 0)) && !adminChatPlayedAudioIds.has(audioId) && adminChatModal.classList.contains("is-open")) {{
+            adminChatPlayedAudioIds.add(audioId);
+            const audio = new Audio(`/server-data/asset?path=${{encodeURIComponent(audioPath)}}`);
+            audio.play().catch(() => {{}});
+          }}
+        }}
+        adminChatLog.appendChild(msg);
+      }});
+      if (shouldScroll) scrollAdminChatToBottom();
+    }};
+    const openAdminChat = async (username) => {{
+      adminChatUser = username || "";
+      if (!adminChatUser) return;
+      adminChatTitle.textContent = `Chat with ${{adminChatUser}}`;
+      adminChatModal.classList.add("is-open");
+      renderAdminChatLog(adminChatUser);
+      try {{
+        await fetch("/chat/admin/read", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username: adminChatUser }}),
+        }});
+      }} catch (error) {{
+      }}
+      pollChatAdmin();
+    }};
+    const closeAdminChat = () => {{
+      cancelAdminChatVoice();
+      adminChatModal.classList.remove("is-open");
+      adminChatUser = "";
+    }};
+    if (adminChatClose) adminChatClose.addEventListener("click", closeAdminChat);
+    if (adminChatModal) adminChatModal.addEventListener("click", (event) => {{
+      if (event.target === adminChatModal) closeAdminChat();
+    }});
+    const sendAdminChat = async (mode = "vi") => {{
+      const english = mode === "en";
+      const input = english ? adminChatEnInput : adminChatInput;
+      const button = english ? adminChatEnSend : adminChatSend;
+      const voiceSelect = english ? adminChatEnVoice : adminChatViVoice;
+      const audioEnabled = english ? adminChatEnAudioEnabled : adminChatViAudioEnabled;
+      const text = String(input && input.value || "").trim();
+      if (!adminChatUser || !text) return;
+      if (button) button.disabled = true;
+      if (adminChatVoiceState) adminChatVoiceState.textContent = audioEnabled ? "Creating voice..." : "Sending text...";
+      try {{
+        const response = await fetch("/chat/admin/send", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{
+            username: adminChatUser,
+            text,
+            audio_enabled: Boolean(audioEnabled),
+            voice: voiceSelect ? voiceSelect.value : "",
+            translated_from: english && adminChatInput ? adminChatInput.value : "",
+          }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not send chat.");
+        if (input) input.value = "";
+        if (!english && adminChatEnInput && adminTranslateEnabled) adminChatEnInput.value = "";
+        adminChatState = {{ users: payload.users || [], online_count: Number(payload.online_count || 0) }};
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        renderAdminChatLog(adminChatUser, null, {{ scroll: true }});
+        if (adminChatVoiceState) adminChatVoiceState.textContent = audioEnabled ? "Voice message sent." : "Text message sent.";
+      }} catch (error) {{
+        const message = String(error && error.message ? error.message : error);
+        messageNode.textContent = message;
+        if (adminChatVoiceState) adminChatVoiceState.textContent = message;
+      }} finally {{
+        if (button) button.disabled = false;
+      }}
+    }};
+    const currentAdminAttachInput = () => {{
+      if (document.activeElement === adminChatEnInput) return adminChatEnInput;
+      return adminChatInput || adminChatEnInput;
+    }};
+    const appendAdminSpeechTextToInput = (input, text) => {{
+      const value = String(text || "").replace(/\s+/g, " ").trim();
+      if (!input || !value) return false;
+      const current = String(input.value || "");
+      const start = typeof input.selectionStart === "number" ? input.selectionStart : current.length;
+      const end = typeof input.selectionEnd === "number" ? input.selectionEnd : start;
+      const needsSpaceBefore = start > 0 && current[start - 1] && !/\s/.test(current[start - 1]);
+      const needsSpaceAfter = end < current.length && current[end] && !/\s/.test(current[end]);
+      const inserted = `${{needsSpaceBefore ? " " : ""}}${{value}}${{needsSpaceAfter ? " " : ""}}`;
+      input.value = `${{current.slice(0, start)}}${{inserted}}${{current.slice(end)}}`;
+      const cursor = start + inserted.length;
+      if (typeof input.setSelectionRange === "function") input.setSelectionRange(cursor, cursor);
+      input.dispatchEvent(new Event("input", {{ bubbles: true }}));
+      input.dispatchEvent(new Event("change", {{ bubbles: true }}));
+      input.focus();
+      return true;
+    }};
+    const adminChatTextSpeechMode = () => String(adminChatSpeechMode && adminChatSpeechMode.value || "browser").trim().toLowerCase() === "zipformer" ? "zipformer" : "browser";
+    const adminChatTextRecognitionCtor = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    const setAdminChatTextMicUi = (state = "idle", message = "") => {{
+      const recording = state === "recording";
+      const busy = state === "sending";
+      if (adminChatTextMic) {{
+        adminChatTextMic.textContent = recording ? "Stop text" : (busy ? "..." : "Text Mic");
+        adminChatTextMic.classList.toggle("is-recording", recording);
+        adminChatTextMic.classList.toggle("is-busy", busy);
+        adminChatTextMic.setAttribute("aria-pressed", recording ? "true" : "false");
+        adminChatTextMic.disabled = busy;
+      }}
+      if (message && adminChatVoiceState) adminChatVoiceState.textContent = message;
+    }};
+    const stopAdminChatTextTimer = () => {{
+      if (adminChatTextTimer) {{
+        window.clearInterval(adminChatTextTimer);
+        adminChatTextTimer = 0;
+      }}
+    }};
+    const adminChatTextDraft = () => String(`${{adminChatTextFinalText || ""}} ${{adminChatTextInterimText || ""}}`).replace(/\s+/g, " ").trim();
+    const renderAdminChatTextDraft = () => {{
+      const input = adminChatTextInput;
+      if (!input) return false;
+      const text = adminChatTextDraft();
+      const base = String(adminChatTextBaseValue || "");
+      const spacer = base && text && !/\s$/.test(base) ? " " : "";
+      input.value = `${{base}}${{spacer}}${{text}}`.trimStart();
+      if (typeof input.setSelectionRange === "function") input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new Event("input", {{ bubbles: true }}));
+      input.dispatchEvent(new Event("change", {{ bubbles: true }}));
+      input.focus();
+      return Boolean(text);
+    }};
+    const resetAdminChatTextSpeech = (keepDraft = true) => {{
+      stopAdminChatTextTimer();
+      if (keepDraft) renderAdminChatTextDraft();
+      adminChatTextRecognition = null;
+      adminChatTextInput = null;
+      adminChatTextBaseValue = "";
+      adminChatTextFinalText = "";
+      adminChatTextInterimText = "";
+      adminChatTextStartedAt = 0;
+      setAdminChatTextMicUi("idle", "");
+    }};
+    const stopAdminBrowserTextSpeech = () => {{
+      const recognition = adminChatTextRecognition;
+      if (!recognition) return false;
+      try {{
+        recognition.stop();
+        return true;
+      }} catch (error) {{
+        try {{ recognition.abort(); }} catch (innerError) {{}}
+        resetAdminChatTextSpeech(true);
+        return false;
+      }}
+    }};
+    const startAdminBrowserTextSpeech = () => {{
+      const input = currentAdminAttachInput();
+      const RecognitionCtor = adminChatTextRecognitionCtor();
+      if (!RecognitionCtor) {{
+        setAdminChatTextMicUi("idle", "Browser VI+EN speech recognition is unavailable here.");
+        return;
+      }}
+      if (adminChatTextRecognition) {{
+        stopAdminBrowserTextSpeech();
+        return;
+      }}
+      const recognition = new RecognitionCtor();
+      adminChatTextRecognition = recognition;
+      adminChatTextInput = input;
+      adminChatTextBaseValue = String(input && input.value || "");
+      adminChatTextFinalText = "";
+      adminChatTextInterimText = "";
+      adminChatTextStartedAt = Date.now();
+      recognition.lang = "vi-VN";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event) => {{
+        let finalText = "";
+        let interim = "";
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {{
+          const result = event.results[index];
+          const text = String(result && result[0] && result[0].transcript || "").replace(/\s+/g, " ").trim();
+          if (!text) continue;
+          if (result.isFinal) finalText = `${{finalText}} ${{text}}`.trim();
+          else interim = `${{interim}} ${{text}}`.trim();
+        }}
+        if (finalText) adminChatTextFinalText = `${{adminChatTextFinalText}} ${{finalText}}`.trim();
+        adminChatTextInterimText = interim;
+        renderAdminChatTextDraft();
+        setAdminChatTextMicUi("recording", "Browser VI+EN listening...");
+      }};
+      recognition.onerror = (event) => {{
+        const code = String(event && event.error || "").trim();
+        if (code && code !== "no-speech" && adminChatVoiceState) adminChatVoiceState.textContent = `Browser VI+EN: ${{code}}`;
+      }};
+      recognition.onend = () => {{
+        const heard = renderAdminChatTextDraft();
+        resetAdminChatTextSpeech(true);
+        if (adminChatVoiceState) adminChatVoiceState.textContent = heard ? "Browser VI+EN added text." : "Browser VI+EN did not hear clear text.";
+      }};
+      try {{
+        recognition.start();
+      }} catch (error) {{
+        resetAdminChatTextSpeech(false);
+        if (adminChatVoiceState) adminChatVoiceState.textContent = String(error && error.message ? error.message : error);
+        return;
+      }}
+      setAdminChatTextMicUi("recording", "Browser VI+EN listening...");
+      adminChatTextTimer = window.setInterval(() => {{
+        const seconds = Math.max(0, Math.round((Date.now() - adminChatTextStartedAt) / 1000));
+        setAdminChatTextMicUi("recording", `Browser VI+EN listening... ${{seconds}}s`);
+      }}, 500);
+    }};
+    const startAdminZipformerTextSpeech = async () => {{
+      const input = currentAdminAttachInput();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {{
+        if (adminChatVoiceState) adminChatVoiceState.textContent = "Browser does not support recording.";
+        return;
+      }}
+      setAdminChatTextMicUi("recording", "Recording Zipformer VI text...");
+      let stream = null;
+      let recorder = null;
+      const chunks = [];
+      try {{
+        stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+        const mimeType = adminChatRecorderMimeType();
+        recorder = new MediaRecorder(stream, mimeType ? {{ mimeType }} : undefined);
+        recorder.addEventListener("dataavailable", (event) => {{
+          if (event.data && event.data.size) chunks.push(event.data);
+        }});
+        recorder.addEventListener("stop", async () => {{
+          try {{
+            setAdminChatTextMicUi("sending", "Recognizing with Zipformer VI...");
+            const type = recorder.mimeType || mimeType || "audio/webm";
+            const blob = new Blob(chunks, {{ type }});
+            if (!blob.size) throw new Error("No audio captured.");
+            const file = await adminChatVoiceUploadFile(blob);
+            const form = new FormData();
+            form.append("audio", file, file.name || `admin-chat-zipformer-${{Date.now()}}.wav`);
+            form.append("source", "future_admin_chat_text_mic");
+            form.append("language", "vi");
+            const response = await fetch("/transcribe-zipformer-vi", {{ method: "POST", body: form }});
+            const payload = await response.json().catch(() => ({{}}));
+            if (!response.ok || payload.ok === false) throw new Error(payload.error || "Zipformer VI failed.");
+            const text = String(payload.text || payload.transcript || "").replace(/\s+/g, " ").trim();
+            if (!appendAdminSpeechTextToInput(input, text)) throw new Error("Zipformer VI did not hear clear text.");
+            if (adminChatVoiceState) adminChatVoiceState.textContent = "Zipformer VI added text.";
+          }} catch (error) {{
+            if (adminChatVoiceState) adminChatVoiceState.textContent = String(error && error.message ? error.message : error);
+          }} finally {{
+            if (stream) stream.getTracks().forEach((track) => track.stop());
+            setAdminChatTextMicUi("idle", "");
+          }}
+        }});
+        recorder.start();
+        window.setTimeout(() => {{
+          if (recorder && recorder.state === "recording") recorder.stop();
+        }}, 5000);
+      }} catch (error) {{
+        if (stream) stream.getTracks().forEach((track) => track.stop());
+        setAdminChatTextMicUi("idle", String(error && error.message ? error.message : error));
+      }}
+    }};
+    const toggleAdminChatTextSpeech = () => {{
+      if (adminChatTextSpeechMode() === "zipformer") {{
+        void startAdminZipformerTextSpeech();
+        return;
+      }}
+      startAdminBrowserTextSpeech();
+    }};
+    const uploadAdminChatFiles = async (fileList, sourceInput = null, options = {{}}) => {{
+      const files = Array.from(fileList || []).filter(Boolean);
+      if (!adminChatUser || !files.length) return;
+      const input = sourceInput || currentAdminAttachInput();
+      const includeDraft = options.includeDraft !== false;
+      const draft = includeDraft ? String(input && input.value || "").trim() : "";
+      if (adminChatAttach) adminChatAttach.disabled = true;
+      if (adminChatVoiceState) adminChatVoiceState.textContent = options.status || `Uploading ${{files.length}} file${{files.length > 1 ? "s" : ""}}...`;
+      try {{
+        for (let index = 0; index < files.length; index += 1) {{
+          const form = new FormData();
+          form.append("username", adminChatUser);
+          form.append("file", files[index], files[index].name || `attachment-${{index + 1}}`);
+          if (index === 0 && draft) {{
+            form.append("text", draft);
+            const voiceSelect = input === adminChatEnInput ? adminChatEnVoice : adminChatViVoice;
+            const audioEnabled = input === adminChatEnInput ? adminChatEnAudioEnabled : adminChatViAudioEnabled;
+            form.append("audio_enabled", audioEnabled ? "1" : "0");
+            form.append("voice", voiceSelect ? voiceSelect.value : "");
+          }}
+          const response = await fetch("/chat/admin/upload", {{
+            method: "POST",
+            body: form,
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not upload attachment.");
+          adminChatState = {{ users: payload.users || [], online_count: Number(payload.online_count || 0) }};
+        }}
+        if (input && draft) input.value = "";
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        renderAdminChatLog(adminChatUser, null, {{ scroll: true }});
+        if (adminChatVoiceState) adminChatVoiceState.textContent = "Attachment sent.";
+        return true;
+      }} catch (error) {{
+        const message = String(error && error.message ? error.message : error);
+        messageNode.textContent = message;
+        if (adminChatVoiceState) adminChatVoiceState.textContent = message;
+        return false;
+      }} finally {{
+        if (adminChatAttach) adminChatAttach.disabled = false;
+        if (adminChatFile) adminChatFile.value = "";
+      }}
+    }};
+    const adminChatRecorderMimeType = () => {{
+      if (!window.MediaRecorder || typeof MediaRecorder.isTypeSupported !== "function") return "";
+      return [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+      ].find((mime) => MediaRecorder.isTypeSupported(mime)) || "";
+    }};
+    const adminChatAudioExtension = (mime = "") => {{
+      const value = String(mime || "").toLowerCase();
+      if (value.includes("mp4") || value.includes("m4a")) return "m4a";
+      if (value.includes("ogg")) return "ogg";
+      if (value.includes("wav")) return "wav";
+      return "webm";
+    }};
+    const encodeAdminChatWav = (audioBuffer) => {{
+      const channels = Math.min(2, Math.max(1, audioBuffer.numberOfChannels || 1));
+      const sampleRate = audioBuffer.sampleRate || 44100;
+      const frames = audioBuffer.length || 0;
+      const bytesPerSample = 2;
+      const blockAlign = channels * bytesPerSample;
+      const dataSize = frames * blockAlign;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+      const writeString = (offset, value) => {{
+        for (let i = 0; i < value.length; i += 1) {{
+          view.setUint8(offset + i, value.charCodeAt(i));
+        }}
+      }};
+      writeString(0, "RIFF");
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, "WAVE");
+      writeString(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, channels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bytesPerSample * 8, true);
+      writeString(36, "data");
+      view.setUint32(40, dataSize, true);
+      const channelData = Array.from({{ length: channels }}, (_, index) => audioBuffer.getChannelData(index));
+      let offset = 44;
+      for (let frame = 0; frame < frames; frame += 1) {{
+        for (let channel = 0; channel < channels; channel += 1) {{
+          const sample = Math.max(-1, Math.min(1, channelData[channel][frame] || 0));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+          offset += bytesPerSample;
+        }}
+      }}
+      return new Blob([buffer], {{ type: "audio/wav" }});
+    }};
+    const adminChatVoiceUploadFile = async (blob) => {{
+      const fallbackExtension = adminChatAudioExtension(blob && blob.type);
+      const fallback = () => new File([blob], `voice-message-${{Date.now()}}.${{fallbackExtension}}`, {{ type: (blob && blob.type) || "audio/webm" }});
+      try {{
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor || !blob || typeof blob.arrayBuffer !== "function") {{
+          return fallback();
+        }}
+        const context = new AudioContextCtor();
+        try {{
+          const sourceBuffer = await blob.arrayBuffer();
+          const audioBuffer = await new Promise((resolve, reject) => {{
+            const result = context.decodeAudioData(sourceBuffer.slice(0), resolve, reject);
+            if (result && typeof result.then === "function") {{
+              result.then(resolve, reject);
+            }}
+          }});
+          const wavBlob = encodeAdminChatWav(audioBuffer);
+          return new File([wavBlob], `voice-message-${{Date.now()}}.wav`, {{ type: "audio/wav" }});
+        }} finally {{
+          if (typeof context.close === "function") {{
+            context.close().catch(() => {{}});
+          }}
+        }}
+      }} catch (error) {{
+        return fallback();
+      }}
+    }};
+    const stopAdminChatRecordTimer = () => {{
+      if (adminChatRecordTimer) {{
+        window.clearInterval(adminChatRecordTimer);
+        adminChatRecordTimer = 0;
+      }}
+    }};
+    const setAdminChatRecordUi = (state = "idle", message = "") => {{
+      const recording = state === "recording";
+      const ready = state === "ready";
+      if (adminChatMic) {{
+        adminChatMic.textContent = recording ? "Stop mic" : "Mic";
+        adminChatMic.classList.toggle("is-recording", recording);
+        adminChatMic.disabled = state === "sending";
+      }}
+      if (adminChatVoiceSend) {{
+        adminChatVoiceSend.hidden = !ready;
+        adminChatVoiceSend.disabled = state === "sending";
+      }}
+      if (adminChatVoiceCancel) {{
+        adminChatVoiceCancel.hidden = !(ready || recording);
+        adminChatVoiceCancel.disabled = state === "sending";
+      }}
+      if (message && adminChatVoiceState) adminChatVoiceState.textContent = message;
+    }};
+    const stopAdminChatRecording = () => {{
+      if (adminChatRecorder && adminChatRecorder.state === "recording") {{
+        adminChatRecorder.stop();
+      }}
+    }};
+    const cancelAdminChatVoice = () => {{
+      adminChatRecordCanceled = true;
+      if (adminChatRecorder && adminChatRecorder.state === "recording") {{
+        adminChatRecorder.stop();
+      }}
+      if (adminChatRecordStream) {{
+        adminChatRecordStream.getTracks().forEach((track) => track.stop());
+      }}
+      adminChatRecorder = null;
+      adminChatRecordStream = null;
+      adminChatRecordChunks = [];
+      adminChatRecordBlob = null;
+      adminChatRecordInput = null;
+      adminChatRecordStartedAt = 0;
+      stopAdminChatRecordTimer();
+      setAdminChatRecordUi("idle", "");
+    }};
+    const startAdminChatRecording = async () => {{
+      if (!adminChatUser) {{
+        if (adminChatVoiceState) adminChatVoiceState.textContent = "Choose a user first.";
+        return;
+      }}
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {{
+        if (adminChatVoiceState) adminChatVoiceState.textContent = "Browser does not support message recording.";
+        return;
+      }}
+      cancelAdminChatVoice();
+      try {{
+        const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+        const mimeType = adminChatRecorderMimeType();
+        const recorder = new MediaRecorder(stream, mimeType ? {{ mimeType }} : undefined);
+        adminChatRecorder = recorder;
+        adminChatRecordStream = stream;
+        adminChatRecordChunks = [];
+        adminChatRecordBlob = null;
+        adminChatRecordInput = currentAdminAttachInput();
+        adminChatRecordStartedAt = Date.now();
+        adminChatRecordCanceled = false;
+        recorder.addEventListener("dataavailable", (event) => {{
+          if (event.data && event.data.size) adminChatRecordChunks.push(event.data);
+        }});
+        recorder.addEventListener("stop", () => {{
+          stopAdminChatRecordTimer();
+          if (adminChatRecordCanceled) {{
+            adminChatRecordCanceled = false;
+            return;
+          }}
+          const type = recorder.mimeType || mimeType || "audio/webm";
+          adminChatRecordBlob = new Blob(adminChatRecordChunks, {{ type }});
+          if (adminChatRecordStream) adminChatRecordStream.getTracks().forEach((track) => track.stop());
+          adminChatRecordStream = null;
+          adminChatRecorder = null;
+          if (adminChatRecordBlob && adminChatRecordBlob.size) {{
+            const seconds = Math.max(1, Math.round((Date.now() - adminChatRecordStartedAt) / 1000));
+            setAdminChatRecordUi("ready", `Voice ready (${{seconds}}s). Press Send voice or Cancel.`);
+          }} else {{
+            cancelAdminChatVoice();
+            if (adminChatVoiceState) adminChatVoiceState.textContent = "No audio to send.";
+          }}
+        }});
+        recorder.start();
+        setAdminChatRecordUi("recording", "Recording voice... press Stop mic when done.");
+        adminChatRecordTimer = window.setInterval(() => {{
+          const seconds = Math.max(0, Math.round((Date.now() - adminChatRecordStartedAt) / 1000));
+          setAdminChatRecordUi("recording", `Recording voice... ${{seconds}}s`);
+        }}, 500);
+      }} catch (error) {{
+        cancelAdminChatVoice();
+        if (adminChatVoiceState) adminChatVoiceState.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const sendAdminChatVoice = async () => {{
+      const blob = adminChatRecordBlob;
+      if (!blob || !blob.size) {{
+        if (adminChatVoiceState) adminChatVoiceState.textContent = "No voice recording is ready.";
+        return;
+      }}
+      setAdminChatRecordUi("sending", "Preparing voice...");
+      try {{
+        const file = await adminChatVoiceUploadFile(blob);
+        const sent = await uploadAdminChatFiles([file], adminChatRecordInput || currentAdminAttachInput(), {{
+          includeDraft: false,
+          status: "Sending voice...",
+        }});
+        if (sent) {{
+          adminChatRecordBlob = null;
+          adminChatRecordChunks = [];
+          setAdminChatRecordUi("idle", "Voice sent.");
+        }} else {{
+          setAdminChatRecordUi("ready", "Voice is still ready. Try Send voice again.");
+        }}
+      }} catch (error) {{
+        setAdminChatRecordUi("ready", String(error && error.message ? error.message : error));
+      }}
+    }};
+    const handleAdminChatPaste = (event) => {{
+      if (!adminChatModal || !adminChatModal.classList.contains("is-open") || !event.clipboardData || event.defaultPrevented || event.futureChatPasteHandled) return;
+      const files = Array.from(event.clipboardData.files || []).filter((file) => file && file.size);
+      if (!files.length) return;
+      event.futureChatPasteHandled = true;
+      event.preventDefault();
+      uploadAdminChatFiles(files, event.target === adminChatEnInput ? adminChatEnInput : adminChatInput);
+    }};
+    if (adminChatAttach && adminChatFile) {{
+      adminChatAttach.addEventListener("click", () => adminChatFile.click());
+      adminChatFile.addEventListener("change", () => uploadAdminChatFiles(adminChatFile.files, currentAdminAttachInput()));
+    }}
+    if (adminChatMic) adminChatMic.addEventListener("click", () => {{
+      if (adminChatRecorder && adminChatRecorder.state === "recording") {{
+        stopAdminChatRecording();
+      }} else {{
+        void startAdminChatRecording();
+      }}
+    }});
+    if (adminChatSpeechMode) {{
+      adminChatSpeechMode.value = localStorage.getItem("future_admin_chat_speech_mode") || "browser";
+      adminChatSpeechMode.addEventListener("change", () => {{
+        localStorage.setItem("future_admin_chat_speech_mode", adminChatTextSpeechMode());
+      }});
+    }}
+    if (adminChatTextMic) adminChatTextMic.addEventListener("click", toggleAdminChatTextSpeech);
+    if (adminChatVoiceSend) adminChatVoiceSend.addEventListener("click", () => void sendAdminChatVoice());
+    if (adminChatVoiceCancel) adminChatVoiceCancel.addEventListener("click", cancelAdminChatVoice);
+    if (adminChatViAudioToggle) adminChatViAudioToggle.addEventListener("click", () => {{
+      adminChatViAudioEnabled = !adminChatViAudioEnabled;
+      localStorage.setItem("future_admin_chat_vi_audio", adminChatViAudioEnabled ? "1" : "0");
+      renderAdminChatAudioToggles();
+    }});
+    if (adminChatEnAudioToggle) adminChatEnAudioToggle.addEventListener("click", () => {{
+      adminChatEnAudioEnabled = !adminChatEnAudioEnabled;
+      localStorage.setItem("future_admin_chat_en_audio", adminChatEnAudioEnabled ? "1" : "0");
+      renderAdminChatAudioToggles();
+    }});
+    if (adminChatSend) adminChatSend.addEventListener("click", () => sendAdminChat("vi"));
+    if (adminChatEnSend) adminChatEnSend.addEventListener("click", () => sendAdminChat("en"));
+    if (adminChatInput) adminChatInput.addEventListener("keydown", (event) => {{
+      if (event.key === "Enter" && !event.shiftKey) {{
+        event.preventDefault();
+        sendAdminChat("vi");
+      }}
+    }});
+    if (adminChatEnInput) adminChatEnInput.addEventListener("keydown", (event) => {{
+      if (event.key === "Enter" && !event.shiftKey) {{
+        event.preventDefault();
+        sendAdminChat("en");
+      }}
+    }});
+    if (adminChatInput) adminChatInput.addEventListener("paste", handleAdminChatPaste);
+    if (adminChatEnInput) adminChatEnInput.addEventListener("paste", handleAdminChatPaste);
+    if (adminChatModal) adminChatModal.addEventListener("paste", handleAdminChatPaste);
+    if (adminImageClose) adminImageClose.addEventListener("click", closeAdminImageViewer);
+    if (adminImageZoomOut) adminImageZoomOut.addEventListener("click", (event) => {{
+      event.stopPropagation();
+      setAdminImageZoom(adminImageViewerState.zoom / 1.25);
+    }});
+    if (adminImageZoomIn) adminImageZoomIn.addEventListener("click", (event) => {{
+      event.stopPropagation();
+      setAdminImageZoom(adminImageViewerState.zoom * 1.25);
+    }});
+    if (adminImageZoomReset) adminImageZoomReset.addEventListener("click", (event) => {{
+      event.stopPropagation();
+      resetAdminImageTransform();
+    }});
+    if (adminImageViewer) adminImageViewer.addEventListener("click", (event) => {{
+      if (event.target === adminImageViewer) closeAdminImageViewer();
+    }});
+    if (adminImageViewer) adminImageViewer.addEventListener("wheel", (event) => {{
+      if (!adminImageViewer.classList.contains("is-open")) return;
+      event.preventDefault();
+      setAdminImageZoom(adminImageViewerState.zoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12));
+    }}, {{ passive: false }});
+    if (adminImageViewerImg) {{
+      adminImageViewerImg.addEventListener("pointerdown", beginAdminImageDrag);
+      adminImageViewerImg.addEventListener("pointermove", moveAdminImageDrag);
+      adminImageViewerImg.addEventListener("pointerup", endAdminImageDrag);
+      adminImageViewerImg.addEventListener("pointercancel", endAdminImageDrag);
+      adminImageViewerImg.addEventListener("click", (event) => event.stopPropagation());
+    }}
+    const streamFileToDataUrl = (blob) => new Promise((resolve, reject) => {{
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error || new Error("Could not read stream audio."));
+      reader.readAsDataURL(blob);
+    }});
+    const streamDataUrlToBytes = (dataUrl = "") => {{
+      const raw = String(dataUrl || "");
+      const comma = raw.indexOf(",");
+      if (comma < 0) return null;
+      const base64 = raw.slice(comma + 1);
+      try {{
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {{
+          bytes[index] = binary.charCodeAt(index);
+        }}
+        return bytes;
+      }} catch (error) {{
+        return null;
+      }}
+    }};
+    const streamMimeFromDataUrl = (dataUrl = "", fallback = "audio/webm;codecs=opus") => {{
+      const match = String(dataUrl || "").match(/^data:([^;,]+(?:;codecs=[^;,]+)?)/i);
+      return match && match[1] ? match[1] : fallback;
+    }};
+    const ADMIN_STREAM_AUDIO_MODE_KEY = "future_admin_stream_audio_mode";
+    const normalizeAdminStreamAudioMode = (value) => String(value || "").toLowerCase() === "inbound" ? "inbound" : "relay";
+    let adminStreamAudioMode = normalizeAdminStreamAudioMode(localStorage.getItem(ADMIN_STREAM_AUDIO_MODE_KEY) || "relay");
+    const stopAdminStreamRelayBuffer = () => {{
+      adminStreamRelayPendingBuffers = [];
+      adminStreamRelaySourceBuffer = null;
+      adminStreamRelayOpening = false;
+      if (adminStreamRelayMediaSource) {{
+        try {{
+          if (adminStreamRelayMediaSource.readyState === "open") adminStreamRelayMediaSource.endOfStream();
+        }} catch (error) {{}}
+      }}
+      adminStreamRelayMediaSource = null;
+      adminStreamRelayMime = "";
+      if (adminStreamRemoteAudio) {{
+        try {{ adminStreamRemoteAudio.pause(); }} catch (error) {{}}
+        if (adminStreamRemoteAudio.src && adminStreamRelayObjectUrl && adminStreamRemoteAudio.src === adminStreamRelayObjectUrl) {{
+          adminStreamRemoteAudio.removeAttribute("src");
+          try {{ adminStreamRemoteAudio.load(); }} catch (error) {{}}
+        }}
+      }}
+      if (adminStreamRelayObjectUrl) {{
+        try {{ URL.revokeObjectURL(adminStreamRelayObjectUrl); }} catch (error) {{}}
+      }}
+      adminStreamRelayObjectUrl = "";
+    }};
+    const pumpAdminStreamRelayBuffer = () => {{
+      const buffer = adminStreamRelaySourceBuffer;
+      if (!buffer || buffer.updating || !adminStreamRelayPendingBuffers.length) return;
+      try {{
+        buffer.appendBuffer(adminStreamRelayPendingBuffers.shift());
+      }} catch (error) {{
+        adminStreamRelayDropped += Math.max(1, adminStreamRelayPendingBuffers.length);
+        adminStreamRelayPendingBuffers = [];
+      }}
+    }};
+    const ensureAdminStreamRelayBuffer = (mime = "audio/webm;codecs=opus") => {{
+      const wantedMime = String(mime || "audio/webm;codecs=opus");
+      if (!window.MediaSource || typeof MediaSource.isTypeSupported !== "function" || !MediaSource.isTypeSupported(wantedMime)) {{
+        return false;
+      }}
+      if (adminStreamRelayMediaSource && adminStreamRelayMime === wantedMime && adminStreamRelaySourceBuffer) {{
+        return true;
+      }}
+      stopAdminStreamRelayBuffer();
+      adminStreamRelayMime = wantedMime;
+      adminStreamRelayMediaSource = new MediaSource();
+      adminStreamRelayOpening = true;
+      const audio = ensureAdminStreamRemoteAudio();
+      audio.srcObject = null;
+      adminStreamRelayObjectUrl = URL.createObjectURL(adminStreamRelayMediaSource);
+      audio.src = adminStreamRelayObjectUrl;
+      audio.muted = false;
+      audio.volume = 1;
+      audio.play().catch(() => {{
+        messageNode.textContent = "Admin browser blocked stream audio. Click Stream once on this page.";
+      }});
+      adminStreamRelayMediaSource.addEventListener("sourceopen", () => {{
+        if (!adminStreamRelayMediaSource || adminStreamRelaySourceBuffer) return;
+        try {{
+          adminStreamRelaySourceBuffer = adminStreamRelayMediaSource.addSourceBuffer(wantedMime);
+          adminStreamRelaySourceBuffer.mode = "sequence";
+          adminStreamRelaySourceBuffer.addEventListener("updateend", pumpAdminStreamRelayBuffer);
+          adminStreamRelayOpening = false;
+          pumpAdminStreamRelayBuffer();
+        }} catch (error) {{
+          stopAdminStreamRelayBuffer();
+        }}
+      }}, {{ once: true }});
+      return true;
+    }};
+    const stopAdminStreamCurrentRelayAudio = () => {{
+      stopAdminStreamRelayBuffer();
+      if (!adminStreamCurrentAudio) return;
+      try {{
+        adminStreamCurrentAudio.pause();
+        adminStreamCurrentAudio.removeAttribute("src");
+        adminStreamCurrentAudio.load();
+      }} catch (error) {{}}
+      adminStreamCurrentAudio = null;
+      adminStreamAudioPlaying = false;
+    }};
+    const drainAdminStreamAudioQueue = () => {{
+      if (adminStreamAudioPlaying) return;
+      const chunk = adminStreamAudioQueue.shift();
+      if (!chunk) return;
+      const data = String(chunk.data || "");
+      if (!data) {{
+        drainAdminStreamAudioQueue();
+        return;
+      }}
+      const audio = new Audio(data);
+      adminStreamCurrentAudio = audio;
+      adminStreamAudioPlaying = true;
+      audio.autoplay = true;
+      audio.playsInline = true;
+      audio.preload = "auto";
+      audio.volume = 1;
+      const finish = () => {{
+        if (adminStreamCurrentAudio === audio) adminStreamCurrentAudio = null;
+        adminStreamAudioPlaying = false;
+        drainAdminStreamAudioQueue();
+      }};
+      audio.onended = finish;
+      audio.onerror = () => {{
+        messageNode.textContent = "Admin stream audio chunk error.";
+        finish();
+      }};
+      audio.play().catch(() => {{
+        messageNode.textContent = "Admin browser blocked stream audio. Click Stream once on this page.";
+        finish();
+      }});
+    }};
+    const playAdminStreamChunk = (chunk = {{}}) => {{
+      if (adminStreamAudioMode !== "relay") return;
+      if (!chunk || !chunk.data) return;
+      const mime = streamMimeFromDataUrl(chunk.data, chunk.mime || "audio/webm;codecs=opus");
+      const bytes = streamDataUrlToBytes(chunk.data);
+      if (bytes && ensureAdminStreamRelayBuffer(mime)) {{
+        adminStreamRelayPendingBuffers.push(bytes);
+        if (adminStreamRelayPendingBuffers.length > 18) {{
+          const dropCount = adminStreamRelayPendingBuffers.length - 12;
+          adminStreamRelayPendingBuffers.splice(0, dropCount);
+          adminStreamRelayDropped += dropCount;
+        }}
+        pumpAdminStreamRelayBuffer();
+        return;
+      }}
+      adminStreamAudioQueue.push(chunk);
+      if (adminStreamAudioQueue.length > 3) {{
+        const dropCount = adminStreamAudioQueue.length - 2;
+        adminStreamAudioQueue.splice(0, dropCount);
+        adminStreamRelayDropped += dropCount;
+      }}
+      drainAdminStreamAudioQueue();
+    }};
+    const unlockAdminStreamAudio = () => {{
+      if (adminStreamAudioUnlocked) return;
+      adminStreamAudioUnlocked = true;
+      try {{
+        const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
+        audio.volume = 0;
+        audio.play().catch(() => {{
+          adminStreamAudioUnlocked = false;
+        }});
+      }} catch (error) {{
+        adminStreamAudioUnlocked = false;
+      }}
+    }};
+    document.addEventListener("pointerdown", unlockAdminStreamAudio, {{ passive: true }});
+    const adminWebRtcConfig = {{
+      iceServers: [
+        {{ urls: "stun:stun.l.google.com:19302" }},
+        {{ urls: "stun:global.stun.twilio.com:3478" }},
+      ],
+    }};
+    const ensureAdminStreamRemoteAudio = () => {{
+      if (!adminStreamRemoteAudio) {{
+        adminStreamRemoteAudio = document.createElement("audio");
+        adminStreamRemoteAudio.autoplay = true;
+        adminStreamRemoteAudio.playsInline = true;
+        adminStreamRemoteAudio.controls = false;
+        adminStreamRemoteAudio.style.display = "none";
+        document.body.appendChild(adminStreamRemoteAudio);
+      }}
+      return adminStreamRemoteAudio;
+    }};
+    const renderAdminStreamAudioMode = () => {{
+      adminStreamModeButtons.forEach((button) => {{
+        const active = button.dataset.adminStreamMode === adminStreamAudioMode;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      }});
+      if (adminStreamModeNote) {{
+        adminStreamModeNote.textContent = adminStreamAudioMode === "inbound"
+          ? "Inbound: admin listens to the direct WebRTC track. If audio drops, switch back to Relay."
+          : "Relay: admin nghe qua server, on dinh hon qua mang khac nhau.";
+      }}
+    }};
+    const stopAdminStreamInboundAudio = () => {{
+      if (adminStreamRemoteAudio) {{
+        try {{ adminStreamRemoteAudio.pause(); }} catch (error) {{}}
+        adminStreamRemoteAudio.srcObject = null;
+      }}
+      if (adminStreamInboundTrack) {{
+        try {{ adminStreamInboundTrack.enabled = false; }} catch (error) {{}}
+      }}
+    }};
+    const playAdminStreamInboundAudio = () => {{
+      if (!adminStreamInboundStream) {{
+        messageNode.textContent = "Inbound selected. Waiting for WebRTC audio track from user.";
+        return;
+      }}
+      if (adminStreamInboundTrack) {{
+        try {{ adminStreamInboundTrack.enabled = true; }} catch (error) {{}}
+      }}
+      const audio = ensureAdminStreamRemoteAudio();
+      audio.srcObject = adminStreamInboundStream;
+      audio.muted = false;
+      audio.volume = 1;
+      audio.play().then(() => {{
+        messageNode.textContent = "Listening via inbound WebRTC.";
+      }}).catch(() => {{
+        messageNode.textContent = "Inbound selected, browser blocked audio. Click Stream once on this page.";
+      }});
+    }};
+    const applyAdminStreamAudioMode = () => {{
+      renderAdminStreamAudioMode();
+      if (adminStreamAudioMode === "inbound") {{
+        adminStreamAudioQueue = [];
+        stopAdminStreamCurrentRelayAudio();
+        playAdminStreamInboundAudio();
+      }} else {{
+        stopAdminStreamInboundAudio();
+        if (adminStreamSession && adminStreamSession.state === "active") {{
+          messageNode.textContent = "Listening via relay.";
+        }}
+      }}
+    }};
+    adminStreamModeButtons.forEach((button) => {{
+      button.addEventListener("click", () => {{
+        adminStreamAudioMode = normalizeAdminStreamAudioMode(button.dataset.adminStreamMode);
+        localStorage.setItem(ADMIN_STREAM_AUDIO_MODE_KEY, adminStreamAudioMode);
+        unlockAdminStreamAudio();
+        applyAdminStreamAudioMode();
+      }});
+    }});
+    renderAdminStreamAudioMode();
+    const sendAdminWebRtcSignal = async (type, data) => {{
+      if (!adminStreamSession || !adminStreamUser || !type || !data) return;
+      await fetch("/stream/admin/signal", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{
+          username: adminStreamUser,
+          session: adminStreamSession.id,
+          type,
+          data,
+        }}),
+      }});
+    }};
+    const stopAdminStreamMedia = () => {{
+      if (adminStreamSegmentTimer) {{
+        window.clearTimeout(adminStreamSegmentTimer);
+        adminStreamSegmentTimer = 0;
+      }}
+      if (adminStreamRecorder && adminStreamRecorder.state !== "inactive") {{
+        try {{ adminStreamRecorder.stop(); }} catch (error) {{}}
+      }}
+      adminStreamRecorder = null;
+      adminStreamRecordChunks = [];
+      adminStreamAudioChain = Promise.resolve();
+      stopAdminStreamCurrentRelayAudio();
+      adminStreamAudioQueue = [];
+      adminStreamLastChunkId = 0;
+      adminStreamRelayDropped = 0;
+      adminStreamChunkPolling = false;
+      adminStreamInboundStream = null;
+      adminStreamInboundTrack = null;
+      if (adminStreamMedia) {{
+        adminStreamMedia.getTracks().forEach((track) => track.stop());
+      }}
+      adminStreamMedia = null;
+      if (adminStreamPeer) {{
+        try {{ adminStreamPeer.close(); }} catch (error) {{}}
+      }}
+      adminStreamPeer = null;
+      adminStreamRemoteCandidateId = 0;
+      adminStreamOfferSent = false;
+      adminStreamAnswerSet = false;
+      adminStreamPeerStartedAt = 0;
+      if (adminStreamRemoteAudio) {{
+        adminStreamRemoteAudio.srcObject = null;
+      }}
+    }};
+    const postAdminStreamChunk = async (blob) => {{
+      if (!adminStreamSession || !adminStreamUser || !blob || !blob.size) return;
+      const data = await streamFileToDataUrl(blob);
+      await fetch("/stream/admin/chunk", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{
+          username: adminStreamUser,
+          session: adminStreamSession.id,
+          data,
+          mime: blob.type || "audio/webm",
+        }}),
+      }});
+    }};
+    const pollAdminStreamChunks = async () => {{
+      if (adminStreamAudioMode !== "relay") return;
+      if (adminStreamChunkPolling || !adminStreamSession || !adminStreamUser || adminStreamSession.state !== "active") return;
+      adminStreamChunkPolling = true;
+      try {{
+        const response = await fetch(`/stream/admin/poll?username=${{encodeURIComponent(adminStreamUser)}}&session=${{encodeURIComponent(adminStreamSession.id)}}&after=${{encodeURIComponent(String(adminStreamLastChunkId || 0))}}`, {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) return;
+        if (payload.session && payload.session.state && payload.session.state !== "active") {{
+          await handleAdminStreamSession(adminStreamUser, payload.session);
+          return;
+        }}
+        const chunks = Array.isArray(payload.chunks) ? payload.chunks : [];
+        chunks.forEach((chunk) => {{
+          adminStreamLastChunkId = Math.max(adminStreamLastChunkId, Number(chunk.id || 0));
+        }});
+        const playableChunks = chunks.slice(-2);
+        adminStreamRelayDropped += Math.max(0, chunks.length - playableChunks.length);
+        playableChunks.forEach((chunk) => {{
+          playAdminStreamChunk(chunk);
+        }});
+        if (chunks.length) {{
+          messageNode.textContent = `Receiving user mic relay: ${{adminStreamLastChunkId}} | dropped old: ${{adminStreamRelayDropped}}`;
+        }}
+      }} catch (error) {{
+      }} finally {{
+        adminStreamChunkPolling = false;
+      }}
+    }};
+    const adminStreamPeerState = () => adminStreamPeer ? (adminStreamPeer.connectionState || adminStreamPeer.iceConnectionState || "") : "";
+    const adminStreamNeedsReconnect = () => {{
+      const state = adminStreamPeerState();
+      return Boolean(adminStreamPeer && ["failed", "disconnected", "closed"].includes(state));
+    }};
+    const startAdminStreamMedia = async () => {{
+      if (!adminStreamSession || adminStreamPeer) return;
+      if (!window.RTCPeerConnection) {{
+        messageNode.textContent = "Browser khong ho tro WebRTC.";
+        return;
+      }}
+      adminStreamPeer = new RTCPeerConnection(adminWebRtcConfig);
+      adminStreamPeerStartedAt = Date.now();
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {{
+        try {{
+          adminStreamMedia = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+        }} catch (error) {{
+          adminStreamMedia = null;
+          messageNode.textContent = "Khong mo duoc mic admin, dang nghe mot chieu.";
+        }}
+      }}
+      if (adminStreamMedia) {{
+        adminStreamMedia.getAudioTracks().forEach((track) => adminStreamPeer.addTrack(track, adminStreamMedia));
+      }} else {{
+        try {{
+          adminStreamPeer.addTransceiver("audio", {{ direction: "recvonly" }});
+        }} catch (error) {{
+        }}
+      }}
+      adminStreamPeer.addEventListener("icecandidate", (event) => {{
+        if (event.candidate) {{
+          sendAdminWebRtcSignal("candidate", event.candidate.toJSON()).catch(() => {{}});
+        }}
+      }});
+      adminStreamPeer.addEventListener("track", (event) => {{
+        adminStreamInboundTrack = event.track || null;
+        adminStreamInboundStream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+        try {{
+          if (event.track) event.track.enabled = adminStreamAudioMode === "inbound";
+        }} catch (error) {{}}
+        applyAdminStreamAudioMode();
+      }});
+      adminStreamPeer.addEventListener("connectionstatechange", () => {{
+        if (adminStreamPeer) messageNode.textContent = `WebRTC: ${{adminStreamPeer.connectionState}}`;
+      }});
+      const offer = await adminStreamPeer.createOffer({{ offerToReceiveAudio: true }});
+      await adminStreamPeer.setLocalDescription(offer);
+      await sendAdminWebRtcSignal("offer", adminStreamPeer.localDescription.toJSON());
+      adminStreamOfferSent = true;
+      messageNode.textContent = "WebRTC offer sent.";
+    }};
+    const handleAdminStreamSession = async (username, session = {{}}) => {{
+      const nextId = session && session.id ? session.id : "";
+      if (nextId && adminStreamSession && adminStreamSession.id && adminStreamSession.id !== nextId) {{
+        stopAdminStreamMedia();
+      }}
+      if (session && session.id) {{
+        if (!adminStreamSession || adminStreamSession.id !== session.id) {{
+          adminStreamLastChunkId = 0;
+          adminStreamAudioChain = Promise.resolve();
+        }}
+        adminStreamUser = username || session.username || adminStreamUser;
+        adminStreamSession = session;
+      }} else {{
+        adminStreamSession = null;
+        adminStreamUser = "";
+      }}
+      if (adminStreamSession && adminStreamSession.state === "active") {{
+        if (adminStreamNeedsReconnect()) {{
+          stopAdminStreamMedia();
+        }}
+        try {{
+          await startAdminStreamMedia();
+        }} catch (error) {{
+          messageNode.textContent = String(error && error.message ? error.message : error);
+        }}
+      }} else if (!adminStreamSession || ["ended", "rejected", "error"].includes(adminStreamSession.state)) {{
+        stopAdminStreamMedia();
+      }}
+    }};
+    const pollAdminStream = async () => {{
+      if (!adminStreamSession || !adminStreamUser || adminStreamSession.state !== "active") return;
+      void pollAdminStreamChunks();
+      if (!adminStreamPeer) return;
+      try {{
+        const response = await fetch(`/stream/admin/signal?username=${{encodeURIComponent(adminStreamUser)}}&session=${{encodeURIComponent(adminStreamSession.id)}}&after=${{encodeURIComponent(String(adminStreamRemoteCandidateId))}}`, {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not poll WebRTC.");
+        if (payload.session && payload.session.state !== "active") {{
+          await handleAdminStreamSession(adminStreamUser, payload.session);
+          return;
+        }}
+        if (payload.answer && !adminStreamAnswerSet) {{
+          await adminStreamPeer.setRemoteDescription(new RTCSessionDescription(payload.answer));
+          adminStreamAnswerSet = true;
+        }}
+        const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+        for (const item of candidates) {{
+          if (item.candidate && adminStreamAnswerSet) {{
+            adminStreamRemoteCandidateId = Math.max(adminStreamRemoteCandidateId, Number(item.id || 0));
+            try {{
+              await adminStreamPeer.addIceCandidate(new RTCIceCandidate(item.candidate));
+            }} catch (error) {{
+            }}
+          }}
+        }}
+      }} catch (error) {{
+      }}
+    }};
+    let adminStreamPollTimer = 0;
+    const adminStreamPollDelay = () => {{
+      if (!dashboardPollIsFocused()) return DASHBOARD_HIDDEN_POLL_MS;
+      return adminStreamSession && adminStreamSession.state === "active" ? 900 : DASHBOARD_VISIBLE_POLL_MS;
+    }};
+    const scheduleAdminStreamPoll = (delayMs = adminStreamPollDelay()) => {{
+      if (adminStreamPollTimer) {{
+        window.clearTimeout(adminStreamPollTimer);
+      }}
+      adminStreamPollTimer = window.setTimeout(async () => {{
+        adminStreamPollTimer = 0;
+        await pollAdminStream();
+        scheduleAdminStreamPoll();
+      }}, Math.max(700, Number(delayMs) || adminStreamPollDelay()));
+    }};
+    document.addEventListener("visibilitychange", () => scheduleAdminStreamPoll(dashboardPollIsFocused() ? 1200 : DASHBOARD_HIDDEN_POLL_MS));
+    window.addEventListener("focus", () => scheduleAdminStreamPoll(1200));
+    window.addEventListener("blur", () => scheduleAdminStreamPoll(DASHBOARD_HIDDEN_POLL_MS));
+    scheduleAdminStreamPoll(1200);
+    const requestOrAcceptAdminStream = async (item) => {{
+      const username = item && item.username || "";
+      if (!username) return;
+      unlockAdminStreamAudio();
+      const session = item.stream || null;
+      try {{
+        let response;
+        if (session && session.state === "pending_admin") {{
+          response = await fetch("/stream/admin/action", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ username, session: session.id, action: "accept" }}),
+          }});
+        }} else if (session && session.state === "active") {{
+          if (adminStreamUser === username && adminStreamSession && adminStreamSession.id === session.id && adminStreamNeedsReconnect()) {{
+            stopAdminStreamMedia();
+          }}
+          await handleAdminStreamSession(username, session);
+          updateAdminScreenMicButton();
+          return;
+        }} else {{
+          response = await fetch("/stream/admin/request", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ username }}),
+          }});
+        }}
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not start stream.");
+        adminChatState = {{ users: payload.users || adminChatState.users || [], online_count: Number(payload.online_count || adminChatState.online_count || 0) }};
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        await handleAdminStreamSession(username, payload.session || {{}});
+      }} catch (error) {{
+        messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const stopAdminScreenTransport = () => {{
+      if (adminScreenPollTimer) {{
+        window.clearTimeout(adminScreenPollTimer);
+        adminScreenPollTimer = 0;
+      }}
+      if (adminScreenPeer) {{
+        try {{ adminScreenPeer.close(); }} catch (error) {{}}
+      }}
+      adminScreenPeer = null;
+      adminScreenRemoteCandidateId = 0;
+      adminScreenOfferSent = false;
+      adminScreenAnswerSet = false;
+      adminScreenPeerStartedAt = 0;
+      if (adminScreenControlChannel) {{
+        try {{ adminScreenControlChannel.close(); }} catch (error) {{}}
+      }}
+      adminScreenControlChannel = null;
+      adminScreenFrameId = 0;
+      adminScreenFrameSeenAt = 0;
+      if (adminScreenVideo) {{
+        adminScreenVideo.srcObject = null;
+        adminScreenVideo.style.display = "block";
+      }}
+      if (adminScreenImg) {{
+        adminScreenImg.removeAttribute("src");
+        adminScreenImg.style.display = "";
+      }}
+      adminScreenControlQueue = [];
+      adminScreenControlSending = false;
+      if (adminScreenControlTimer) {{
+        window.clearTimeout(adminScreenControlTimer);
+        adminScreenControlTimer = 0;
+      }}
+    }};
+    const adminScreenClamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, Number(value) || 0));
+    const adminScreenWebRtcLive = () => Boolean(
+      adminScreenVideo
+      && adminScreenVideo.srcObject
+      && adminScreenVideo.style.display !== "none"
+      && adminScreenPeer
+      && ["connected", "completed"].includes(adminScreenPeer.connectionState || adminScreenPeer.iceConnectionState || ""),
+    );
+    const adminScreenActiveMedia = () => {{
+      const videoReady = adminScreenVideo && adminScreenVideo.style.display !== "none" && adminScreenVideo.srcObject;
+      if (videoReady) return adminScreenVideo;
+      const imageReady = adminScreenImg && adminScreenImg.style.display !== "none" && adminScreenImg.getAttribute("src");
+      if (imageReady) return adminScreenImg;
+      return null;
+    }};
+    const adminScreenControlPoint = (event) => {{
+      const media = adminScreenActiveMedia();
+      if (!media) return null;
+      const rect = media.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      return {{
+        x: adminScreenClamp((event.clientX - rect.left) / rect.width, 0, 1),
+        y: adminScreenClamp((event.clientY - rect.top) / rect.height, 0, 1),
+      }};
+    }};
+    const adminScreenCommandIsHover = (command) => Boolean(command && command.type === "cursor" && command.dispatch === false && command.visible !== false);
+    const adminScreenCommandIsImportant = (command) => Boolean(command && !adminScreenCommandIsHover(command));
+    const adminScreenControlChannelOpen = () => Boolean(adminScreenControlChannel && adminScreenControlChannel.readyState === "open");
+    const adminScreenCompactControlQueue = (items = []) => {{
+      const compacted = [];
+      let latestHover = null;
+      (Array.isArray(items) ? items : []).forEach((command) => {{
+        if (adminScreenCommandIsHover(command)) {{
+          latestHover = command;
+          return;
+        }}
+        if (latestHover) {{
+          compacted.push(latestHover);
+          latestHover = null;
+        }}
+        if (command) compacted.push(command);
+      }});
+      if (latestHover) compacted.push(latestHover);
+      return compacted;
+    }};
+    const sendAdminScreenControlDataChannel = (commands = []) => {{
+      if (!adminScreenControlChannelOpen() || !Array.isArray(commands) || !commands.length) return false;
+      try {{
+        adminScreenControlChannel.send(JSON.stringify({{ type: "screen-control", commands }}));
+        return true;
+      }} catch (error) {{
+        return false;
+      }}
+    }};
+    const adminScreenPollDelay = () => dashboardPollIsFocused() ? 900 : DASHBOARD_HIDDEN_POLL_MS;
+    const scheduleAdminScreenWebRtcPoll = (delay = adminScreenPollDelay()) => {{
+      if (!adminScreenSession || adminScreenSession.state !== "active") return;
+      if (adminScreenPollTimer) window.clearTimeout(adminScreenPollTimer);
+      adminScreenPollTimer = window.setTimeout(async () => {{
+        adminScreenPollTimer = 0;
+        await pollAdminScreenWebRtc();
+        scheduleAdminScreenWebRtcPoll();
+      }}, Math.max(700, Number(delay) || adminScreenPollDelay()));
+    }};
+    document.addEventListener("visibilitychange", () => scheduleAdminScreenWebRtcPoll(dashboardPollIsFocused() ? 900 : DASHBOARD_HIDDEN_POLL_MS));
+    window.addEventListener("focus", () => scheduleAdminScreenWebRtcPoll(900));
+    window.addEventListener("blur", () => scheduleAdminScreenWebRtcPoll(DASHBOARD_HIDDEN_POLL_MS));
+    const sendAdminScreenControlQueue = async () => {{
+      if (adminScreenControlSending || !adminScreenUser || !adminScreenSession || adminScreenSession.state !== "active" || !adminScreenControlQueue.length) return;
+      adminScreenControlSending = true;
+      adminScreenControlLastSentAt = Date.now();
+      adminScreenControlQueue = adminScreenCompactControlQueue(adminScreenControlQueue).slice(-80);
+      const commands = adminScreenControlQueue.splice(0, 24);
+      if (sendAdminScreenControlDataChannel(commands)) {{
+        adminScreenControlSending = false;
+        if (adminScreenControlQueue.length) {{
+          window.clearTimeout(adminScreenControlTimer);
+          adminScreenControlTimer = window.setTimeout(() => void sendAdminScreenControlQueue(), 16);
+        }}
+        return;
+      }}
+      const httpCommands = commands.filter((command) => !(command && command.type === "cursor" && command.dispatch === false));
+      if (!httpCommands.length) {{
+        adminScreenControlSending = false;
+        if (adminScreenControlQueue.length) {{
+          window.clearTimeout(adminScreenControlTimer);
+          adminScreenControlTimer = window.setTimeout(() => void sendAdminScreenControlQueue(), 120);
+        }}
+        return;
+      }}
+      const hasHttpImportant = httpCommands.some(adminScreenCommandIsImportant);
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timeout = controller ? window.setTimeout(() => controller.abort(), hasHttpImportant ? 2200 : 1400) : 0;
+      try {{
+        const response = await fetch("/screen/admin/control", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          signal: controller ? controller.signal : undefined,
+          body: JSON.stringify({{
+            username: adminScreenUser,
+            session: adminScreenSession.id,
+            commands: httpCommands,
+          }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not send screen control.");
+        if (payload.session && payload.session.id) adminScreenSession = payload.session;
+      }} catch (error) {{
+        const retryCommands = httpCommands.filter(adminScreenCommandIsImportant);
+        adminScreenControlQueue = retryCommands.concat(adminScreenControlQueue).slice(-80);
+        if (hasHttpImportant && adminScreenStatus) adminScreenStatus.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        if (timeout) window.clearTimeout(timeout);
+        adminScreenControlSending = false;
+        if (adminScreenControlQueue.length) {{
+          window.clearTimeout(adminScreenControlTimer);
+          adminScreenControlTimer = window.setTimeout(() => void sendAdminScreenControlQueue(), hasHttpImportant ? 35 : 250);
+        }}
+      }}
+    }};
+    const queueAdminScreenControl = (command, urgent = false) => {{
+      if (!adminScreenUser || !adminScreenSession || adminScreenSession.state !== "active" || !command) return;
+      if (!urgent && adminScreenCommandIsHover(command)) {{
+        for (let index = adminScreenControlQueue.length - 1; index >= 0; index -= 1) {{
+          if (adminScreenCommandIsHover(adminScreenControlQueue[index])) {{
+            adminScreenControlQueue.splice(index, 1);
+            break;
+          }}
+        }}
+      }}
+      adminScreenControlQueue.push(command);
+      adminScreenControlQueue = adminScreenCompactControlQueue(adminScreenControlQueue).slice(-80);
+      const elapsed = Date.now() - Number(adminScreenControlLastSentAt || 0);
+      const delay = urgent ? 0 : (adminScreenControlChannelOpen() ? Math.max(8, 33 - elapsed, 0) : Math.max(80, 250 - elapsed, 0));
+      window.clearTimeout(adminScreenControlTimer);
+      adminScreenControlTimer = window.setTimeout(() => void sendAdminScreenControlQueue(), delay);
+    }};
+    const queueAdminScreenPointerControl = (event, type, options = {{}}) => {{
+      const point = adminScreenControlPoint(event);
+      if (!point) return false;
+      queueAdminScreenControl({{
+        type,
+        x: point.x,
+        y: point.y,
+        visible: options.visible !== false,
+        button: Number(event.button || 0),
+        buttons: Number(event.buttons || 0),
+        ctrl: Boolean(event.ctrlKey),
+        alt: Boolean(event.altKey),
+        shift: Boolean(event.shiftKey),
+        meta: Boolean(event.metaKey),
+        dispatch: options.dispatch !== false,
+      }}, Boolean(options.urgent));
+      return true;
+    }};
+    const queueAdminScreenCursorHidden = () => {{
+      queueAdminScreenControl({{ type: "cursor", visible: false, dispatch: false }}, true);
+    }};
+    const queueAdminScreenKeyControl = (event, type) => {{
+      if (!adminScreenModal || !adminScreenModal.classList.contains("is-open") || !adminScreenUser || !adminScreenSession || adminScreenSession.state !== "active") return false;
+      const target = event.target;
+      if (target && target !== adminScreenView && target !== adminScreenVideo && target !== adminScreenImg) return false;
+      queueAdminScreenControl({{
+        type,
+        key: event.key || "",
+        code: event.code || "",
+        repeat: Boolean(event.repeat),
+        ctrl: Boolean(event.ctrlKey),
+        alt: Boolean(event.altKey),
+        shift: Boolean(event.shiftKey),
+        meta: Boolean(event.metaKey),
+      }}, true);
+      return true;
+    }};
+    const updateAdminScreenMicButton = () => {{
+      if (!adminScreenMic) return;
+      const record = adminScreenUser ? adminChatUserRecord(adminScreenUser) : null;
+      const streamState = record && record.stream && record.stream.state
+        ? record.stream.state
+        : (adminStreamUser === adminScreenUser && adminStreamSession ? adminStreamSession.state || "" : "");
+      adminScreenMic.textContent = streamState === "active"
+        ? "Mic on"
+        : streamState === "pending_admin"
+          ? "Accept mic"
+          : streamState === "pending_user"
+            ? "Waiting mic"
+            : "Mic stream";
+    }};
+    const updateAdminScreenStatus = (session = adminScreenSession) => {{
+      if (!adminScreenStatus) return;
+      const state = session && session.state || "";
+      if (state === "active") {{
+        const rtcState = adminScreenPeer ? (adminScreenPeer.connectionState || adminScreenPeer.iceConnectionState || "connecting") : "starting";
+        adminScreenStatus.textContent = adminScreenAnswerSet
+          ? `Realtime screen WebRTC: ${{rtcState}}.`
+          : "Realtime screen: waiting for direct WebRTC video...";
+      }} else if (state === "pending_user") {{
+        adminScreenStatus.textContent = "Waiting for user to click Screen and choose the browser/tab.";
+      }} else if (state) {{
+        adminScreenStatus.textContent = `Screen preview ${{state}}.`;
+      }} else {{
+        adminScreenStatus.textContent = "No screen preview session.";
+      }}
+      updateAdminScreenMicButton();
+    }};
+    const sendAdminScreenWebRtcSignal = async (type, data) => {{
+      if (!adminScreenSession || !adminScreenUser || !type || !data) return;
+      await fetch("/screen/admin/signal", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{
+          username: adminScreenUser,
+          session: adminScreenSession.id,
+          type,
+          data,
+        }}),
+      }});
+    }};
+    const adminScreenPeerState = () => adminScreenPeer ? (adminScreenPeer.connectionState || adminScreenPeer.iceConnectionState || "") : "";
+    const adminScreenNeedsReconnect = () => {{
+      const state = adminScreenPeerState();
+      const waited = Date.now() - Number(adminScreenPeerStartedAt || 0);
+      const noVideoYet = !adminScreenVideo || !adminScreenVideo.srcObject;
+      return Boolean(adminScreenPeer && (["failed", "disconnected", "closed"].includes(state) || (noVideoYet && waited > 8000)));
+    }};
+    const startAdminScreenWebRtc = async () => {{
+      if (!adminScreenSession || adminScreenSession.state !== "active" || adminScreenPeer) return;
+      if (!window.RTCPeerConnection) {{
+        if (adminScreenStatus) adminScreenStatus.textContent = "Browser khong ho tro WebRTC.";
+        return;
+      }}
+      adminScreenPeer = new RTCPeerConnection(adminWebRtcConfig);
+      adminScreenPeerStartedAt = Date.now();
+      try {{
+        adminScreenControlChannel = adminScreenPeer.createDataChannel("screen-control", {{ ordered: true }});
+        adminScreenControlChannel.addEventListener("open", () => updateAdminScreenStatus(adminScreenSession || {{}}));
+        adminScreenControlChannel.addEventListener("close", () => {{
+          if (adminScreenControlChannel && adminScreenControlChannel.readyState === "closed") {{
+            adminScreenControlChannel = null;
+          }}
+          updateAdminScreenStatus(adminScreenSession || {{}});
+        }});
+      }} catch (error) {{
+        adminScreenControlChannel = null;
+      }}
+      try {{
+        adminScreenPeer.addTransceiver("video", {{ direction: "recvonly" }});
+      }} catch (error) {{
+      }}
+      adminScreenPeer.addEventListener("icecandidate", (event) => {{
+        if (event.candidate) {{
+          sendAdminScreenWebRtcSignal("candidate", event.candidate.toJSON()).catch(() => {{}});
+        }}
+      }});
+      adminScreenPeer.addEventListener("track", (event) => {{
+        const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+        if (adminScreenVideo) {{
+          adminScreenVideo.srcObject = stream;
+          adminScreenVideo.style.display = "block";
+          if (adminScreenImg) {{
+            adminScreenImg.style.display = "none";
+          }}
+          adminScreenVideo.play().catch(() => {{
+            if (adminScreenStatus) adminScreenStatus.textContent = "Screen connected, browser blocked autoplay.";
+          }});
+        }}
+      }});
+      adminScreenPeer.addEventListener("connectionstatechange", () => updateAdminScreenStatus(adminScreenSession || {{}}));
+      const offer = await adminScreenPeer.createOffer({{ offerToReceiveVideo: true }});
+      await adminScreenPeer.setLocalDescription(offer);
+      await sendAdminScreenWebRtcSignal("offer", adminScreenPeer.localDescription.toJSON());
+      adminScreenOfferSent = true;
+      updateAdminScreenStatus(adminScreenSession || {{}});
+    }};
+    const pollAdminScreenWebRtc = async () => {{
+      if (!adminScreenUser || !adminScreenSession || adminScreenSession.state !== "active" || !adminScreenPeer) return;
+      try {{
+        const response = await fetch(`/screen/admin/signal?username=${{encodeURIComponent(adminScreenUser)}}&session=${{encodeURIComponent(adminScreenSession.id)}}&after=${{encodeURIComponent(String(adminScreenRemoteCandidateId))}}`, {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not poll screen WebRTC.");
+        if (payload.session && payload.session.state !== "active") {{
+          await handleAdminScreenSession(adminScreenUser, payload.session);
+          return;
+        }}
+        if (payload.answer && !adminScreenAnswerSet) {{
+          await adminScreenPeer.setRemoteDescription(new RTCSessionDescription(payload.answer));
+          adminScreenAnswerSet = true;
+        }}
+        const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+        for (const item of candidates) {{
+          if (item.candidate && adminScreenAnswerSet) {{
+            adminScreenRemoteCandidateId = Math.max(adminScreenRemoteCandidateId, Number(item.id || 0));
+            try {{
+              await adminScreenPeer.addIceCandidate(new RTCIceCandidate(item.candidate));
+            }} catch (error) {{
+            }}
+          }}
+        }}
+        updateAdminScreenStatus(adminScreenSession || {{}});
+      }} catch (error) {{
+        if (adminScreenStatus) adminScreenStatus.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const pollAdminScreenFrame = async () => {{
+      adminScreenFrameId = 0;
+      adminScreenFrameSeenAt = 0;
+    }};
+    const handleAdminScreenSession = async (username, session = {{}}) => {{
+      const nextId = session && session.id ? session.id : "";
+      if (nextId && adminScreenSession && adminScreenSession.id && adminScreenSession.id !== nextId) {{
+        stopAdminScreenTransport();
+      }}
+      if (session && session.id) {{
+        adminScreenUser = username || session.username || adminScreenUser;
+        adminScreenSession = session;
+      }} else {{
+        adminScreenSession = null;
+      }}
+      if (adminScreenSession && adminScreenSession.state === "active") {{
+        if (adminScreenNeedsReconnect()) {{
+          stopAdminScreenTransport();
+          adminScreenUser = username || session.username || adminScreenUser;
+          adminScreenSession = session;
+        }}
+        try {{
+          await startAdminScreenWebRtc();
+          if (!adminScreenPollTimer) scheduleAdminScreenWebRtcPoll();
+        }} catch (error) {{
+          if (adminScreenStatus) adminScreenStatus.textContent = String(error && error.message ? error.message : error);
+        }}
+      }} else if (!adminScreenSession || ["ended", "rejected", "error"].includes(adminScreenSession.state || "")) {{
+        stopAdminScreenTransport();
+      }}
+      updateAdminScreenStatus(adminScreenSession || {{}});
+    }};
+    const openAdminScreen = (username, session = {{}}) => {{
+      adminScreenUser = username || (session && session.username) || "";
+      if (adminScreenTitle) adminScreenTitle.textContent = `Screen preview: ${{adminScreenUser || "user"}}`;
+      if (adminScreenModal) adminScreenModal.classList.add("is-open");
+      if (typeof pollChatAdmin === "function") void pollChatAdmin();
+      if (session && session.state === "active" && adminScreenUser === (username || session.username || "") && adminScreenNeedsReconnect()) {{
+        stopAdminScreenTransport();
+      }}
+      void handleAdminScreenSession(adminScreenUser, session || {{}});
+      updateAdminScreenStatus(session || {{}});
+    }};
+    const hideAdminScreen = async () => {{
+      queueAdminScreenCursorHidden();
+      if (document.fullscreenElement) {{
+        try {{ await document.exitFullscreen(); }} catch (error) {{}}
+      }}
+      if (adminScreenModal) adminScreenModal.classList.remove("is-open");
+      updateAdminScreenStatus(adminScreenSession || {{}});
+    }};
+    const stopAdminUserLive = async (itemOrUsername) => {{
+      const username = typeof itemOrUsername === "string"
+        ? itemOrUsername
+        : (itemOrUsername && itemOrUsername.username || "");
+      if (!username) return;
+      const record = typeof itemOrUsername === "string"
+        ? (adminChatUserRecord(username) || {{ username }})
+        : (itemOrUsername || {{ username }});
+      const screenSession = (record.screen && record.screen.id)
+        ? record.screen
+        : (adminScreenUser === username ? adminScreenSession : null);
+      const streamSession = (record.stream && record.stream.id)
+        ? record.stream
+        : (adminStreamUser === username ? adminStreamSession : null);
+      try {{
+        let latestUsers = null;
+        if (screenSession && screenSession.id && ["pending_user", "active"].includes(screenSession.state || "")) {{
+          const response = await fetch("/screen/admin/action", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ username, session: screenSession.id, action: "end" }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not stop screen.");
+          latestUsers = payload.users || latestUsers;
+        }}
+        if (streamSession && streamSession.id && ["pending_admin", "pending_user", "active"].includes(streamSession.state || "")) {{
+          const response = await fetch("/stream/admin/action", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ username, session: streamSession.id, action: "end" }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not stop stream.");
+          latestUsers = payload.users || latestUsers;
+        }}
+        if (adminScreenUser === username) {{
+          stopAdminScreenTransport();
+          if (adminScreenModal) adminScreenModal.classList.remove("is-open");
+          adminScreenSession = null;
+          adminScreenUser = "";
+        }}
+        if (adminStreamUser === username) {{
+          await handleAdminStreamSession("", {{}});
+        }}
+        if (latestUsers) {{
+          adminChatState = {{ users: latestUsers, online_count: Number(adminChatState.online_count || 0) }};
+          renderOnlineUsers(adminChatState.users, adminChatState);
+        }} else {{
+          pollChatAdmin();
+        }}
+      }} catch (error) {{
+        messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const clearAdminUserChat = async (itemOrUsername) => {{
+      const username = typeof itemOrUsername === "string"
+        ? itemOrUsername
+        : (itemOrUsername && itemOrUsername.username || "");
+      if (!username) return;
+      const now = Date.now();
+      const armedAt = Number(adminClearChatArmed.get(username) || 0);
+      if (now - armedAt > 3500) {{
+        adminClearChatArmed.set(username, now);
+        messageNode.textContent = `Click Clear again within 3 seconds to delete chat data for ${{username}}.`;
+        return;
+      }}
+      adminClearChatArmed.delete(username);
+      try {{
+        const response = await fetch("/chat/admin/clear", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not clear chat.");
+        adminChatState = {{ users: payload.users || [], online_count: Number(payload.online_count || 0) }};
+        if (adminChatUser === username) {{
+          adminChatUser = "";
+          if (adminChatModal) adminChatModal.classList.remove("is-open");
+        }}
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        messageNode.textContent = `Cleared ${{payload.removed_messages || 0}} messages, ${{payload.removed_attachments || 0}} attachments, ${{payload.removed_audio || 0}} audio files for ${{username}}.`;
+      }} catch (error) {{
+        messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const respondSpeakSkipRequest = async (item, action = "accept") => {{
+      const username = item && item.username || "";
+      const request = item && item.speak_skip || null;
+      if (!username || !request || !request.id) return;
+      try {{
+        const response = await fetch("/space-w/speak-skip/respond", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username, id: request.id, action }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not respond to Speak skip.");
+        adminChatState = {{ users: payload.users || [], online_count: Number(payload.online_count || 0) }};
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        messageNode.textContent = `Speak skip ${{payload.request && payload.request.status || action}} for ${{username}}.`;
+      }} catch (error) {{
+        messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    if (adminScreenClose) adminScreenClose.addEventListener("click", () => void hideAdminScreen());
+    if (adminScreenModal) adminScreenModal.addEventListener("click", (event) => {{
+      if (event.target === adminScreenModal) void hideAdminScreen();
+    }});
+    if (adminPaintClose) adminPaintClose.addEventListener("click", closeAdminPaint);
+    if (adminPaintModal) adminPaintModal.addEventListener("click", (event) => {{
+      if (event.target === adminPaintModal) closeAdminPaint();
+    }});
+    adminPaintModeButtons.forEach((button) => {{
+      button.addEventListener("click", () => setAdminPaintMode(button.dataset.adminPaintMode || "pen"));
+    }});
+    if (adminPaintClear) adminPaintClear.addEventListener("click", () => {{
+      clearAdminPaintCanvas();
+      scheduleAdminPaintSync(80);
+    }});
+    if (adminPaintDelete) adminPaintDelete.addEventListener("click", deleteAdminPaintSelection);
+    if (adminPaintImage) adminPaintImage.addEventListener("click", () => {{
+      if (adminPaintImageFile) adminPaintImageFile.click();
+    }});
+    if (adminPaintImageFile) adminPaintImageFile.addEventListener("change", () => {{
+      const file = adminPaintImageFile.files && adminPaintImageFile.files[0];
+      if (file) addAdminPaintImageFile(file);
+      adminPaintImageFile.value = "";
+    }});
+    if (adminPaintPaste) adminPaintPaste.addEventListener("click", () => void pasteAdminPaintImageFromClipboard());
+    if (adminPaintZoomOut) adminPaintZoomOut.addEventListener("click", () => setAdminPaintZoom(adminPaintZoom / 1.18));
+    if (adminPaintZoomIn) adminPaintZoomIn.addEventListener("click", () => setAdminPaintZoom(adminPaintZoom * 1.18));
+    if (adminPaintFullscreen) adminPaintFullscreen.addEventListener("click", () => void toggleAdminPaintFullscreen());
+    if (adminPaintTab) adminPaintTab.addEventListener("click", openAdminPaintInTab);
+    if (adminPaintCanvas) {{
+      adminPaintCanvas.addEventListener("pointerdown", handleAdminPaintPointerDown);
+      adminPaintCanvas.addEventListener("pointermove", handleAdminPaintPointerMove);
+      adminPaintCanvas.addEventListener("pointerup", handleAdminPaintPointerEnd);
+      adminPaintCanvas.addEventListener("pointercancel", handleAdminPaintPointerEnd);
+      adminPaintCanvas.addEventListener("pointerenter", (event) => updateAdminPaintLocalCursor(event, true));
+      adminPaintCanvas.addEventListener("pointermove", (event) => updateAdminPaintLocalCursor(event, true));
+      adminPaintCanvas.addEventListener("pointerleave", (event) => updateAdminPaintLocalCursor(event, false));
+      if (window.ResizeObserver) {{
+        const adminPaintResizeObserver = new ResizeObserver(() => {{
+          if (adminPaintModal && adminPaintModal.classList.contains("is-open")) resizeAdminPaintCanvas();
+        }});
+        adminPaintResizeObserver.observe(adminPaintCanvas);
+      }}
+    }}
+    document.addEventListener("fullscreenchange", () => {{
+      if (adminPaintModal && adminPaintModal.classList.contains("is-open")) {{
+        window.setTimeout(resizeAdminPaintCanvas, 80);
+      }}
+    }});
+    document.addEventListener("paste", (event) => {{
+      if (!adminPaintModal || !adminPaintModal.classList.contains("is-open")) return;
+      const items = Array.from(event.clipboardData && event.clipboardData.items || []);
+      const imageItem = items.find((item) => item && String(item.type || "").startsWith("image/"));
+      if (!imageItem) return;
+      event.preventDefault();
+      const file = imageItem.getAsFile();
+      if (file) addAdminPaintImageFile(file);
+    }});
+    document.addEventListener("keydown", (event) => {{
+      if ((event.key === "Delete" || event.key === "Backspace") && adminPaintModal && adminPaintModal.classList.contains("is-open") && adminPaintSelection && !adminPaintTextEditor) {{
+        event.preventDefault();
+        deleteAdminPaintSelection();
+      }}
+    }});
+    if (adminScreenView) {{
+      adminScreenView.tabIndex = 0;
+      adminScreenView.addEventListener("pointerenter", (event) => {{

@@ -1,0 +1,473 @@
+# Loaded by FUTURE.server_parts.11_http_server into the shared Future server runtime namespace.
+# This is a nested transitional split; do not import directly yet.
+
+def do_POST(self):
+    self._future_handler_started_at = time.perf_counter()
+    self._future_handler_is_first_request = not bool(getattr(self, "_future_handler_seen_request", False))
+    self._future_handler_seen_request = True
+    path = urlparse(self.path).path.rstrip("/") or "/"
+    self.completion_trace_begin(path)
+    self.record_security_poll_stat(path, "POST")
+    if not self.enforce_security_block(path):
+        return
+    if path.startswith("/distributed-worker/") and not self.enforce_worker_endpoint_flood_guard(path):
+        return
+    if not (path.startswith("/distributed-worker/") or path.startswith("/builder/")):
+        if not self.enforce_anti_robot_rate(path, "POST"):
+            return
+        if not self.enforce_anti_robot_challenge(path, "POST"):
+            return
+    if path == "/distributed-worker/register":
+        try:
+            payload = self.read_json_body()
+            result = distributed_worker_register(
+                payload,
+                client_ip=clean(self.client_address[0] if self.client_address else ""),
+                user_agent=clean(self.headers.get("User-Agent", "")),
+            )
+            self.send_json(200, {"ok": True, **result})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/distributed-worker/poll":
+        try:
+            payload = self.read_json_body()
+            wait_seconds = max(0.0, min(30.0, float(payload.get("wait_seconds", 20) or 20)))
+            result = distributed_worker_poll(
+                payload,
+                client_ip=clean(self.client_address[0] if self.client_address else ""),
+                user_agent=clean(self.headers.get("User-Agent", "")),
+                wait_seconds=wait_seconds,
+            )
+            self.send_json(200, {"ok": True, **result})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/distributed-worker/result":
+        try:
+            payload = self.read_json_body()
+            result = distributed_worker_submit_result(payload, client_ip=clean(self.client_address[0] if self.client_address else ""))
+            self.send_json(200, {"ok": True, **result})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/distributed-worker/gemini-key":
+        try:
+            payload = self.read_json_body()
+            result = distributed_worker_gemini_key(payload)
+            self.send_json(200, {"ok": True, **result})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/distributed-worker/log":
+        try:
+            payload = self.read_json_body()
+            result = distributed_worker_submit_log(payload, client_ip=clean(self.client_address[0] if self.client_address else ""))
+            self.send_json(200, {"ok": True, **result})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/worker-log-visibility":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc doi log worker."})
+            return
+        try:
+            payload = self.read_json_body()
+            visible = truthy(payload.get("visible", True), True)
+            SERVER_STATE["dashboard_worker_access_logs_visible"] = bool(visible)
+            self.send_json(200, {"ok": True, "visible": bool(visible)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/builder/translate":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Builder worker bridge chi cho may server local."})
+            return
+        try:
+            payload = self.read_json_body()
+            source_text = str(payload.get("text", "") or "")
+            target = clean(payload.get("dest", "vi")) or "vi"
+            src = clean(payload.get("src", "auto")) or "auto"
+            limit = max(1, min(9000, int(float(payload.get("limit", 9000) or 9000))))
+            translated = chat_translate_text(source_text, dest=target, src=src, limit=limit, max_wait_seconds=45)
+            self.send_json(200, {"ok": True, "translation": translated, "target": target, "src": src})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/builder/tts":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Builder worker bridge chi cho may server local."})
+            return
+        try:
+            payload = self.read_json_body()
+            source_text = str(payload.get("text", "") or "")
+            voice = clean(payload.get("voice", "")) or "kokoro:am_adam"
+            raw = None
+            try:
+                raw = distributed_worker_try_tts_raw(source_text, voice, timeout_seconds=90)
+            except Exception as exc:
+                stt_debug_log("builder_distributed_tts_fallback", voice=voice, error=str(exc))
+            if raw:
+                audio_bytes = raw.get("audio_bytes") or b""
+                mime = clean(raw.get("audio_mime", "")) or clean(raw.get("mime", "")) or "audio/mpeg"
+                self.send_json(200, {
+                    "ok": True,
+                    "audio_base64": base64.b64encode(bytes(audio_bytes)).decode("ascii"),
+                    "mime": mime,
+                    "voice": clean(raw.get("voice", "")) or voice,
+                    "worker": clean(raw.get("worker_id", "")) or "distributed",
+                })
+                return
+            old_bridge_disabled = os.environ.get("FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED", "")
+            os.environ["FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED"] = "1"
+            try:
+                import future_lesson_builder_gui as builder  # type: ignore
+
+                audio_bytes, mime = builder.synthesize_embedded_audio(source_text, voice, lambda message: stt_debug_log("builder_local_tts", message=message))
+            finally:
+                if old_bridge_disabled:
+                    os.environ["FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED"] = old_bridge_disabled
+                else:
+                    os.environ.pop("FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED", None)
+            self.send_json(200, {
+                "ok": True,
+                "audio_base64": base64.b64encode(bytes(audio_bytes or b"")).decode("ascii"),
+                "mime": mime,
+                "voice": builder.normalize_audio_voice_key(voice) or voice,
+                "worker": "server-local",
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/builder/phonemize":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Builder phonemize bridge chi cho may server local."})
+            return
+        try:
+            payload = self.read_json_body()
+            source_text = str(payload.get("text", "") or "")
+            voice = clean(payload.get("voice", "en-US")) or "en-US"
+            ipa = ""
+            worker_name = ""
+            try:
+                ipa = distributed_worker_try_phonemize(source_text, voice, timeout_seconds=25)
+                if ipa:
+                    worker_name = "distributed"
+            except Exception as exc:
+                stt_debug_log("builder_distributed_phonemize_fallback", voice=voice, error=str(exc))
+            if not ipa:
+                old_bridge_disabled = os.environ.get("FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED", "")
+                os.environ["FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED"] = "1"
+                try:
+                    import future_lesson_builder_gui as builder  # type: ignore
+
+                    ipa = builder.phonemize_text(source_text, voice)
+                finally:
+                    if old_bridge_disabled:
+                        os.environ["FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED"] = old_bridge_disabled
+                    else:
+                        os.environ.pop("FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED", None)
+                worker_name = "server-local"
+            self.send_json(200, {"ok": True, "ipa": ipa, "voice": voice, "worker": worker_name})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/email-routing/inbound":
+        if not (self.is_local_admin_request() or cloudflare_email_routing_verify_inbound_headers(self.headers)):
+            self.send_json(403, {"ok": False, "error": "Email inbound secret is invalid."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = cloudflare_email_routing_store_message(payload, self.headers)
+            self.send_json(202, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path in ("/dashboard/open", "/dashboard/ping", "/dashboard/close", "/dashboard/shutdown"):
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc dieu khien server."})
+            return
+        payload = self.read_json_body()
+        session_id = clean(payload.get("session", ""))
+        if path == "/dashboard/open":
+            mark_dashboard_open(session_id)
+            self.send_json(200, {"ok": True, **dashboard_control_response(session_id)})
+            return
+        if path == "/dashboard/ping":
+            mark_dashboard_ping(session_id)
+            self.send_json(200, {"ok": True, **dashboard_control_response(session_id)})
+            return
+        if path == "/dashboard/shutdown":
+            accepted = mark_dashboard_close(session_id)
+            if not accepted:
+                self.send_json(409, {"ok": False, "accepted": False, "error": "Dashboard session is no longer active.", **dashboard_control_response(session_id)})
+                return
+            self.send_json(202, {"ok": True, "accepted": True, **dashboard_control_response(session_id)})
+            request_server_shutdown("dashboard_manual_close", delay=0.75)
+            return
+        accepted = mark_dashboard_close(session_id)
+        self.send_json(202, {"ok": True, "accepted": accepted, **dashboard_control_response(session_id)})
+        if accepted:
+            request_server_shutdown("dashboard_close", delay=0.75)
+        return
+    if path == "/dashboard/security/block":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Security block chi mo tren may server."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = security_block_poll_identity(payload.get("type", payload.get("identity_type", "")), payload.get("identity", ""), payload.get("minutes", 10))
+            self.send_json(200, {"ok": True, **result, "security_poll": security_poll_dashboard_snapshot(12), "security_alerts": security_rate_alerts_snapshot(20)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/users/password":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc doi mat khau user."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = admin_change_user_password(payload.get("username", ""), str(payload.get("password", "") or ""))
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/users/block-login":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc chan dang nhap user."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = set_user_login_blocked(payload.get("username", ""), truthy(payload.get("blocked", True), True))
+            self.send_json(200, {"ok": True, **result, **dashboard_admin_payload()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/kill-other-servers":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc kill server cu."})
+            return
+        try:
+            payload = self.read_json_body()
+            session_id = clean(payload.get("session", ""))
+            if session_id:
+                keep_dashboard_session(session_id)
+            result = kill_other_future_servers()
+            self.send_json(200, {"ok": True, **result, **dashboard_control_response(session_id)})
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/clean-close-all":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc dong Future server va tunnel."})
+            return
+        try:
+            payload = self.read_json_body()
+            session_id = clean(payload.get("session", ""))
+            result_preview = {
+                "current_pid": os.getpid(),
+                "targets": [
+                    {"pid": int(row.get("pid", 0) or 0), "name": clean(row.get("name", "")), "current": bool(row.get("current"))}
+                    for row in list_future_runtime_processes_for_clean_close()
+                ],
+            }
+            self.send_json(202, {"ok": True, "accepted": True, **result_preview, **dashboard_control_response(session_id)})
+            schedule_clean_close_all_future_runtime("dashboard_clean_close_all", delay=0.45)
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/frontend-version/bump":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Only the server dashboard can update connected clients."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = bump_frontend_reload_state(payload.get("reason", "dashboard_update"))
+            self.send_json(200, {"ok": True, **result, **frontend_delivery_signature()})
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/admins":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Admin settings are only available on the server machine."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = set_admin_user(payload.get("username", ""), truthy(payload.get("enabled", True), True))
+            self.send_json(200, {"ok": True, **result, **dashboard_admin_payload()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path in (
+        "/dashboard/email-routing/config",
+        "/dashboard/email-routing/destination",
+        "/dashboard/email-routing/alias",
+        "/dashboard/email-routing/delete-rule",
+    ):
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Email Routing is only available on the server machine."})
+            return
+        try:
+            payload = self.read_json_body()
+            if path == "/dashboard/email-routing/config":
+                result = cloudflare_email_routing_save_settings(payload)
+            elif path == "/dashboard/email-routing/destination":
+                result = cloudflare_email_routing_create_destination(payload)
+            elif path == "/dashboard/email-routing/alias":
+                result = cloudflare_email_routing_create_alias(payload)
+            else:
+                result = cloudflare_email_routing_delete_alias(payload)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/users/delete":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "User deletion is only available on the server machine."})
+            return
+        try:
+            payload = self.read_json_body()
+            username = normalize_username(payload.get("username", ""))
+            confirm = normalize_username(payload.get("confirm", ""))
+            if not username or confirm != username:
+                raise RuntimeError("Nhap lai dung username de xac nhan xoa.")
+            result = delete_user_data(username)
+            self.send_json(200, {"ok": True, "deleted": result, **dashboard_admin_payload()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf-metadata/warm":
+        session = self.auth_session()
+        if not self.is_local_admin_request() and not (session and is_admin_user(session.get("username", ""))):
+            self.send_json(403, {"ok": False, "error": "Only admin can warm PDF metadata index."})
+            return
+        start_pdf_picture_metadata_warmer(force=True)
+        self.send_json(202, {"ok": True, **pdf_picture_metadata_status()})
+        return
+    if path == "/lesson-stats/refresh":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            payload = self.read_json_body()
+            target_user = normalize_username(payload.get("user", "") or payload.get("username", "") or username)
+            if target_user != username and not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can refresh another user's learning stats."})
+                return
+            stats = lesson_user_learning_summary(target_user, force=True)
+            self.send_json(200, {"ok": True, "username": target_user, "learning_stats": stats})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/qmdict/reload":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "QmDict reload is only available on the server machine."})
+            return
+        try:
+            reload_result = reload_qmdict_runtime(force=True, reason="dashboard")
+            vocab_sync = start_main_vocab_sync_all(force=True, reason="qmdict-dashboard-reload")
+            self.send_json(
+                200,
+                {
+                    "ok": True,
+                    "qmdict_reload": reload_result,
+                    "vocabulary_sync": vocab_sync,
+                    "audio_refresh": qmdict_audio_refresh_job_snapshot(),
+                },
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/qmdict/meaning-audio-refresh":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "QmDict Vietnamese audio refresh is only available on the server machine."})
+            return
+        try:
+            payload = self.read_json_body()
+            mode = clean(payload.get("mode", "dashboard-vietnamese-sot-refresh")) or "dashboard-vietnamese-sot-refresh"
+            self.send_json(202, {"ok": True, **start_qmdict_meaning_audio_refresh(mode=mode)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-v/repair-qmdict":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Space_V repair is only available on the server machine."})
+            return
+        try:
+            self.send_json(202, {"ok": True, **start_space_v_qmdict_repair()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/qmdict/word-audio-refresh":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "QmDict word audio refresh is only available on the server machine."})
+            return
+        try:
+            payload = self.read_json_body()
+            self.send_json(202, {"ok": True, **start_qmdict_word_audio_refresh(payload.get("mode", "all"))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-v/refresh-audio":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            payload = self.read_json_body()
+            result = refresh_space_v_word_audio(username, payload.get("word", ""), payload.get("voice", ""))
+            self.send_json(200, {"ok": True, **result})
+        except SpaceVAudioRefreshRateLimitError as exc:
+            self.send_json(429, {"ok": False, "error": str(exc), "retry_after": int(exc.retry_after)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/qmdict/update":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can edit QmDict."})
+                return
+            payload = self.read_json_body()
+            result = update_qmdict_meaning_type(
+                payload.get("word", ""),
+                meaning=payload.get("meaning") if "meaning" in payload else None,
+                word_type=payload.get("type") if "type" in payload else None,
+                usage=payload.get("usage") if "usage" in payload else None,
+                examples=payload.get("examples") if "examples" in payload else None,
+                source=payload.get("source", ""),
+                admin=username,
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            try:
+                payload = locals().get("payload", {})
+                stt_debug_log(
+                    "pdf_ocr_failed",
+                    username=locals().get("username", ""),
+                    path=locals().get("rel_path", ""),
+                    page=(payload.get("page", 1) if isinstance(payload, dict) else 1),
+                    rect=(payload.get("rect", {}) if isinstance(payload, dict) else {}),
+                    error=str(exc),
+                )
+            except Exception:
+                pass
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

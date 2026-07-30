@@ -1,0 +1,318 @@
+    if path == "/pdf/ocr":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            rel_path = clean_path_value(payload.get("path", ""))
+            result = ocr_pdf_region(
+                rel_path,
+                username,
+                admin=is_admin_user(username),
+                page=payload.get("page", 1),
+                rect=payload.get("rect", {}),
+                zoom=payload.get("scale", payload.get("zoom", 2.4)),
+            )
+            result["vocabulary"] = qmdict_vocabulary_stats_queued(result.get("text", ""), username)
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Ghost Eye PDF region",
+                "space": "Space_PDF",
+                "path": rel_path,
+                "page": result.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/picture/ocr":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            rel_path = clean_path_value(payload.get("path", ""))
+            result = ocr_picture_region(
+                rel_path,
+                username,
+                admin=is_admin_user(username),
+                page=payload.get("page", 1),
+                rect=payload.get("rect", {}),
+            )
+            result["vocabulary"] = qmdict_vocabulary_stats_queued(result.get("text", ""), username)
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Ghost Eye picture region",
+                "space": "Space_Picture",
+                "path": rel_path,
+                "page": result.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/scan-page":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            rel_path = clean_path_value(payload.get("path", ""))
+            result = pdf_scan_page_vocabulary(
+                rel_path,
+                username,
+                admin=is_admin_user(username),
+                page=payload.get("page", 1),
+            )
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Ghost Eye full page",
+                "space": "Space_PDF",
+                "path": rel_path,
+                "page": result.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/picture/scan-image":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            rel_path = clean_path_value(payload.get("path", ""))
+            result = picture_scan_vocabulary(
+                rel_path,
+                username,
+                admin=is_admin_user(username),
+                page=payload.get("page", 1),
+            )
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Ghost Eye full picture",
+                "space": "Space_Picture",
+                "path": rel_path,
+                "page": result.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/cache-ocr-page":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            rel_path = clean_path_value(payload.get("path", ""))
+            mode = "picture" if clean(payload.get("mode", "")).lower() == "picture" else "pdf"
+            cache_hints = [
+                payload.get("name", ""),
+                payload.get("title", ""),
+                payload.get("folder", ""),
+                payload.get("image", ""),
+            ]
+            stt_debug_log(
+                "pdf_cache_ocr_request",
+                username=username,
+                path=rel_path,
+                mode=mode,
+                page=payload.get("page", 1),
+                name=clean(payload.get("name", "")),
+                title=clean(payload.get("title", "")),
+                folder=clean(payload.get("folder", "")),
+                image=clean(payload.get("image", "")),
+            )
+            result = pdf_cache_ocr_page_text(
+                rel_path,
+                username,
+                admin=is_admin_user(username),
+                page=payload.get("page", 1),
+                mode=mode,
+                hints=cache_hints,
+            )
+            stt_debug_log(
+                "pdf_cache_ocr_result",
+                username=username,
+                path=rel_path,
+                mode=mode,
+                page=result.get("page", payload.get("page", 1)),
+                cache_hit=bool(result.get("cache_hit")),
+                reason=clean(result.get("reason", "")),
+                cache_folder=clean(result.get("cache_folder", "")),
+                cache_file=clean(result.get("cache_file", "")),
+                candidates=(result.get("candidates") or [])[:8],
+            )
+            if result.get("cache_hit"):
+                result["vocabulary"] = qmdict_vocabulary_stats_queued(result.get("text", ""), username)
+                chat_mark_online(username)
+                mark_user_activity(username, {
+                    "status": "Ghost Eye cache OCR page",
+                    "space": "Space_Picture" if mode == "picture" else "Space_PDF",
+                    "path": rel_path,
+                    "page": result.get("page", 1),
+                })
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            try:
+                stt_debug_log(
+                    "pdf_cache_ocr_exception",
+                    username=locals().get("username", ""),
+                    path=locals().get("rel_path", ""),
+                    error=str(exc),
+                    traceback=traceback.format_exc(),
+                )
+            except Exception:
+                pass
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/analyze-text":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            text = lesson_task_notice_text(payload.get("text", ""), limit=24000)
+            rel_path = clean_path_value(payload.get("path", ""))
+            page = max(1, int(payload.get("page", 1) or 1))
+            vocabulary = qmdict_vocabulary_stats_queued(text, username)
+            chat_mark_online(username)
+            if rel_path:
+                mark_user_activity(username, {
+                    "status": "Ghost Eye edited text",
+                    "space": "Space_PDF" if Path(rel_path).suffix.lower() == ".pdf" else "Space_Picture",
+                    "path": rel_path,
+                    "page": page,
+                })
+            self.send_json(200, {"ok": True, "text": text, "page": page, "vocabulary": vocabulary})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/create-vocabulary":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            if not enforce_user_heavy_quota_response(self, username, "ocr"):
+                return
+            payload = self.read_json_body()
+            rel_path = clean_path_value(payload.get("path", ""))
+            result = build_pdf_vocab_mission(
+                rel_path,
+                username,
+                page=payload.get("page", 1),
+                text=payload.get("text", ""),
+                include_known=bool(payload.get("include_known") or payload.get("force_words")),
+                source=payload.get("source", ""),
+                word_items=payload.get("word_items", []),
+            )
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Created PDF vocabulary",
+                "space": "Space_PDF",
+                "path": rel_path,
+                "page": result.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/translate":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not enforce_user_heavy_quota_response(self, username, "translate"):
+                return
+            payload = self.read_json_body()
+            source_text = lesson_task_notice_text(payload.get("text", ""), limit=9000)
+            target = clean(payload.get("target", payload.get("dest", "vi"))).lower()
+            src = clean(payload.get("source", payload.get("src", "auto"))).lower()
+            if target not in {"vi", "en"}:
+                target = "vi"
+            if not source_text:
+                raise RuntimeError("Text to Explore is empty.")
+            try:
+                translated = chat_translate_text(source_text, dest=target, src=src if src in {"vi", "en"} else "auto", limit=9000)
+            except Exception:
+                if target == "vi":
+                    translated = request_gemini_vietnamese_translation(source_text, structured=True)
+                else:
+                    translated = ""
+            if not clean(translated):
+                raise RuntimeError("Khong dich duoc van ban bang bo dich hien tai.")
+            self.send_json(200, {"ok": True, "text": source_text, "target": target, "translated": translated})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/speak":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            payload = self.read_json_body()
+            text = sanitize_pdf_voice_text(payload.get("text", ""), limit=1400)
+            voice = clean(payload.get("voice", "")) or "kokoro:am_adam"
+            if not re.match(r"^(kokoro|kokoro_vi|sot|edge|microsoft):[A-Za-z0-9._:\-]+$", voice):
+                voice = "kokoro:am_adam"
+            if not text:
+                raise RuntimeError("Text to explore is empty.")
+            cached_audio = qmlearn_cached_word_audio_payload(text, voice)
+            if cached_audio:
+                self.send_json(200, {"ok": True, "text": text, **cached_audio})
+                return
+            if not enforce_user_heavy_quota_response(self, username, "tts"):
+                return
+            audio_payload = chat_synthesize_message_audio_queued(text, voice)
+            self.send_json(200, {"ok": True, "text": text, **audio_payload})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf/speak-training/reference":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not enforce_user_heavy_quota_response(self, username, "tts"):
+                return
+            payload = self.read_json_body()
+            text = lesson_task_notice_text(payload.get("text", ""), limit=6000)
+            if not text:
+                raise RuntimeError("Text to Explore is empty.")
+            self.send_json(200, {"ok": True, "speech_training": build_speech_reference_payload_worker(text)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

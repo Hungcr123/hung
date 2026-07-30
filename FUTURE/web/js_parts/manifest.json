@@ -1,0 +1,247 @@
+{
+  "version": 1,
+  "source": "FUTURE/web/future.js",
+  "mode": "single_iife_body_parts",
+  "target_bytes": 174080,
+  "source_sha256": "9517d176d01915f3a44cdcc1cf585b7da0d67e87831f36e248e5f53439a47d8d",
+  "wrapper": {
+    "prefix": "\r\n    (function () {",
+    "suffix": "})();\r\n  "
+  },
+  "parts": [
+    {
+      "file": "00_completion_coordinator.js"
+    },
+    {
+      "file": "01_bootstrap_guard_ai_agent.js",
+      "line_start": 3,
+      "line_end": 3594,
+      "statement_start": 1,
+      "statement_end": 1042,
+      "bytes": 173548,
+      "sha256": "d2a491282831a9fc42d188a8a8272fd0a552cc03c185d34a0ced9d9b5d27e512",
+      "first": "FT_EDITABLE_SELECTOR",
+      "last": "buildAiAgentVocabQuickPrompt"
+    },
+    {
+      "file": "02_ai_agent_world_training.js",
+      "line_start": 3596,
+      "line_end": 7182,
+      "statement_start": 1043,
+      "statement_end": 1297,
+      "bytes": 172909,
+      "sha256": "c54964d009c3073c7bb6811c6594a10b811923d6ff484a625306b13711c7fb6d",
+      "first": "runAiAgentVocabQuick",
+      "last": "renderSharedWorldTrainingQuickSkill"
+    },
+    {
+      "file": "03_world_motion_shared_state.js",
+      "line_start": 7184,
+      "line_end": 10698,
+      "statement_start": 1298,
+      "statement_end": 1454,
+      "bytes": 168780,
+      "sha256": "594a844801dee2d5860038a993060c64ba1b98669dba889d817ccd37242155a9",
+      "first": "renderSharedWorldTrainingPlayerVitals",
+      "last": "stepSharedWorldMotion"
+    },
+    {
+      "file": "04_world_screen_paint.js",
+      "line_start": 10700,
+      "line_end": 14675,
+      "statement_start": 1455,
+      "statement_end": 1644,
+      "bytes": 173167,
+      "sha256": "3d63bcbdafee7fbd2833f6f52ad47924ea42e3fbc547ab2a402357f95d7a377e",
+      "first": "renderSharedWorld",
+      "last": "scheduleLearnerScreenFrameLoop"
+    },
+    {
+      "file": "05_screen_motion_layout.js",
+      "line_start": 14677,
+      "line_end": 18698,
+      "statement_start": 1645,
+      "statement_end": 2251,
+      "bytes": 174077,
+      "sha256": "c3d43a8b2652a3cea2ecb31a99292f38cef9afd6b3d52807aaeedb73b6116f9f",
+      "first": "learnerScreenCaptureOptions",
+      "last": "mobileStaticMotionSurface"
+    },
+    {
+      "file": "06_spacew_audio_scheduler.js",
+      "line_start": 18699,
+      "line_end": 22582,
+      "statement_start": 2252,
+      "statement_end": 2452,
+      "bytes": 173533,
+      "sha256": "08bca6f021be3d9957569cec6ca23346e298e4515baa2f8ceda43103f3f788a5",
+      "first": "spaceWDesktopMotionSurface",
+      "last": "prioritizedAudioTasks"
+    },
+    {
+      "file": "07_audio_speak_runtime.js",
+      "line_start": 22584,
+      "line_end": 26796,
+      "statement_start": 2453,
+      "statement_end": 2650,
+      "bytes": 172469,
+      "sha256": "698f439f792b44cbf36b8d960b15441b8c874ee395303567c7849ccdde2328f4",
+      "first": "warmEmbeddedSpaceWAudioCache",
+      "last": "selectedRecorderMime"
+    },
+    {
+      "file": "08_speak_question_input.js",
+      "line_start": 26798,
+      "line_end": 30682,
+      "statement_start": 2651,
+      "statement_end": 2854,
+      "bytes": 174705,
+      "sha256": "a5b3f47b58ae0824980e1ad2c5e736f66bf9e74839cb8377504fef313b900fdc",
+      "first": "renderSpeakResult",
+      "last": "questionClientPointInShell"
+    },
+    {
+      "file": "09_question_select_picture_regions.js",
+      "line_start": 30684,
+      "line_end": 34351,
+      "statement_start": 2855,
+      "statement_end": 3028,
+      "bytes": 161982,
+      "sha256": "9d3a5ff335bdd8ba98ee4cafa3e6f3d351b45624048c773b912d1f5f5abc23d2",
+      "first": "markQuestionSelectAnswerTargets",
+      "last": "pictureRegionQuestionVerticalUnit"
+    },
+    {
+      "file": "10_question_root_mobile_guidance.js",
+      "line_start": 34353,
+      "line_end": 38033,
+      "statement_start": 3029,
+      "statement_end": 3167,
+      "bytes": 169236,
+      "sha256": "ebb501b15b453da3a2269449bfa9590ec9cc5e15bf753604e36f23d724473253",
+      "first": "positionQuestionRootInfo",
+      "last": "openQuestionMobileGuidancePage"
+    },
+    {
+      "file": "11_question_guidance_picture_reveal.js",
+      "line_start": 38035,
+      "line_end": 41886,
+      "statement_start": 3168,
+      "statement_end": 3309,
+      "bytes": 173443,
+      "sha256": "c88066b0b6193691fc4572b43b73def4647f0688dc3c99c3619d027b3f985413",
+      "first": "renderQuestionMobileGuidancePage",
+      "last": "runPictureRegionQuestionRevealSequence"
+    },
+    {
+      "file": "12_question_translation_loader.js",
+      "line_start": 41888,
+      "line_end": 45818,
+      "statement_start": 3310,
+      "statement_end": 3427,
+      "bytes": 170268,
+      "sha256": "493f1ed1979ba84c85719824c29bc0c238e78eb6b6a329b8c76fc57b370b1c99",
+      "first": "questionSelectTargetCameraTarget",
+      "last": "shouldAutoStartLoadedFileInPopup"
+    },
+    {
+      "file": "13_translation_vocab_sync.js",
+      "line_start": 45820,
+      "line_end": 49657,
+      "statement_start": 3428,
+      "statement_end": 3653,
+      "bytes": 174020,
+      "sha256": "367bb58041ddef1c472764c274ee5f48a6dda835acfe9eca319a9f414022b0cd",
+      "first": "startTranslationLessonPayload",
+      "last": "vocabSyncStorageKey"
+    },
+    {
+      "file": "14_vocab_sync_tasks.js",
+      "line_start": 49659,
+      "line_end": 51104,
+      "statement_start": 3654,
+      "statement_end": 3761,
+      "bytes": 65936,
+      "sha256": "f0ed55734a957b6da0d5e846f2f0013da9caabea1c488a27638502a498a719db",
+      "first": "mergeVocabSyncWords",
+      "last": "postTaskNoticeNativeFaceMessage"
+    },
+    {
+      "file": "15_task_notices_ai_focus.js",
+      "line_start": 51106,
+      "line_end": 51817,
+      "statement_start": 3762,
+      "statement_end": 3773,
+      "bytes": 172394,
+      "sha256": "84ff99d19d4ca039eee4908256c94d4a480a026406fac2e0b7cc5a54463b434a",
+      "first": "buildTaskNoticeFaceBlocks",
+      "last": "setGhostAiFocusMode"
+    },
+    {
+      "file": "16_notices_vocabulary_missions.js",
+      "line_start": 51819,
+      "line_end": 55424,
+      "statement_start": 3774,
+      "statement_end": 3940,
+      "bytes": 171717,
+      "sha256": "4c9f91c6d82730342f7d64a129c33228c441af360c94c13c27a06fb3cd4ba07e",
+      "first": "hideTaskUserNotice",
+      "last": "loadVocabularyMissionFile"
+    },
+    {
+      "file": "17_vocab_to_pdf_bootstrap.js",
+      "line_start": 55426,
+      "line_end": 56322,
+      "statement_start": 3941,
+      "statement_end": 4004,
+      "bytes": 38032,
+      "sha256": "5000b7a1cd5dc4b62843dbcd1f3a808aa9b60a0fb4759ebbea2c4148ef5d3ab3",
+      "first": "resumeSpaceWAfterVocabulary",
+      "last": "PDF_SPEAK_AI_CHECK_KEY"
+    },
+    {
+      "file": "18_pdf_mode_style_speak.js",
+      "line_start": 56324,
+      "line_end": 60500,
+      "statement_start": 4005,
+      "statement_end": 4031,
+      "bytes": 173051,
+      "sha256": "faf2a3b9269a494592dec49708df39ca9fc5a5109e2a2eb10437ed6a772de3ea",
+      "first": "ensurePdfModeStyle",
+      "last": "scorePdfSpeakTrainingBrowserTranscript"
+    },
+    {
+      "file": "19_pdf_speak_chrome.js",
+      "line_start": 60502,
+      "line_end": 64122,
+      "statement_start": 4032,
+      "statement_end": 4154,
+      "bytes": 171132,
+      "sha256": "0b9f1977cd9ed4a828424a0a8a1d84456f8c7fd9bef5e9907c556c2d2cd4e058",
+      "first": "pdfSpeakTrainingBrowserPayload",
+      "last": "updatePdfChrome"
+    },
+    {
+      "file": "20_pdf_page_progress.js",
+      "line_start": 64124,
+      "line_end": 67894,
+      "statement_start": 4155,
+      "statement_end": 4267,
+      "bytes": 173706,
+      "sha256": "b1bbb34350ac369b756e9d36ecc9e0b600502d47883127c3fc44398ba435e6da",
+      "first": "renderPdfPage",
+      "last": "canSaveSpaceWProgress"
+    },
+    {
+      "file": "21_progress_bootstrap_events.js",
+      "line_start": 67896,
+      "line_end": 71722,
+      "statement_start": 4268,
+      "statement_end": 4656,
+      "bytes": 153114,
+      "sha256": "9788019b31565bd71516ad1c67196f550cf4e5dfbd208512a2c96b706ff4da9d",
+      "first": "saveSpaceWProgressNow",
+      "last": "window.addEventListener(\"popstate\", handleFutureRouteNavigation);"
+    }
+  ]
+}

@@ -1,0 +1,625 @@
+        queueAdminScreenPointerControl(event, "cursor", {{ dispatch: false }});
+      }});
+      adminScreenView.addEventListener("pointermove", (event) => {{
+        const isDragging = Boolean(event.buttons);
+        queueAdminScreenPointerControl(event, isDragging ? "pointermove" : "cursor", {{ dispatch: isDragging, urgent: isDragging }});
+      }});
+      adminScreenView.addEventListener("pointerleave", () => {{
+        queueAdminScreenCursorHidden();
+      }});
+      adminScreenView.addEventListener("pointerdown", (event) => {{
+        if (event.button !== 0 && event.button !== 1 && event.button !== 2) return;
+        if (!queueAdminScreenPointerControl(event, "pointerdown", {{ urgent: true }})) return;
+        event.preventDefault();
+        adminScreenPointerDown = {{ x: event.clientX, y: event.clientY, button: event.button }};
+        try {{ adminScreenView.focus({{ preventScroll: true }}); }} catch (error) {{ adminScreenView.focus(); }}
+        try {{ adminScreenView.setPointerCapture(event.pointerId); }} catch (error) {{}}
+      }});
+      adminScreenView.addEventListener("pointerup", (event) => {{
+        queueAdminScreenPointerControl(event, "pointerup", {{ urgent: true }});
+        try {{ adminScreenView.releasePointerCapture(event.pointerId); }} catch (error) {{}}
+      }});
+      adminScreenView.addEventListener("click", (event) => {{
+        const moved = adminScreenPointerDown ? Math.hypot(event.clientX - adminScreenPointerDown.x, event.clientY - adminScreenPointerDown.y) : 0;
+        adminScreenPointerDown = null;
+        if (moved <= 6) {{
+          queueAdminScreenPointerControl(event, "click", {{ urgent: true }});
+        }}
+      }});
+      adminScreenView.addEventListener("contextmenu", (event) => {{
+        event.preventDefault();
+        event.stopPropagation();
+        const point = adminScreenControlPoint(event);
+        if (!point) return;
+        try {{ adminScreenView.focus({{ preventScroll: true }}); }} catch (error) {{ adminScreenView.focus(); }}
+        queueAdminScreenControl({{
+          type: "click",
+          x: point.x,
+          y: point.y,
+          visible: true,
+          button: 2,
+          buttons: 0,
+          ctrl: Boolean(event.ctrlKey),
+          alt: Boolean(event.altKey),
+          shift: Boolean(event.shiftKey),
+          meta: Boolean(event.metaKey),
+        }}, true);
+      }});
+      adminScreenView.addEventListener("dblclick", (event) => {{
+        queueAdminScreenPointerControl(event, "dblclick", {{ urgent: true }});
+      }});
+      adminScreenView.addEventListener("wheel", (event) => {{
+        const point = adminScreenControlPoint(event);
+        if (!point) return;
+        event.preventDefault();
+        queueAdminScreenControl({{
+          type: "wheel",
+          x: point.x,
+          y: point.y,
+          visible: true,
+          delta_x: event.deltaX,
+          delta_y: event.deltaY,
+          ctrl: Boolean(event.ctrlKey),
+          alt: Boolean(event.altKey),
+          shift: Boolean(event.shiftKey),
+          meta: Boolean(event.metaKey),
+        }}, true);
+      }}, {{ passive: false }});
+      adminScreenView.addEventListener("keydown", (event) => {{
+        if (queueAdminScreenKeyControl(event, "keydown")) event.preventDefault();
+      }});
+      adminScreenView.addEventListener("keyup", (event) => {{
+        if (queueAdminScreenKeyControl(event, "keyup")) event.preventDefault();
+      }});
+    }}
+    if (adminScreenFullscreen) adminScreenFullscreen.addEventListener("click", async () => {{
+      const target = adminScreenCard || adminScreenView || adminScreenModal;
+      try {{
+        if (document.fullscreenElement) {{
+          await document.exitFullscreen();
+        }} else if (target && target.requestFullscreen) {{
+          await target.requestFullscreen();
+        }}
+      }} catch (error) {{
+        if (adminScreenStatus) adminScreenStatus.textContent = String(error && error.message ? error.message : error);
+      }}
+    }});
+    if (adminScreenMic) adminScreenMic.addEventListener("click", () => {{
+      if (!adminScreenUser) return;
+      const record = adminChatUserRecord(adminScreenUser) || {{ username: adminScreenUser, stream: adminStreamUser === adminScreenUser ? adminStreamSession : {{}} }};
+      void requestOrAcceptAdminStream(record).then(updateAdminScreenMicButton);
+    }});
+    const requestAdminMicIfNeeded = async (username, streamSession = null) => {{
+      const state = streamSession && streamSession.state || "";
+      if (!username || ["pending_admin", "pending_user", "active"].includes(state)) return;
+      try {{
+        const response = await fetch("/stream/admin/request", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not request mic stream.");
+        adminChatState = {{ users: payload.users || adminChatState.users || [], online_count: Number(payload.online_count || adminChatState.online_count || 0) }};
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        if (payload.session) {{
+          await handleAdminStreamSession(username, payload.session);
+        }}
+        updateAdminScreenMicButton();
+      }} catch (error) {{
+        messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const requestOrOpenAdminScreen = async (item) => {{
+      const username = item && item.username || "";
+      if (!username) return;
+      const session = item.screen || null;
+      if (session && session.id && ["pending_user", "active"].includes(session.state || "")) {{
+        openAdminScreen(username, session);
+        void requestAdminMicIfNeeded(username, item.stream || null);
+        return;
+      }}
+      try {{
+        const response = await fetch("/screen/admin/request", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ username }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not request screen.");
+        adminChatState = {{ users: payload.users || adminChatState.users || [], online_count: Number(payload.online_count || adminChatState.online_count || 0) }};
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        openAdminScreen(username, payload.session || {{}});
+        const nextRecord = adminChatUserRecord(username) || item || {{}};
+        void requestAdminMicIfNeeded(username, nextRecord.stream || null);
+      }} catch (error) {{
+        messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const screenPreviewKey = (item = {{}}) => `${{item.username || ""}}:${{item.screen && item.screen.id || ""}}`;
+    let adminOnlineRenderedSignature = "";
+    const dashboardModalOpen = () => Boolean(
+      (adminChatModal && adminChatModal.classList.contains("is-open"))
+      || (adminScreenModal && adminScreenModal.classList.contains("is-open"))
+      || (adminPaintModal && adminPaintModal.classList.contains("is-open"))
+      || adminStreamSession
+    );
+    // Added 2026-07-01: online presence comes from authenticated user requests, while live tools still poll faster.
+    // Updated 2026-07-09: keep the Online tab count fresh even while another dashboard tab is open.
+    const shouldPollChatAdminState = () => Boolean(dashboardPollIsFocused());
+    const adminOnlineSignature = (items, state = adminChatState) => {{
+      const rows = Array.isArray(items) ? items : [];
+      const onlineTotal = Number(state && state.online_count || rows.filter((item) => item && item.online).length || 0);
+      const parts = rows.map((item) => {{
+        const stream = item.stream || {{}};
+        const screen = item.screen || {{}};
+        const activity = item.activity || {{}};
+        const paint = item.paint || {{}};
+        const speakSkip = item.speak_skip || {{}};
+        const messages = Array.isArray(item.messages) ? item.messages : [];
+        const lastMessage = messages.length ? messages[messages.length - 1] : (item.last_message || {{}});
+        const preview = adminScreenPreviewCache.get(screenPreviewKey(item)) || {{}};
+        return [
+          item.username || "",
+          item.online ? "1" : "0",
+          Number(item.unread || 0),
+          stream.id || "",
+          stream.state || "",
+          screen.id || "",
+          screen.state || "",
+          Number(screen.frame_id || 0),
+          Number(preview.frameId || 0),
+          activity.status || "",
+          activity.space || "",
+          activity.title || "",
+          activity.path || "",
+          Number(activity.nodeIndex || 0),
+          Number(activity.nodeCount || 0),
+          Number(paint.revision || 0),
+          speakSkip.status || "",
+          speakSkip.id || "",
+          Number(speakSkip.nodeIndex || 0),
+          Number(lastMessage.id || 0),
+          lastMessage.peer_read ? "1" : "0",
+        ].join("~");
+      }});
+      return `${{onlineTotal}}::${{parts.join("||")}}`;
+    }};
+    const pollAdminScreenPreviews = async () => {{
+      if (document.hidden || activeDashboardTab !== "users") return;
+      const changed = adminScreenPreviewCache.size > 0;
+      adminScreenPreviewCache.clear();
+      if (changed) {{
+        renderOnlineUsers(adminChatState.users || [], adminChatState);
+      }}
+    }};
+    const renderOnlineUsers = (items, state = adminChatState) => {{
+      const rows = Array.isArray(items) ? items : [];
+      const unreadTotal = rows.reduce((sum, item) => sum + Number(item.unread || 0), 0);
+      const onlineTotal = Number(state && state.online_count || rows.filter((item) => item && item.online).length || 0);
+      if (tabChatBadge) {{
+        setTextIfChanged(tabChatBadge, onlineTotal);
+        tabChatBadge.classList.toggle("is-empty", onlineTotal <= 0);
+        tabChatBadge.title = unreadTotal
+          ? `${{onlineTotal}} online | ${{unreadTotal}} unread chat message(s)`
+          : `${{onlineTotal}} online user(s)`;
+      }}
+      if (activeDashboardTab !== "users") return;
+      const signature = adminOnlineSignature(rows, state);
+      if (signature === adminOnlineRenderedSignature) return;
+      adminOnlineRenderedSignature = signature;
+      onlineUsersNode.textContent = "";
+      if (!rows.length) {{
+        onlineUsersNode.textContent = "No online users yet.";
+        return;
+      }}
+      rows.forEach((item) => {{
+        const row = document.createElement("div");
+        row.className = "online-row";
+        const controls = document.createElement("div");
+        controls.className = "online-controls";
+        const identity = document.createElement("div");
+        identity.className = "online-identity";
+        const actions = document.createElement("div");
+        actions.className = "online-actions";
+        const realtimeNode = document.createElement("div");
+        const details = document.createElement("div");
+        details.className = "online-details";
+        const detailsText = document.createElement("div");
+        detailsText.className = "online-details-text";
+        const name = document.createElement("div");
+        name.className = "online-name";
+        name.innerHTML = `<span class="online-dot ${{item.online ? "" : "off"}}"></span>${{item.username || ""}}`;
+        const meta = document.createElement("div");
+        meta.className = "online-meta";
+        const screenStateForMeta = item.screen && item.screen.state || "";
+        const screenFrameIdForMeta = Number(item.screen && item.screen.frame_id || 0);
+        const activity = item.activity || {{}};
+        const activityParts = [];
+        if (activity.status) activityParts.push(activity.status);
+        if (activity.space) activityParts.push(activity.space);
+        if (activity.title) activityParts.push(activity.title);
+        const nodeCount = Number(activity.nodeCount || 0);
+        const nodeIndex = Number(activity.nodeIndex || 0);
+        if (nodeCount > 0) activityParts.push(`node ${{Math.min(nodeCount, nodeIndex + 1)}}/${{nodeCount}}`);
+        if (activity.path) activityParts.push(activity.path);
+        meta.textContent = `Last seen: ${{item.last_seen || ""}}${{screenStateForMeta ? ` | Screen: ${{screenStateForMeta}} | WebRTC direct` : ""}}`;
+        realtimeNode.className = "online-realtime" + (activityParts.length ? "" : " is-idle");
+        realtimeNode.textContent = activityParts.length
+          ? `Realtime: ${{activityParts.join(" | ")}}`
+          : "Realtime: idle";
+        identity.appendChild(name);
+        detailsText.appendChild(meta);
+        details.appendChild(detailsText);
+        const activeScreen = item.screen && item.screen.id && (["pending_user", "active"].includes(item.screen.state || "") || Number(item.screen.frame_id || 0) > 0);
+        if (activeScreen) {{
+          const preview = document.createElement("button");
+          preview.className = "online-screen-preview";
+          preview.type = "button";
+          preview.title = "Open realtime screen preview";
+          const cached = adminScreenPreviewCache.get(screenPreviewKey(item));
+          if (cached && cached.data) {{
+            preview.classList.add("is-live");
+            const image = document.createElement("img");
+            image.alt = `${{item.username || "User"}} screen preview`;
+            image.src = cached.data;
+            preview.appendChild(image);
+          }} else {{
+          preview.textContent = "Open direct screen";
+          }}
+          preview.addEventListener("click", () => requestOrOpenAdminScreen(item));
+          details.appendChild(preview);
+          const note = document.createElement("div");
+          note.className = "online-screen-preview-note";
+          note.textContent = "WebRTC direct only";
+          details.appendChild(note);
+        }}
+        const unread = Number(item.unread || 0);
+        const chat = document.createElement("button");
+        chat.className = "pending-action";
+        chat.type = "button";
+        chat.textContent = "Chat";
+        chat.addEventListener("click", () => openAdminChat(item.username || ""));
+        const notify = document.createElement("button");
+        notify.className = "pending-action" + (unread ? " accept" : "");
+        notify.type = "button";
+        notify.textContent = unread ? `Notification ${{unread}}` : "Notification";
+        notify.disabled = !unread;
+        notify.addEventListener("click", () => openAdminChat(item.username || ""));
+        const speakSkip = item.speak_skip || {{}};
+        const speakSkipPending = speakSkip && speakSkip.status === "pending";
+        const speakSkipButton = document.createElement("button");
+        speakSkipButton.className = "pending-action" + (speakSkipPending ? " accept" : "");
+        speakSkipButton.type = "button";
+        speakSkipButton.textContent = speakSkipPending ? "Accept Speak skip" : "Speak skip";
+        speakSkipButton.disabled = !speakSkipPending;
+        speakSkipButton.title = speakSkipPending
+          ? `Node ${{Number(speakSkip.nodeIndex || 0) + 1}} | ${{speakSkip.title || "Space_W"}}`
+          : "No pending Speak error report";
+        speakSkipButton.addEventListener("click", () => void respondSpeakSkipRequest(item, "accept"));
+        const stream = document.createElement("button");
+        const streamState = item.stream && item.stream.state || "";
+        stream.className = "pending-action" + (streamState === "active" ? " accept" : "");
+        stream.type = "button";
+        stream.textContent = streamState === "active"
+          ? "Stream on"
+          : streamState === "pending_admin"
+            ? "Accept stream"
+            : streamState === "pending_user"
+              ? "Waiting stream"
+              : "Stream";
+        stream.disabled = !item.online || streamState === "pending_user";
+        stream.addEventListener("click", () => requestOrAcceptAdminStream(item));
+        const screen = document.createElement("button");
+        const screenState = item.screen && item.screen.state || "";
+        screen.className = "pending-action" + (screenState === "active" ? " accept" : "");
+        screen.type = "button";
+        screen.textContent = screenState === "active"
+          ? "Screen on"
+          : screenState === "pending_user"
+            ? "Waiting screen"
+            : "Screen";
+        screen.disabled = !item.online && !screenState;
+        screen.addEventListener("click", () => requestOrOpenAdminScreen(item));
+        const paint = document.createElement("button");
+        const paintRevision = Number(item.paint && item.paint.revision || 0);
+        paint.className = "pending-action" + (paintRevision ? " accept" : "");
+        paint.type = "button";
+        paint.textContent = paintRevision ? `Paint ${{paintRevision}}` : "Paint";
+        paint.disabled = !item.username;
+        paint.title = "Open connected paint board";
+        paint.addEventListener("click", () => openAdminPaint(item));
+        const off = document.createElement("button");
+        const hasLiveScreen = screenState && ["pending_user", "active"].includes(screenState);
+        const hasLiveStream = streamState && ["pending_admin", "pending_user", "active"].includes(streamState);
+        off.className = "pending-action reject";
+        off.type = "button";
+        off.textContent = "Off";
+        off.disabled = !(hasLiveScreen || hasLiveStream);
+        off.title = "Stop screen preview and mic stream for this user";
+        off.addEventListener("click", () => void stopAdminUserLive(item));
+        const clearChat = document.createElement("button");
+        clearChat.className = "pending-action reject";
+        clearChat.type = "button";
+        clearChat.textContent = "Clear";
+        clearChat.title = "Clear this user's chat messages, attachments, and chat voice files";
+        clearChat.addEventListener("click", () => void clearAdminUserChat(item));
+        actions.append(chat, notify, speakSkipButton, stream, screen, paint, off, clearChat);
+        controls.append(identity, actions);
+        row.append(controls, realtimeNode, details);
+        onlineUsersNode.appendChild(row);
+      }});
+    }};
+    const pollChatAdmin = async () => {{
+      if (!shouldPollChatAdminState()) return;
+      try {{
+        const previousChatRecord = adminChatUser && adminChatModal && adminChatModal.classList.contains("is-open")
+          ? adminChatUserRecord(adminChatUser)
+          : null;
+        const previousChatIds = new Set(
+          previousChatRecord && Array.isArray(previousChatRecord.messages)
+            ? previousChatRecord.messages.map((item) => Number(item.id || 0)).filter(Boolean)
+            : []
+        );
+        const chatStateQuery = new URLSearchParams({{ ts: String(Date.now()) }});
+        chatStateQuery.set("activity", activeDashboardTab === "users" ? "1" : "0");
+        if (adminChatUser && adminChatModal && adminChatModal.classList.contains("is-open")) {{
+          chatStateQuery.set("messages_for", adminChatUser);
+          chatStateQuery.set("activity", "1");
+        }}
+        const response = await fetch("/chat/admin/state?" + chatStateQuery.toString(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not load chat.");
+        adminChatState = {{ users: payload.users || [], online_count: Number(payload.online_count || 0) }};
+        renderOnlineUsers(adminChatState.users, adminChatState);
+        const streamRows = adminChatState.users || [];
+        const streamRecord = adminStreamSession
+          ? streamRows.find((item) => item.stream && item.stream.id === adminStreamSession.id)
+          : streamRows.find((item) => item.stream && item.stream.id && item.stream.state === "active");
+        if (streamRecord && streamRecord.stream) {{
+          await handleAdminStreamSession(streamRecord.username || "", streamRecord.stream);
+        }} else if (adminStreamSession) {{
+          await handleAdminStreamSession("", {{}});
+        }}
+        if (adminScreenUser && adminScreenModal && adminScreenModal.classList.contains("is-open")) {{
+          const screenRecord = (adminChatState.users || []).find((item) => item.username === adminScreenUser);
+          if (screenRecord && screenRecord.screen && screenRecord.screen.id) {{
+            await handleAdminScreenSession(screenRecord.username || adminScreenUser, screenRecord.screen);
+          }}
+        }}
+        if (adminChatUser && adminChatModal.classList.contains("is-open")) {{
+          const record = adminChatUserRecord(adminChatUser);
+          const rows = record && Array.isArray(record.messages) ? record.messages : [];
+          const newUserMessageIds = new Set(rows
+            .filter((item) => item && item.sender === "user" && Number(item.id || 0) && !previousChatIds.has(Number(item.id || 0)))
+            .map((item) => Number(item.id || 0)));
+          const nextSignature = adminChatRowsSignature(rows);
+          if (adminChatRenderedUser !== adminChatUser || adminChatRenderedSignature !== nextSignature) {{
+            renderAdminChatLog(adminChatUser, newUserMessageIds, {{ scroll: Boolean(newUserMessageIds.size) }});
+          }}
+          if (newUserMessageIds.size) {{
+            fetch("/chat/admin/read", {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{ username: adminChatUser }}),
+            }}).catch(() => {{}});
+          }}
+        }}
+      }} catch (error) {{
+        if (onlineUsersNode) onlineUsersNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const renderPendingUsers = (items) => {{
+      pendingUsersNode.textContent = "";
+      const rows = Array.isArray(items) ? items : [];
+      if (!rows.length) {{
+        pendingUsersNode.textContent = "Khong co dang ky dang cho.";
+        return;
+      }}
+      rows.forEach((item) => {{
+        const row = document.createElement("div");
+        row.className = "pending-row";
+        const name = document.createElement("div");
+        name.className = "pending-name";
+        name.textContent = `${{item.username || ""}} | ${{item.full_name || ""}} | ${{item.gender || ""}} | ${{item.birth_date || ""}}`;
+        const accept = document.createElement("button");
+        accept.className = "pending-action";
+        accept.type = "button";
+        accept.textContent = "Chap nhan";
+        const reject = document.createElement("button");
+        reject.className = "pending-action reject";
+        reject.type = "button";
+        reject.textContent = "Tu choi";
+        const send = async (action) => {{
+          accept.disabled = true;
+          reject.disabled = true;
+          try {{
+            const response = await fetch("/auth/approve", {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{ username: item.username, action }}),
+            }});
+            const payload = await response.json().catch(() => ({{}}));
+            if (!response.ok || payload.ok === false) {{
+              throw new Error(payload.error || "Khong duyet duoc.");
+            }}
+            renderPendingUsers(payload.pending || []);
+          }} catch (error) {{
+            messageNode.textContent = String(error && error.message ? error.message : error);
+            accept.disabled = false;
+            reject.disabled = false;
+          }}
+        }};
+        accept.addEventListener("click", () => send("accept"));
+        reject.addEventListener("click", () => send("reject"));
+        row.append(name, accept, reject);
+        pendingUsersNode.appendChild(row);
+      }});
+    }};
+    // Added 2026-07-09: mirrors pending password reset count onto the dedicated dashboard tab.
+    const renderPasswordResetBadge = (count) => {{
+      if (!tabPasswordResetBadge) return;
+      const total = Math.max(0, Number(count || 0) || 0);
+      tabPasswordResetBadge.textContent = String(total);
+      tabPasswordResetBadge.classList.toggle("is-empty", total <= 0);
+      tabPasswordResetBadge.title = total ? `${{total}} password reset request(s) pending` : "No password reset requests.";
+    }};
+    const renderPasswordResetUsers = (items) => {{
+      if (!passwordResetUsersNode) return;
+      passwordResetUsersNode.textContent = "";
+      const rows = Array.isArray(items) ? items : [];
+      renderPasswordResetBadge(rows.length);
+      if (!rows.length) {{
+        passwordResetUsersNode.textContent = "Khong co yeu cau doi mat khau.";
+        return;
+      }}
+      rows.forEach((item) => {{
+        const row = document.createElement("div");
+        row.className = "pending-row";
+        const name = document.createElement("div");
+        name.className = "pending-name";
+        const email = item.email || item.email_alias || "";
+        name.textContent = `${{item.username || ""}} | ${{item.full_name || ""}} | ${{email}} | ${{item.requested_at || ""}}`;
+        const accept = document.createElement("button");
+        accept.className = "pending-action";
+        accept.type = "button";
+        accept.textContent = "Cho phep doi";
+        accept.title = "Cho phep user nay tu dat mat khau moi tren frontend.";
+        const reject = document.createElement("button");
+        reject.className = "pending-action reject";
+        reject.type = "button";
+        reject.textContent = "Tu choi";
+        const send = async (action) => {{
+          accept.disabled = true;
+          reject.disabled = true;
+          try {{
+            const body = {{ username: item.username, action }};
+            const response = await fetch("/auth/password-reset/admin", {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify(body),
+            }});
+            const payload = await response.json().catch(() => ({{}}));
+            if (!response.ok || payload.ok === false) {{
+              throw new Error(payload.error || "Khong duyet duoc doi mat khau.");
+            }}
+            renderPasswordResetUsers(payload.password_resets || []);
+            renderPendingUsers(payload.pending || []);
+            if (messageNode) messageNode.textContent = action === "reject" ? "Da tu choi yeu cau doi mat khau." : "Da cho phep user tu dat mat khau moi.";
+          }} catch (error) {{
+            if (messageNode) messageNode.textContent = String(error && error.message ? error.message : error);
+            accept.disabled = false;
+            reject.disabled = false;
+          }}
+        }};
+        accept.addEventListener("click", () => send("accept"));
+        reject.addEventListener("click", () => send("reject"));
+        row.append(name, accept, reject);
+        passwordResetUsersNode.appendChild(row);
+      }});
+    }};
+    const pollPendingUsers = async () => {{
+      try {{
+        const response = await fetch("/auth/pending?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          pendingUsersNode.textContent = payload.error || "Chi may server moi xem duoc danh sach nay.";
+          if (passwordResetUsersNode) passwordResetUsersNode.textContent = payload.error || "Chi may server moi xem duoc danh sach nay.";
+          return;
+        }}
+        renderPendingUsers(payload.pending || []);
+        renderPasswordResetUsers(payload.password_resets || []);
+      }} catch (error) {{
+        pendingUsersNode.textContent = String(error && error.message ? error.message : error);
+        if (passwordResetUsersNode) passwordResetUsersNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const poll = async () => {{
+      try {{
+        const response = await fetch("/health?view=dashboard-v1&ts=" + Date.now(), {{ cache: "no-store" }});
+        render(await response.json());
+      }} catch (error) {{
+        setDashboardStatus("Disconnected", ["error"]);
+        setTextIfChanged(messageNode, String(error && error.message ? error.message : error));
+      }}
+    }};
+    const startAdaptiveDashboardLoop = (fn, delayFor, options = {{}}) => {{
+      let timer = 0;
+      let running = false;
+      let stopped = false;
+      let lastStartedAt = 0;
+      const minFocusDelay = Number(options.minFocusDelayMs || DASHBOARD_FOCUS_MIN_REQUEST_MS || 30000);
+      const schedule = (delay, immediate = false) => {{
+        if (stopped) return;
+        window.clearTimeout(timer);
+        timer = window.setTimeout(tick, immediate ? Math.max(0, Number(delay || 0)) : Math.max(800, Number(delay || 10000)));
+      }};
+      const tick = async () => {{
+        if (stopped) return;
+        if (running) {{
+          schedule(delayFor());
+          return;
+        }}
+        running = true;
+        lastStartedAt = Date.now();
+        try {{
+          await fn();
+        }} finally {{
+          running = false;
+          schedule(delayFor());
+        }}
+      }};
+      const reset = () => {{
+        if (stopped) return;
+        if (dashboardPollIsFocused()) {{
+          const elapsed = Date.now() - lastStartedAt;
+          schedule(Math.max(0, minFocusDelay - elapsed), true);
+          return;
+        }}
+        schedule(delayFor());
+      }};
+      const stop = () => {{
+        stopped = true;
+        window.clearTimeout(timer);
+      }};
+      document.addEventListener("visibilitychange", reset);
+      window.addEventListener("focus", reset);
+      window.addEventListener("blur", reset);
+      window.addEventListener("pagehide", stop, {{ once: true }});
+      if (options.immediate) {{
+        void tick();
+      }} else {{
+        schedule(delayFor());
+      }}
+      return {{ reset, stop }};
+    }};
+    const healthPollDelay = () => dashboardPollIsFocused() ? dashboardBasePollDelay() : DASHBOARD_HIDDEN_POLL_MS;
+    const announcementPollDelay = () => dashboardPollIsFocused() ? dashboardBasePollDelay() : DASHBOARD_HIDDEN_POLL_MS;
+    const settingsPollDelay = () => dashboardPollIsFocused() ? dashboardBasePollDelay() : DASHBOARD_HIDDEN_POLL_MS;
+    const pendingUsersPollDelay = () => dashboardPollIsFocused() ? dashboardBasePollDelay() : DASHBOARD_HIDDEN_POLL_MS;
+    const dashboardPingDelay = () => dashboardPollIsFocused() ? dashboardBasePollDelay() : DASHBOARD_HIDDEN_POLL_MS;
+    const chatPollDelay = () => {{
+      if (!shouldPollChatAdminState()) return DASHBOARD_HIDDEN_POLL_MS;
+      if (dashboardModalOpen() && dashboardPollIsFocused()) return 1800;
+      if (activeDashboardTab !== "users") return Math.max(dashboardBasePollDelay(), 5000);
+      return dashboardBasePollDelay();
+    }};
+    const screenPreviewPollDelay = () => dashboardBasePollDelay();
+    poll();
+    loadAnnouncements();
+    loadSettings();
+    pollPendingUsers();
+    if (shouldPollChatAdminState()) pollChatAdmin();
+    if (adminPaintAutoUser) {{
+      window.setTimeout(() => openAdminPaint(adminPaintAutoUser), 450);
+    }}
+    renderAdminChatAudioToggles();
+    loadAdminChatVoices();
+    dashboardPingControl = startAdaptiveDashboardLoop(() => dashboardSignal("ping"), dashboardPingDelay);
+    startAdaptiveDashboardLoop(poll, healthPollDelay);
+    startAdaptiveDashboardLoop(loadAnnouncements, announcementPollDelay);
+    startAdaptiveDashboardLoop(loadSettings, settingsPollDelay);
+    startAdaptiveDashboardLoop(pollPendingUsers, pendingUsersPollDelay);
+    startAdaptiveDashboardLoop(pollChatAdmin, chatPollDelay);
+    startAdaptiveDashboardLoop(pollAdminScreenPreviews, screenPreviewPollDelay);
+  </script>

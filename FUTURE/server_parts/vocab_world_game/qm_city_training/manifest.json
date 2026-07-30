@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "source": "FUTURE/server_parts/vocab_world_game/05_qm_city_training.py",
+  "mode": "shared_namespace_loader",
+  "original_sha256": "4864b202c56e18f27b85ed2a25874537f94898dfc137e2337cf1dfbc092d6faa",
+  "loader_sha256": "781204cb603431d06d2bc57533b506341b2ba20f2854b2cc7099a9c45cf063a8",
+  "parts": [
+    {
+      "file": "01_state_stats.py",
+      "line_start": 1,
+      "line_end": 130,
+      "bytes": 6815,
+      "sha256": "6afbf6b9a6b00fd44ce39a6fcb8df92a12aa517c48a4bfb4fd47072c74d6eed9",
+      "first": "def load_qm_city_training_state() -> dict:",
+      "last": "}",
+      "description": "Training state persistence, level/stat normalization, and public stat payload."
+    },
+    {
+      "file": "02_question_pool.py",
+      "line_start": 131,
+      "line_end": 557,
+      "bytes": 19952,
+      "sha256": "f626cf372e6b654ed0fd110f441e6d8939e061c0a6c133fc82141bddeeb8d529",
+      "first": "def qm_city_training_clean_text(value: object, limit: int = 220) -> str:",
+      "last": "return row",
+      "description": "Sentence/word prompt pools, question kind normalization, and generated question variants."
+    },
+    {
+      "file": "03_question_pick.py",
+      "line_start": 558,
+      "line_end": 610,
+      "bytes": 2332,
+      "sha256": "1bee319ef4c43e54d60eb59a6db0f7e476bbc976b7daef7c91c6d5694fa22176",
+      "first": "def qm_city_training_pick_question(username: str, arena: dict | None = None, preferred_kind: str = \"\") -> dict:",
+      "last": "}",
+      "description": "Question selection and public question projection."
+    },
+    {
+      "file": "04_arena_lifecycle.py",
+      "line_start": 611,
+      "line_end": 957,
+      "bytes": 17754,
+      "sha256": "edf0128966df8f4a6f1adb9cd3e48ded91fbc3b737f218e3d67de5e853e348fc",
+      "first": "def qm_city_training_ensure_slime_questions(username: str, arena: dict) -> bool:",
+      "last": "return None",
+      "description": "Slime creation, arena rebalance/tick/new/user/public state, and selection helpers."
+    },
+    {
+      "file": "05_select_answer.py",
+      "line_start": 958,
+      "line_end": 1213,
+      "bytes": 15027,
+      "sha256": "03ca2795882ddbf7e91a1f174521bb20e3fc71a3bed5fe53069e27d4ca45a1cc",
+      "first": "def qm_city_training_select(username: str, payload: dict) -> dict:",
+      "last": "}",
+      "description": "Slime selection and answer/hit/reward flow."
+    },
+    {
+      "file": "06_upgrade_skill_reset.py",
+      "line_start": 1214,
+      "line_end": 1408,
+      "bytes": 11394,
+      "sha256": "cf338db2b42dedab1318dab2fb552f4eb02dcd133c44cc94718fc530d2bf1433",
+      "first": "def qm_city_training_upgrade(username: str, payload: dict) -> dict:",
+      "last": "}",
+      "description": "Stat upgrades, skill casting, and reset flow."
+    }
+  ]
+}

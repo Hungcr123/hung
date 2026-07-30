@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "source": "FUTURE/server_parts/vocab_build_status/03_status_page.py",
+  "mode": "status_page_fstring_fragments",
+  "target_bytes": 76800,
+  "source_sha256": "f1d1b3595101a91e05b8be41a47b71f7a88dc70b32982de670d7fb37735683cd",
+  "markers": {
+    "style_start": 430,
+    "style_end": 44414,
+    "script_start": 72951,
+    "script_end": 330912
+  },
+  "parts": [
+    {
+      "file": "01_function_head.pyfrag",
+      "region": "function_head",
+      "line_start": 1,
+      "line_end": 11,
+      "bytes": 430,
+      "sha256": "eb275757b6a4ea1b8c652b2f30e68930e22f710e8a1df33fdb02ad7105b10f24"
+    },
+    {
+      "file": "02_dashboard_styles.pyfrag",
+      "region": "dashboard_styles",
+      "line_start": 12,
+      "line_end": 1486,
+      "bytes": 43984,
+      "sha256": "39a820b32d934a703dfa09de6de3192f7e00cd7b695dd400706fa28d0fcecf79"
+    },
+    {
+      "file": "03_dashboard_markup.pyfrag",
+      "region": "dashboard_markup",
+      "line_start": 1487,
+      "line_end": 1928,
+      "bytes": 28553,
+      "sha256": "0abefb0f6952439485de1ae725ddbf4eb275e8c8833f5b11ed85a6eb8174f8da"
+    },
+    {
+      "file": "04_dashboard_script_01.pyfrag",
+      "region": "dashboard_script",
+      "line_start": 1929,
+      "line_end": 3303,
+      "bytes": 76817,
+      "sha256": "b39e9aaaf431597992dc849332c875a81fc8fd3e54d1481cfe861712fb375dba"
+    },
+    {
+      "file": "05_dashboard_script_02.pyfrag",
+      "region": "dashboard_script",
+      "line_start": 3304,
+      "line_end": 4815,
+      "bytes": 76738,
+      "sha256": "a16887346f4b1009f2ef853dd1f086d42fcc89dd61c80376c1b4896774281cdd"
+    },
+    {
+      "file": "06_dashboard_script_03.pyfrag",
+      "region": "dashboard_script",
+      "line_start": 4816,
+      "line_end": 6383,
+      "bytes": 76747,
+      "sha256": "ea1c0fb8f1d8d4c9d7364051d8c6413ade1cffed13b0e9423b0bad1f2b5638bc"
+    },
+    {
+      "file": "07_dashboard_script_04.pyfrag",
+      "region": "dashboard_script",
+      "line_start": 6384,
+      "line_end": 6916,
+      "bytes": 27675,
+      "sha256": "e5f2512d0a71f952c0fad4c945b68beee6eb327598088fdd6cd17217f26c4485"
+    },
+    {
+      "file": "08_function_tail.pyfrag",
+      "region": "function_tail",
+      "line_start": 6917,
+      "line_end": 6918,
+      "bytes": 20,
+      "sha256": "17486982a62a85fe77b8e5cbe6a8659cfd9f22c29313e7ac864f20c19f4fede6"
+    }
+  ]
+}

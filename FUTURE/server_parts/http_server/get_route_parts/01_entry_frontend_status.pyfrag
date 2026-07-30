@@ -1,0 +1,243 @@
+# Loaded by FUTURE.server_parts.11_http_server into the shared Future server runtime namespace.
+# This is a nested transitional split; do not import directly yet.
+
+def do_GET(self):
+    self._future_handler_started_at = time.perf_counter()
+    self._future_handler_is_first_request = not bool(getattr(self, "_future_handler_seen_request", False))
+    self._future_handler_seen_request = True
+    parsed = urlparse(self.path)
+    path = parsed.path.rstrip("/") or "/"
+    self.record_security_poll_stat(path, "GET")
+    if not self.enforce_security_block(path):
+        return
+    if not self.enforce_anti_robot_rate(path, "GET"):
+        return
+    if path == "/favicon.ico":
+        self.send_response(204)
+        self.safe_finish_response()
+        return
+    if path == "/anti-robot/challenge":
+        if not self.enforce_anti_robot_challenge(path, "GET"):
+            return
+        self.send_json(200, {
+            "ok": True,
+            "token": make_anti_robot_token(self.anti_robot_client_key()),
+            "ttl": ANTI_ROBOT_TOKEN_TTL_SECONDS,
+        })
+        return
+    if path.startswith(FRONTEND_ASSET_ROUTE_PREFIX):
+        try:
+            target = frontend_asset_path_from_route(path)
+            host_header = clean(self.headers.get("Host", ""))
+            hosted = should_serve_obfuscated_frontend(self.client_address[0], host_header)
+            if target.suffix.lower() == ".js" and hosted:
+                self.send_json(403, {"ok": False, "error": "Hosted JavaScript is delivered through the protected HTML build."})
+                return
+            self.send_bytes(
+                200,
+                cached_public_file_bytes(target),
+                frontend_asset_content_type(target),
+                cache_control="no-store, no-cache, max-age=0, must-revalidate",
+                etag=public_file_etag(target, f"future-asset-{target.suffix.lower().lstrip('.')}"),
+                extra_headers={
+                    "X-Content-Type-Options": "nosniff",
+                    "Referrer-Policy": "no-referrer",
+                    "X-Robots-Tag": "noindex, nofollow, noarchive",
+                },
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    if path == "/frontend-version":
+        try:
+            stat = PUBLIC_FRONTEND_PATH.stat()
+            signature = frontend_delivery_signature()
+            reload_state = frontend_reload_state()
+            source_etag = clean(signature.get("version", "")) or public_file_etag(PUBLIC_FRONTEND_PATH, "future-source")
+            self.send_json(200, {
+                "ok": True,
+                "version": source_etag,
+                "reload_token": reload_state.get("token", ""),
+                "reload_updated_at": reload_state.get("updated_at", ""),
+                "reload_reason": reload_state.get("reason", ""),
+                "etag": source_etag,
+                "mtime_ns": int(stat.st_mtime_ns),
+                "size": int(stat.st_size),
+                "files": signature.get("files", []),
+                "updated_at": utc_timestamp(),
+            })
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/pdf-metadata/status":
+        session = self.auth_session()
+        if not self.is_local_admin_request() and not (session and is_admin_user(session.get("username", ""))):
+            self.send_json(403, {"ok": False, "error": "Only admin can view PDF metadata index status."})
+            return
+        self.send_json(200, {"ok": True, **pdf_picture_metadata_status()})
+        return
+    if path in ("/", "/status"):
+        if not self.is_local_admin_request():
+            if path == "/":
+                self.send_response(302)
+                self.send_header("Location", "/login")
+                self.safe_finish_response()
+            else:
+                self.send_json(403, {"ok": False, "error": "Dashboard chi mo tren may server. Hay dung /login de hoc."})
+            return
+        self.send_html(200, status_page())
+        return
+    if path == "/tunnel-dashboard":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Tunnel dashboard is only available on the server machine."})
+            return
+        try:
+            dashboard_path = ROOT / "Tunnel Dashboard.html"
+            self.send_bytes(
+                200,
+                dashboard_path.read_bytes(),
+                "text/html; charset=utf-8",
+                cache_control="private, no-store, no-cache, max-age=0, must-revalidate",
+                etag=public_file_etag(dashboard_path, "future-tunnel-dashboard"),
+                extra_headers={
+                    "X-Content-Type-Options": "nosniff",
+                    "Referrer-Policy": "no-referrer",
+                    "X-Robots-Tag": "noindex, nofollow, noarchive",
+                },
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    app_routes = {"/login", "/lesson_vault", "/space_w", "/space_v", "/space_q", "/space_p", "/space_s", "/space_l", "/space_pdf", "/space_picture"}
+    if path in ("/future", "/future.html") or path.startswith("/future.html/") or path in app_routes:
+        try:
+            host_header = clean(self.headers.get("Host", ""))
+            hosted = should_serve_obfuscated_frontend(self.client_address[0], host_header)
+            payload = future_hosted_html_bytes() if hosted else future_html_bytes()
+            frontend_path = OBFUSCATED_FRONTEND_PATH if hosted and OBFUSCATED_FRONTEND_PATH.is_file() else PUBLIC_FRONTEND_PATH
+            etag = public_file_etag(frontend_path, "future-hosted" if hosted else "future-local")
+            self.send_bytes(
+                200,
+                payload,
+                "text/html; charset=utf-8",
+                cache_control="private, no-store, no-cache, max-age=0, must-revalidate",
+                etag=etag,
+                extra_headers={
+                    "X-Content-Type-Options": "nosniff",
+                    "X-Frame-Options": "DENY",
+                    "Referrer-Policy": "no-referrer",
+                    "X-Robots-Tag": "noindex, nofollow, noarchive",
+                    "X-Download-Options": "noopen",
+                    "X-Permitted-Cross-Domain-Policies": "none",
+                },
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/face-1.html":
+        try:
+            self.send_bytes(
+                200,
+                face1_html_bytes(),
+                "text/html; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                etag=public_file_etag(PUBLIC_FACE1_PATH, "face-1"),
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    if path == "/face-2.html":
+        try:
+            self.send_bytes(
+                200,
+                face2_html_bytes(),
+                "text/html; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                etag=public_file_etag(PUBLIC_FACE2_PATH, "face-2"),
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    if path == "/health":
+        query = parse_qs(parsed.query)
+        compact_dashboard = clean((query.get("view") or [""])[0]).lower() == "dashboard-v1"
+        data, cache_hit = public_health_response_bytes(
+            self.is_local_admin_request(),
+            include_settings=not compact_dashboard,
+        )
+        self.send_bytes(
+            200,
+            data,
+            "application/json; charset=utf-8",
+            cache_control="no-store",
+            extra_headers={"X-Future-Cache-Hit": "health-bytes" if cache_hit else "health-build"},
+        )
+        return
+    if path == "/distributed-worker/download":
+        if not (self.is_local_admin_request() or self.auth_session()):
+            self.send_json(401, {"ok": False, "error": "Dang nhap de tai goi worker cho may nay."})
+            return
+        try:
+            package_path = distributed_worker_client_zip_path()
+            package_size = package_path.stat().st_size
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(package_size))
+            self.send_header("Cache-Control", "private, no-store")
+            self.send_header("Content-Disposition", 'attachment; filename="future_distributed_worker_full.zip"')
+            self.send_header("X-Future-File-Bytes", str(package_size))
+            if not self.safe_finish_response():
+                return
+            with package_path.open("rb") as file_in:
+                while True:
+                    chunk = file_in.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    try:
+                        self.wfile.write(chunk)
+                    except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+                        break
+                    except OSError as write_exc:
+                        if getattr(write_exc, "winerror", None) in {10053, 10054, 10058}:
+                            break
+                        raise
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/settings":
+        row = public_server_settings_response_cache_row()
+        self.send_bytes(
+            200,
+            row.get("bytes", b""),
+            "application/json; charset=utf-8",
+            cache_control="public, max-age=0, must-revalidate",
+            etag=clean(row.get("etag", "")),
+            extra_headers={"X-Future-Cache-Hit": "settings-bytes" if row.get("cache_hit") else "settings-build"},
+        )
+        return
+    if path == "/qmdict/reload-status":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Admin QmDict status is only available on the server machine."})
+            return
+        self.send_json(
+            200,
+            {
+                "ok": True,
+                "qmdict_reload": qmdict_reload_state_snapshot(),
+                "qmdict_audio_refresh": qmdict_audio_refresh_job_snapshot(),
+                "qmdict_word_audio_refresh": qmdict_word_audio_refresh_job_snapshot(),
+                "space_v_repair": space_v_qmdict_repair_snapshot(),
+            },
+        )
+        return
+    if path == "/announcements":
+        row = announcements_response_cache_row()
+        self.send_bytes(
+            200,
+            row.get("bytes", b""),
+            "application/json; charset=utf-8",
+            cache_control="public, max-age=0, must-revalidate",
+            etag=clean(row.get("etag", "")),
+            extra_headers={"X-Future-Cache-Hit": "announcements-bytes" if row.get("cache_hit") else "announcements-build"},
+        )
+        return

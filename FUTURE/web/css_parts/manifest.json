@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "source": "FUTURE/web/future.css",
+  "mode": "top_level_css_rule_parts",
+  "target_bytes": 153600,
+  "source_sha256": "bb7406f4bf4beaa5c6d8c62d3fe47542e2d365baa5897ff19d60cb1714f9aa9e",
+  "top_level_rule_count": 5095,
+  "unmatched_top_level_close_count": 1,
+  "parts": [
+    {
+      "file": "01_base_shell_layout.css",
+      "line_start": 1,
+      "line_end": 4940,
+      "bytes": 153486,
+      "sha256": "ea0c2b06d0ff968adfab41c7be50eddc8a912634bee14b38bde964e29a1b2ea0",
+      "first": ":root",
+      "last": ""
+    },
+    {
+      "file": "02_auth_profile_controls.css",
+      "line_start": 4940,
+      "line_end": 9996,
+      "bytes": 153110,
+      "sha256": "88c1666ed896cd2e12227746602081c9cac3332cedf22ee1ec9b73f59c84f4bb",
+      "first": ".ft-cup-row",
+      "last": ""
+    },
+    {
+      "file": "03_chat_stream_screen.css",
+      "line_start": 9996,
+      "line_end": 14687,
+      "bytes": 153014,
+      "sha256": "92dc46a8c705f61b08edc80670e304349ad83675df27d1a34cf45be4b2e038e2",
+      "first": ".ft-world-training-impact-burst.is-player",
+      "last": "{ 0%, 100%"
+    },
+    {
+      "file": "04_paint_world_game.css",
+      "line_start": 14687,
+      "line_end": 19308,
+      "bytes": 152288,
+      "sha256": "4bdd9ce3fea7806e69a4b47365be5903423b7055bb2a9ef1c38be7322030b2cd",
+      "first": "@keyframes ftWorldBattleCalloutSpeak",
+      "last": "{ .ft-auth-hud"
+    },
+    {
+      "file": "05_question_core_cards.css",
+      "line_start": 19308,
+      "line_end": 24227,
+      "bytes": 153533,
+      "sha256": "25126768efb5a4c213587e22c051fb24292eda9c3830913b697548913914b203",
+      "first": "@media (max-width: 760px)",
+      "last": ""
+    },
+    {
+      "file": "06_question_guidance_motion.css",
+      "line_start": 24227,
+      "line_end": 28650,
+      "bytes": 153039,
+      "sha256": "be26f31df4da320919ff15d4a5925f26b92e283a3435096943ed95bdb71cd023",
+      "first": ".ft-server-item.is-space-w",
+      "last": "{ 0%, 42%"
+    },
+    {
+      "file": "07_vocab_panels_memory.css",
+      "line_start": 28650,
+      "line_end": 32850,
+      "bytes": 150276,
+      "sha256": "885331ba2581d091fa3671b4521a350e90f128da3740cc59590ad1e95d00b785",
+      "first": "@media (max-width: 900px)",
+      "last": ""
+    },
+    {
+      "file": "08_lesson_tasks_ai_focus.css",
+      "line_start": 32850,
+      "line_end": 36379,
+      "bytes": 152783,
+      "sha256": "b2721e90be6f59d47d75fe94521c790426c8896eb3a1939f3e5b3b3dd416444f",
+      "first": ".ft-stage.is-question-idle-static:not(.is-question-reveal-animating) :is( .ft-q-root-card:not(.i",
+      "last": ""
+    },
+    {
+      "file": "09_server_browser_vault.css",
+      "line_start": 36379,
+      "line_end": 40709,
+      "bytes": 153596,
+      "sha256": "b96f2063069468b9a96b10ef2e24af21c9abdbf208dd22172fc4ed86635dd29a",
+      "first": ".ft-q-picture-card.q-ship-5 .ft-q-picture-ship-core",
+      "last": ""
+    },
+    {
+      "file": "10_pdf_mode_core.css",
+      "line_start": 40709,
+      "line_end": 44703,
+      "bytes": 136385,
+      "sha256": "4a5f2302cf73b1e5f37a2e6fd8f2bb95167bf50c3d701b0dd3a0b3a47905ab16",
+      "first": ".ft-q-connector",
+      "last": "{ .ft-stage.is-question-mode"
+    },
+    {
+      "file": "11_pdf_mode_training.css",
+      "line_start": 44703,
+      "line_end": 50208,
+      "bytes": 153599,
+      "sha256": "d605431d8749a3f06c44c0a43f9f52bbe8fcb1c2a9dd1b97f9989b0d61ec22a4",
+      "first": "@media (max-width: 900px), (pointer: coarse) and (max-height: 760px)",
+      "last": "{ to"
+    },
+    {
+      "file": "12_paragraph_runtime.css",
+      "line_start": 50208,
+      "line_end": 53815,
+      "bytes": 134963,
+      "sha256": "d5b05a293198e7341faa32e4dccc8a686fabc0cf00bf5c5f5bac622733c832c3",
+      "first": "@keyframes qAnimationToggleCharge",
+      "last": "{ .ft-paragraph-mode"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "source": "04_shared_world_battle.py",
+  "original_sha256": "4c1ab57fd61d53a131f68af1b7bca46790be74a72cf56122a1f56c21bf98d457",
+  "original_lines": 1119,
+  "loader_bytes": 927,
+  "parts": [
+    {
+      "file": "01_state_profile.py",
+      "start": 1,
+      "end": 119,
+      "lines": 119,
+      "summary": "Battle state cache, disk persistence, profile and invite public projection.",
+      "first": "# Loaded by FUTURE.server_parts.09_vocab_world_game into the shared Future server runtime namespace.",
+      "last": ""
+    },
+    {
+      "file": "02_vocab_questions.py",
+      "start": 121,
+      "end": 389,
+      "lines": 269,
+      "summary": "Dictionary lookup, vocab pool, asked-word history, and battle question selection.",
+      "first": "def shared_world_battle_meaning_is_english_only(text: str) -> bool:",
+      "last": ""
+    },
+    {
+      "file": "03_answer_rules.py",
+      "start": 391,
+      "end": 439,
+      "lines": 49,
+      "summary": "Answer matching plus Vietnamese token and score helpers shared with QM City training.",
+      "first": "def shared_world_battle_answer_matches(answer: object, expected: object) -> bool:",
+      "last": ""
+    },
+    {
+      "file": "04_battle_engine.py",
+      "start": 441,
+      "end": 593,
+      "lines": 153,
+      "summary": "Battle ids, turns, answer reveal, crystal transfer, damage, finish, and HP checks.",
+      "first": "def shared_world_battle_new_id(prefix: str = \"battle\") -> str:",
+      "last": ""
+    },
+    {
+      "file": "05_public_state_npc.py",
+      "start": 595,
+      "end": 839,
+      "lines": 245,
+      "summary": "Public question/log/payload, timeout advance, NPC bot tick, prune, and state-for-user.",
+      "first": "def shared_world_battle_public_question(battle: dict, viewer: str) -> dict:",
+      "last": ""
+    },
+    {
+      "file": "06_invite_respond.py",
+      "start": 841,
+      "end": 953,
+      "lines": 113,
+      "summary": "Invite creation, auto battle creation, accept/decline response flow.",
+      "first": "def shared_world_battle_create_from_invite(state: dict, invite: dict, auto: bool = False) -> dict:",
+      "last": ""
+    },
+    {
+      "file": "07_answer_skill_forfeit.py",
+      "start": 955,
+      "end": 1119,
+      "lines": 165,
+      "summary": "Answer application, skill application, skill route flow, and forfeit flow.",
+      "first": "def shared_world_battle_apply_answer_locked(battle: dict, username: str, answer: str) -> bool:",
+      "last": ""
+    }
+  ]
+}

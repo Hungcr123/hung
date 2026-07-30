@@ -1,0 +1,131 @@
+    if path == "/world/state":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, (query.get("actor") or query.get("as") or [""])[0])
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            payload = shared_world_state_for_user(actor, real_username=username)
+            if actor != username:
+                payload["world"]["real_user"] = username
+                payload["world"]["acting_as"] = actor
+            self.send_json(200, {"ok": True, **payload})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/battle/state":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, (query.get("actor") or query.get("as") or [""])[0])
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            payload = shared_world_battle_state_for_user(actor)
+            if actor != username:
+                payload["real_user"] = username
+                payload["acting_as"] = actor
+            self.send_json(200, {"ok": True, **payload})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/training/state":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            payload = qm_city_training_state_for_user(username)
+            self.send_json(200, {"ok": True, **payload})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/keyboard-pass":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            with SHARED_WORLD_KEYBOARD_LOCK:
+                state = load_shared_world_keyboard_state()
+                keyboard_pass = shared_world_keyboard_pass_for_user(username, state)
+            self.send_json(200, {"ok": True, "username": username, "keyboard_pass": keyboard_pass, "is_admin": is_admin_user(username)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/game/state":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            room_id = clean((query.get("room") or [""])[0])
+            state = game_room_state(session.get("username", ""), room_id)
+            self.send_json(200, {"ok": True, **state} if "rooms" in state else {"ok": True, "room": state})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/asset":
+        try:
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            structure_response = rel_path.lower().startswith("structure/")
+            accepts_gzip = "gzip" in clean(self.headers.get("Accept-Encoding", "")).lower()
+            if structure_response and accepts_gzip:
+                payload, structure_meta = structure_asset_gzip(rel_path)
+                content_type = "application/json; charset=utf-8"
+                extra_headers = {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+                etag = f'"structure-{structure_meta.get("sha256", "")}"'
+            else:
+                payload, content_type = read_server_asset(rel_path)
+                extra_headers = None
+                etag = ""
+            self.send_bytes(
+                200,
+                payload,
+                content_type,
+                cache_control="public, max-age=31536000, immutable",
+                accept_ranges=content_type.startswith("audio/"),
+                etag=etag,
+                extra_headers=extra_headers,
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    if path == "/server-data/qm-sound":
+        try:
+            query = parse_qs(parsed.query)
+            meaning = clean((query.get("meaning") or [""])[0])
+            if meaning:
+                payload, content_type = read_qmlearn_data_sound_by_text(meaning)
+            else:
+                word = clean((query.get("word") or query.get("text") or [""])[0])
+                voice = clean((query.get("voice") or [""])[0])
+                if word:
+                    payload, content_type = read_qmlearn_data_sound_by_voice_text(word, voice)
+                else:
+                    rel_path = clean_path_value((query.get("path") or [""])[0])
+                    payload, content_type = read_qmlearn_data_sound(rel_path)
+            self.send_bytes(
+                200,
+                payload,
+                content_type,
+                cache_control="public, max-age=31536000, immutable",
+                accept_ranges=content_type.startswith("audio/"),
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    self.send_json(404, {"ok": False, "error": "Not found"})

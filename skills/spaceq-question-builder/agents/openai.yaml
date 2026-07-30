@@ -1,0 +1,3 @@
+display_name: Space_Q Question Builder
+short_description: Build validated Future Question .Space_Q exercise files.
+default_prompt: Create or update a Space_Q exercise file in C:\programe\write_html with root cards, question cards, audio, explanations, and validation.

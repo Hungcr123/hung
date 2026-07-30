@@ -1,0 +1,314 @@
+    if path == "/chat/attachment":
+        try:
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            download = clean((query.get("download") or ["0"])[0]).lower() in ("1", "true", "yes")
+            display_name = chat_safe_filename((query.get("name") or [""])[0] or Path(rel_path).name)
+            target = safe_chat_attachment_path(rel_path)
+            content_type = chat_attachment_mime(target.name, mimetypes.guess_type(target.name)[0] or "")
+            disposition_type = "attachment" if download else "inline"
+            disposition = inline_content_disposition_filename(display_name, "attachment").replace("inline;", f"{disposition_type};", 1)
+            self.send_bytes(
+                200,
+                target.read_bytes(),
+                content_type,
+                cache_control="private, max-age=86400",
+                accept_ranges=True,
+                content_disposition=disposition,
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/poll":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        query = parse_qs(parsed.query)
+        try:
+            since = int(clean((query.get("since") or ["0"])[0]) or 0)
+        except ValueError:
+            since = 0
+        is_open = clean((query.get("open") or ["0"])[0]).lower() in ("1", "true", "yes")
+        username = session.get("username", "")
+        chat_mark_online(username)
+        touch_user_activity_seen(username)
+        try:
+            notice_after = int(clean((query.get("notice_after") or query.get("immediate_after") or ["0"])[0]) or 0)
+        except ValueError:
+            notice_after = 0
+        chat_snapshot = chat_poll_snapshot(username, since, mark_read=is_open)
+        self.send_json(200, {
+            "ok": True,
+            "username": username,
+            **chat_snapshot,
+            "server_time": chat_now(),
+            **lesson_task_notice_immediate_payload(username, notice_after),
+        })
+        return
+    if path == "/chat/admin/state":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xem chat."})
+            return
+        query = parse_qs(parsed.query)
+        message_user = clean((query.get("messages_for") or query.get("user") or [""])[0])
+        include_all_messages = clean((query.get("messages") or ["0"])[0]).lower() in ("1", "true", "yes", "all")
+        include_activity = clean((query.get("activity") or ["1"])[0]).lower() not in ("0", "false", "no")
+        self.send_json(200, {"ok": True, **chat_admin_state(message_user=message_user, include_all_messages=include_all_messages, include_activity=include_activity)})
+        return
+    if path == "/screen/auth-admin/state":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can view online screen users."})
+            return
+        chat_mark_online(admin_session.get("username", ""))
+        query = parse_qs(parsed.query)
+        message_user = clean((query.get("messages_for") or query.get("user") or [""])[0])
+        self.send_json(200, {"ok": True, **chat_admin_state(message_user=message_user, include_all_messages=False, include_activity=True)})
+        return
+    if path == "/chat/admin/voices":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xem voice chat."})
+            return
+        query = parse_qs(parsed.query)
+        force = clean((query.get("refresh") or ["0"])[0]).lower() in ("1", "true", "yes")
+        self.send_json(200, {"ok": True, **chat_voice_option_payload(force_refresh=force)})
+        return
+    if path == "/chat/voices":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        chat_mark_online(session.get("username", ""))
+        payload = chat_voice_option_payload(force_refresh=False)
+        self.send_json(200, {"ok": True, "vi": payload.get("vi", []), "en": payload.get("en", []), "ready": payload.get("ready", False), "error": payload.get("error", "")})
+        return
+    if path == "/stream/state":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        username = session.get("username", "")
+        chat_mark_online(username)
+        self.send_json(200, {"ok": True, "session": stream_session_for_user(username), "admin_online": dashboard_is_online()})
+        return
+    if path == "/stream/poll":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        query = parse_qs(parsed.query)
+        username = session.get("username", "")
+        chat_mark_online(username)
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **stream_poll_chunks(username, session_id, after, "user")})
+        return
+    if path == "/stream/signal":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        query = parse_qs(parsed.query)
+        username = session.get("username", "")
+        chat_mark_online(username)
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **stream_poll_signal(username, "user", session_id, after)})
+        return
+    if path == "/stream/admin/poll":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi stream."})
+            return
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **stream_poll_chunks(username, session_id, after, "admin")})
+        return
+    if path == "/stream/admin/signal":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi stream."})
+            return
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **stream_poll_signal(username, "admin", session_id, after)})
+        return
+    if path == "/screen/state":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        username = session.get("username", "")
+        chat_mark_online(username)
+        self.send_json(200, {"ok": True, "session": screen_session_for_user(username), "admin_online": dashboard_is_online()})
+        return
+    if path == "/screen/signal":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        query = parse_qs(parsed.query)
+        username = session.get("username", "")
+        chat_mark_online(username)
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_signal(username, "user", session_id, after)})
+        return
+    if path == "/screen/control":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        query = parse_qs(parsed.query)
+        username = session.get("username", "")
+        chat_mark_online(username)
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_control(username, session_id, after)})
+        return
+    if path == "/screen/admin/frame":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xem man hinh."})
+            return
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_frame(username, session_id, after)})
+        return
+    if path == "/screen/auth-admin/frame":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can view screen frames."})
+            return
+        chat_mark_online(admin_session.get("username", ""))
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_frame(username, session_id, after)})
+        return
+    if path == "/screen/admin/audio":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi nghe screen."})
+            return
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_audio_chunks(username, session_id, after, "admin")})
+        return
+    if path == "/screen/auth-admin/audio":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can listen to screen audio."})
+            return
+        chat_mark_online(admin_session.get("username", ""))
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_audio_chunks(username, session_id, after, "admin")})
+        return
+    if path == "/screen/audio":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        username = session.get("username", "")
+        chat_mark_online(username)
+        query = parse_qs(parsed.query)
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_audio_chunks(username, session_id, after, "user")})
+        return
+    if path == "/screen/admin/signal":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xem man hinh."})
+            return
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_signal(username, "admin", session_id, after)})
+        return
+    if path == "/screen/auth-admin/signal":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can view screen signals."})
+            return
+        chat_mark_online(admin_session.get("username", ""))
+        query = parse_qs(parsed.query)
+        username = clean((query.get("username") or [""])[0])
+        session_id = clean((query.get("session") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, **screen_poll_signal(username, "admin", session_id, after)})
+        return
+    if path == "/paint/state":
+        session = self.auth_session()
+        if not session:
+            self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+            return
+        username = session.get("username", "")
+        chat_mark_online(username)
+        query = parse_qs(parsed.query)
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, "state": paint_public_state(username, include_data=True, after=after)})
+        return
+    if path == "/paint/admin/state":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xem paint."})
+            return
+        query = parse_qs(parsed.query)
+        username = normalize_username((query.get("username") or [""])[0])
+        try:
+            after = int(clean((query.get("after") or ["0"])[0]) or 0)
+        except ValueError:
+            after = 0
+        self.send_json(200, {"ok": True, "state": paint_public_state(username, include_data=True, after=after)})
+        return

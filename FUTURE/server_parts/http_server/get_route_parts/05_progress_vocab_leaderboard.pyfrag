@@ -1,0 +1,560 @@
+    if path == "/space-pdf/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            identity = clean((query.get("identity") or [""])[0])
+            lesson_id = clean((query.get("lesson_id") or query.get("lessonId") or [""])[0])
+            lesson_handle = clean((query.get("lesson_handle") or query.get("lessonHandle") or [""])[0])
+            username = normalize_username(session.get("username", ""))
+            target_user = normalize_username((query.get("user") or query.get("target_user") or [""])[0]) or username
+            if target_user != username and not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can view another user's Space_PDF progress."})
+                return
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Opening Space_PDF" if target_user == username else f"Opening Space_PDF as @{target_user}",
+                "space": "Space_PDF",
+                "path": rel_path,
+                "identity": identity,
+            })
+            progress = read_space_pdf_progress(target_user, rel_path, identity, lesson_id, lesson_handle)
+            self.send_json(200, {"ok": True, "username": target_user, "viewer": username, "admin_view": target_user != username, "progress": progress})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/drawing":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            identity = clean((query.get("identity") or [""])[0])
+            lesson_id = clean((query.get("lesson_id") or query.get("lessonId") or [""])[0])
+            lesson_handle = clean((query.get("lesson_handle") or query.get("lessonHandle") or [""])[0])
+            page = (query.get("page") or ["1"])[0]
+            username = normalize_username(session.get("username", ""))
+            target_user = normalize_username((query.get("user") or query.get("target_user") or [""])[0]) or username
+            if target_user != username and not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can view another user's PDF drawing."})
+                return
+            # Added 2026-07-20: per-page side-data reads must not emit chat/activity writes.
+            drawing = read_space_pdf_drawing(target_user, rel_path, identity, page, lesson_id, lesson_handle)
+            self.send_json(200, {"ok": True, "username": target_user, "viewer": username, "admin_view": target_user != username, "drawing": drawing})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/audio-markers":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            page = (query.get("page") or ["1"])[0]
+            mode = clean((query.get("mode") or ["pdf"])[0])
+            lesson_id = clean((query.get("lesson_id") or query.get("lessonId") or [""])[0])
+            lesson_handle = clean((query.get("lesson_handle") or query.get("lessonHandle") or [""])[0])
+            username = normalize_username(session.get("username", ""))
+            # Added 2026-07-24: page side-data reads are read-only hot-path lookups.
+            markers = read_space_pdf_shared_audio_markers(username, rel_path, page, mode, lesson_id, lesson_handle)
+            self.send_json(200, {"ok": True, "username": username, **markers})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-region-notices":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            page = (query.get("page") or ["1"])[0]
+            mode = clean((query.get("mode") or ["pdf"])[0])
+            lesson_id = clean((query.get("lesson_id") or query.get("lessonId") or [""])[0])
+            lesson_handle = clean((query.get("lesson_handle") or query.get("lessonHandle") or [""])[0])
+            username = normalize_username(session.get("username", ""))
+            # Added 2026-07-24: page side-data reads are read-only hot-path lookups.
+            notices = read_space_pdf_ai_region_notices(username, rel_path, page, mode, lesson_id, lesson_handle)
+            self.send_json(200, {"ok": True, "username": username, **notices})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-region-questions":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            page = (query.get("page") or ["1"])[0]
+            mode = clean((query.get("mode") or ["pdf"])[0])
+            lesson_id = clean((query.get("lesson_id") or query.get("lessonId") or [""])[0])
+            lesson_handle = clean((query.get("lesson_handle") or query.get("lessonHandle") or [""])[0])
+            username = normalize_username(session.get("username", ""))
+            # Added 2026-07-24: page side-data reads are read-only hot-path lookups.
+            questions = read_space_pdf_ai_region_questions(username, rel_path, page, mode, lesson_id, lesson_handle)
+            self.send_json(200, {"ok": True, "username": username, **questions})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-notice-image":
+        try:
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            raw = str(rel_path or "").replace("\\", "/").strip("/")
+            if not raw or any(part in ("", ".", "..") for part in raw.split("/")):
+                raise RuntimeError("Duong dan anh AI notice khong hop le.")
+            image_root = (ROOT / "Ai_notice_image").resolve()
+            target = (image_root / raw).resolve()
+            target.relative_to(image_root)
+            if not target.is_file() or target.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}:
+                raise RuntimeError("Anh AI notice khong ton tai.")
+            content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+            self.send_bytes(
+                200,
+                cached_public_file_bytes(target),
+                content_type,
+                cache_control="public, max-age=3600",
+                etag=public_file_etag(target, "ai-notice-image"),
+                extra_headers={"X-Content-Type-Options": "nosniff"},
+            )
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-notice-image-list":
+        try:
+            image_root = (ROOT / "Ai_notice_image").resolve()
+            if not image_root.exists():
+                self.send_json(200, {"ok": True, "images": []})
+                return
+            images = []
+            for item in sorted(image_root.iterdir(), key=lambda p: p.name.lower()):
+                if item.is_file() and item.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}:
+                    images.append({
+                        "name": item.name,
+                        "path": item.name,
+                        "url": f"/space-pdf/ai-notice-image?path={quote(item.name)}",
+                    })
+            self.send_json(200, {"ok": True, "images": images})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-question-progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            page = (query.get("page") or ["1"])[0]
+            mode = clean((query.get("mode") or ["pdf"])[0])
+            region_key = clean((query.get("regionKey") or query.get("region_key") or [""])[0])
+            lesson_id = clean((query.get("lesson_id") or query.get("lessonId") or [""])[0])
+            lesson_handle = clean((query.get("lesson_handle") or query.get("lessonHandle") or [""])[0])
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            progress = read_space_pdf_ai_question_progress(username, rel_path, page, mode, region_key, lesson_id, lesson_handle)
+            self.send_json(200, {"ok": True, "username": username, **progress})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-w/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            identity = clean((query.get("identity") or [""])[0])
+            username = session.get("username", "")
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Opening Space_W",
+                "space": "Space_W",
+                "path": rel_path,
+                "identity": identity,
+            })
+            progress = read_space_w_progress(username, rel_path, identity)
+            preferences = read_user_preferences(username)
+            etag = space_w_progress_etag(progress, preferences, username, rel_path, identity)
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag in request_etags or "*" in request_etags:
+                self.send_bytes(
+                    200,
+                    b"",
+                    "application/json; charset=utf-8",
+                    cache_control="private, no-cache, max-age=0, must-revalidate",
+                    etag=etag,
+                    extra_headers={"X-Future-Cache-Hit": "space-w-progress-etag"},
+                )
+                return
+            self.send_bytes(
+                200,
+                json_bytes({
+                    "ok": True,
+                    "username": username,
+                    "progress": progress,
+                    "preferences": preferences,
+                }),
+                "application/json; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                etag=etag,
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-w/speak-skip/state":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            payload = {
+                "path": clean_path_value((query.get("path") or [""])[0]),
+                "identity": clean((query.get("identity") or [""])[0]),
+                "nodeIndex": clean((query.get("nodeIndex") or query.get("node_index") or ["0"])[0]),
+                "sessionId": clean((query.get("sessionId") or query.get("session_id") or [""])[0]),
+            }
+            username = session.get("username", "")
+            chat_mark_online(username)
+            request = get_space_w_speak_skip(username, payload)
+            self.send_json(200, {"ok": True, "username": username, "request": request})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-w/speak-skip/list":
+        manager = self.speak_skip_admin_session()
+        if not manager:
+            self.send_json(403, {"ok": False, "error": "Chi admin moi duoc xem Speak skip requests."})
+            return
+        try:
+            query = parse_qs(parsed.query)
+            status = clean((query.get("status") or ["pending"])[0]) or "pending"
+            username = clean((query.get("username") or [""])[0])
+            requests = list_space_w_speak_skip_requests(status, username)
+            self.send_json(200, {
+                "ok": True,
+                "requests": requests,
+                "pending_count": len([item for item in requests if clean(item.get("status", "")).lower() == "pending"]),
+                "admin": manager.get("username", ""),
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-q/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            identity = clean((query.get("identity") or [""])[0])
+            username = session.get("username", "")
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Opening Space_Q",
+                "space": "Space_Q",
+                "path": rel_path,
+                "identity": identity,
+            })
+            progress = read_space_q_progress(username, rel_path, identity)
+            etag = space_q_progress_etag(progress, username, rel_path, identity)
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag in request_etags or "*" in request_etags:
+                self.send_bytes(
+                    200,
+                    b"",
+                    "application/json; charset=utf-8",
+                    cache_control="private, no-cache, max-age=0, must-revalidate",
+                    etag=etag,
+                    extra_headers={"X-Future-Cache-Hit": "space-q-progress-etag"},
+                )
+                return
+            self.send_bytes(
+                200,
+                json_bytes({"ok": True, "username": username, "progress": progress}),
+                "application/json; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                etag=etag,
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-v/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            identity = clean((query.get("identity") or [""])[0])
+            username = session.get("username", "")
+            chat_mark_online(username)
+            progress = read_space_v_progress(username, rel_path, identity)
+            etag = space_v_progress_etag(progress, username, rel_path, identity)
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag in request_etags or "*" in request_etags:
+                self.send_bytes(
+                    200,
+                    b"",
+                    "application/json; charset=utf-8",
+                    cache_control="private, no-cache, max-age=0, must-revalidate",
+                    etag=etag,
+                    extra_headers={"X-Future-Cache-Hit": "space-v-progress-etag"},
+                )
+                return
+            response_payload = {
+                "ok": True,
+                "username": username,
+                "progress": progress,
+                "summary": space_v_progress_summary_from_record(progress) if isinstance(progress, dict) else {},
+            }
+            self.send_bytes(
+                200,
+                json_bytes(response_payload),
+                "application/json; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                etag=etag,
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-p/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            rel_path = clean_path_value((query.get("path") or [""])[0])
+            identity = clean((query.get("identity") or [""])[0])
+            username = session.get("username", "")
+            chat_mark_online(username)
+            progress = read_space_p_progress(username, rel_path, identity)
+            progress_space = normalize_paragraph_progress_space((progress or {}).get("space") or ((progress or {}).get("state") or {}).get("spaceMode"))
+            mark_user_activity(username, {
+                "status": f"Opening {progress_space}",
+                "space": progress_space,
+                "path": rel_path,
+                "identity": identity,
+            })
+            etag = space_p_progress_etag(progress, username, rel_path, identity)
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag in request_etags or "*" in request_etags:
+                self.send_bytes(
+                    200,
+                    b"",
+                    "application/json; charset=utf-8",
+                    cache_control="private, no-cache, max-age=0, must-revalidate",
+                    etag=etag,
+                    extra_headers={"X-Future-Cache-Hit": "space-p-progress-etag"},
+                )
+                return
+            self.send_bytes(
+                200,
+                json_bytes({"ok": True, "username": username, "progress": progress}),
+                "application/json; charset=utf-8",
+                cache_control="private, no-cache, max-age=0, must-revalidate",
+                etag=etag,
+            )
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/registry":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            username = normalize_username(session.get("username", ""))
+            fresh = truthy((query.get("fresh") or query.get("sync") or query.get("force") or ["0"])[0], False)
+            row = get_or_build_vocab_registry_response_cache_row(username, fresh)
+            self.send_bytes(
+                200,
+                row.get("bytes", b""),
+                "application/json; charset=utf-8",
+                cache_control="private, max-age=0, must-revalidate",
+                etag="" if fresh else clean(row.get("etag", "")),
+                extra_headers={"X-Future-Cache-Hit": "vocab-registry-bytes" if row.get("cache_hit") else "vocab-registry-build"},
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/image":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            word = lesson_task_notice_text((query.get("word") or [""])[0], limit=180)
+            if not word:
+                self.send_json(400, {"ok": False, "error": "Missing word."})
+                return
+            cached = qmdict_space_v_cached_image(word)
+            lookup = {"image": cached, "pending": False, "retry_after_ms": 0} if cached else qmdict_space_v_image_lookup(word)
+            image = lookup.get("image") if isinstance(lookup, dict) else {}
+            self.send_json(200, {
+                "ok": True,
+                "word": word,
+                "image": image if isinstance(image, dict) else {},
+                "pending": bool((lookup or {}).get("pending")),
+                "retry_after_ms": max(0, int((lookup or {}).get("retry_after_ms", 0) or 0)),
+            })
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/ai-agent/history":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            limit = space_w_int((query.get("limit") or ["80"])[0], 80)
+            username = normalize_username(session.get("username", ""))
+            self.send_json(200, {"ok": True, "history": list_ai_agent_history(username, limit)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/word-agent/history":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            word = lesson_task_notice_text((query.get("word") or query.get("term") or [""])[0], limit=180)
+            limit = space_w_int((query.get("limit") or ["80"])[0], 80)
+            username = normalize_username(session.get("username", ""))
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {
+                "ok": True,
+                "word": word,
+                "word_key": word_agent_key(word),
+                "history": list_word_agent_history(word, limit),
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/npc-top":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            if not is_admin_user(username):
+                self.send_json(403, {"ok": False, "error": "Only admins can switch to NPC racers."})
+                return
+            self.send_json(200, {"ok": True, "npcs": npc_top_public_roster()})
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            limit = space_w_int((query.get("limit") or ["10"])[0], 10)
+            requested_double_check = truthy((query.get("double_check") or query.get("verify") or ["0"])[0], False)
+            force_check = truthy((query.get("force_check") or ["0"])[0], False)
+            double_check = requested_double_check and force_check
+            scope = clean((query.get("scope") or ["total"])[0]).lower()
+            board_type = normalize_space_leaderboard_type((query.get("type") or query.get("board_type") or ["space_v"])[0]) or "space_v"
+            record_vocab_leaderboard_view(session.get("username", ""), scope)
+            username = normalize_username(session.get("username", ""))
+            row = vocab_leaderboard_response_cache_row(limit, username, board_type, double_check)
+            self.send_bytes(
+                200,
+                row.get("bytes", b""),
+                "application/json; charset=utf-8",
+                cache_control="private, max-age=0, must-revalidate",
+                etag=clean(row.get("etag", "")),
+                extra_headers={
+                    "X-Future-Cache-Hit": "vocab-top-bytes" if row.get("cache_hit") else "vocab-top-build",
+                    "X-Future-Top-Pending": "1" if row.get("pending") else "0",
+                    "X-Future-Top-Revision": str(max(0, space_w_int(row.get("revision", 0), 0))),
+                    "X-Future-Top-Published-Revision": str(max(0, space_w_int(row.get("published_revision", 0), 0))),
+                    "X-Future-Top-Retry-Ms": str(max(0, space_w_int(row.get("retry_after_ms", 0), 0))),
+                },
+            )
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/chat":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            limit = space_w_int((query.get("limit") or ["100"])[0], 100)
+            after_id = space_w_int((query.get("after_id") or query.get("after") or ["0"])[0], 0)
+            chat_mark_online(session.get("username", ""))
+            if after_id > 0:
+                self.send_json(200, vocab_leaderboard_chat_sync(after_id, limit))
+            else:
+                rows = vocab_leaderboard_chat_rows(limit)
+                self.send_json(200, {"ok": True, "changed": True, "reset": True, "revision": max([space_w_int(row.get("id", 0), 0) for row in rows] or [0]), "messages": rows})
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/sync-main-offline":
+        try:
+            query = parse_qs(parsed.query)
+            session = self.auth_session()
+            session_username = normalize_username(session.get("username", "")) if session else ""
+            allowed = self.is_local_admin_request() or (session and is_admin_user(session_username))
+            if not allowed:
+                self.send_json(403, {"ok": False, "error": "Only the server machine or an admin can sync main offline vocabulary."})
+                return
+            force = clean((query.get("force") or ["1"])[0]).lower() not in {"0", "false", "no", "off"}
+            reason = clean((query.get("reason") or ["main-login"])[0]) or "main-login"
+            target_user = normalize_username((query.get("user") or query.get("username") or [""])[0])
+            if target_user:
+                result = sync_main_vocabulary_for_user(target_user, force=force)
+                self.send_json(200, {"ok": True, "queued": False, "running": False, "user": target_user, "result": result})
+                return
+            result = start_main_vocab_sync_all(force=force, reason=reason)
+            with MAIN_VOCAB_SYNC_LOCK:
+                last_result = MAIN_VOCAB_SYNC_ALL_STATE.get("last_result", {})
+            self.send_json(202, {"ok": True, **result, "last_result": last_result})
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/build-status":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            job_id = clean((query.get("id") or query.get("job_id") or [""])[0])
+            result = get_vocab_build_job(job_id, session.get("username", ""))
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

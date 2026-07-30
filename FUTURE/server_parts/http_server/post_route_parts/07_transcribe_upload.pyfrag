@@ -1,0 +1,137 @@
+    if path == "/transcribe-zipformer-vi":
+        try:
+            stt_debug_log(
+                "zipformer_vi_request_begin",
+                client=self.client_address[0] if self.client_address else "",
+                content_type=clean(self.headers.get("Content-Type", "")),
+                content_length=clean(self.headers.get("Content-Length", "")),
+            )
+            fields, files = parse_multipart_form(self.headers, self.rfile)
+            stt_debug_log("zipformer_vi_request_multipart_parsed", fields=list(fields.keys()), files=list(files.keys()))
+            audio_item = files.get("audio")
+            if not audio_item or not audio_item.get("data"):
+                stt_debug_log("zipformer_vi_request_missing_audio")
+                self.send_json(400, {"ok": False, "error": "Missing audio field."})
+                return
+            suffix = Path(clean(audio_item.get("filename", "recording.wav"))).suffix or ".wav"
+            audio_dir = Path(tempfile.gettempdir()) / "future_zipformer_vi_recordings"
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            audio_path = audio_dir / f"future_zipformer_vi_{int(time.time())}_{uuid.uuid4().hex}{suffix}"
+            with audio_path.open("wb") as fh:
+                fh.write(audio_item["data"])
+            stt_debug_log(
+                "zipformer_vi_request_audio_saved",
+                audio_path=str(audio_path),
+                audio_size=audio_path.stat().st_size if audio_path.is_file() else 0,
+                upload_filename=clean(audio_item.get("filename", "")),
+                upload_content_type=clean(audio_item.get("content_type", "")),
+                source=clean(fields.get("source", "")),
+            )
+            result = transcribe_zipformer_vi_audio(str(audio_path))
+            job_id = uuid.uuid4().hex[:12]
+            self.send_json(
+                200,
+                {
+                    "ok": True,
+                    "audio_path": str(audio_path),
+                    "job_id": job_id,
+                    "queue_position": 1,
+                    "queue_wait_ms": 0,
+                    "queue_process_ms": result.get("elapsed_ms", 0),
+                    **result,
+                },
+            )
+        except Exception as exc:
+            SERVER_STATE.update({"loading": False, "zipformer_vi_last_error": str(exc), "last_error": str(exc)})
+            stt_debug_log("zipformer_vi_request_exception", error=str(exc), traceback=traceback.format_exc())
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path != "/transcribe":
+        self.send_json(404, {"ok": False, "error": "Not found"})
+        return
+    try:
+        stt_debug_log(
+            "request_begin",
+            client=self.client_address[0] if self.client_address else "",
+            content_type=clean(self.headers.get("Content-Type", "")),
+            content_length=clean(self.headers.get("Content-Length", "")),
+        )
+        fields, files = parse_multipart_form(self.headers, self.rfile)
+        stt_debug_log("request_multipart_parsed", fields=list(fields.keys()), files=list(files.keys()))
+        session = self.auth_session()
+        preferred_user = clean((session or {}).get("username", "") or fields.get("username", "") or fields.get("user", ""))
+        audio_item = files.get("audio")
+        if not audio_item or not audio_item.get("data"):
+            stt_debug_log("request_missing_audio")
+            self.send_json(400, {"ok": False, "error": "Missing audio field."})
+            return
+        request_source = clean(fields.get("source", fields.get("space", ""))).lower().replace("-", "_")
+        upload_filename = clean(audio_item.get("filename", "")).lower()
+        is_space_w_request = (
+            request_source in {"space_w", "spacew", "space_w_speak", "future_space_w"}
+            or upload_filename.startswith("future-speaking")
+            or truthy(fields.get("space_w", fields.get("spaceW", "")), False)
+        )
+        is_ghost_eye_speak_request = (
+            request_source in {"ghost_eye_speak", "ghost_eye", "pdf_speak", "pdf_speak_training"}
+            or upload_filename.startswith("ghost-eye-speaking")
+        )
+        if (is_space_w_request or is_ghost_eye_speak_request) and not bool(load_server_settings().get("space_w_ai_check_voice_enabled", DEFAULT_SETTINGS["space_w_ai_check_voice_enabled"])):
+            stt_debug_log("request_server_whisper_disabled", source=request_source, filename=upload_filename)
+            disabled_code = "ghost_eye_whisper_disabled" if is_ghost_eye_speak_request else "space_w_whisper_disabled"
+            disabled_label = "Ghost Eye" if is_ghost_eye_speak_request else "Space_W"
+            self.send_json(
+                409,
+                {
+                    "ok": False,
+                    "error": f"{disabled_label} server Whisper is disabled. Use browser live voice check.",
+                    "code": disabled_code,
+                    "space_w_ai_check_voice_enabled": False,
+                },
+            )
+            return
+        expected = clean(fields.get("expected", ""))
+        language = clean(fields.get("language", SERVER_STATE.get("language", "en"))) or "en"
+        model_name = clean(fields.get("model", SERVER_STATE.get("model_name", "small"))) or "small"
+        suffix = Path(clean(audio_item.get("filename", "recording.webm"))).suffix or ".webm"
+        audio_dir = Path(tempfile.gettempdir()) / "future_whisper_recordings"
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        audio_path = audio_dir / f"future_{int(time.time())}_{uuid.uuid4().hex}{suffix}"
+        with audio_path.open("wb") as fh:
+            fh.write(audio_item["data"])
+        stt_debug_log(
+            "request_audio_saved",
+            audio_path=str(audio_path),
+            audio_size=audio_path.stat().st_size if audio_path.is_file() else 0,
+            upload_filename=clean(audio_item.get("filename", "")),
+            upload_content_type=clean(audio_item.get("content_type", "")),
+            expected_chars=len(expected),
+            language=language,
+            model_name=model_name,
+        )
+        result = submit_worker_transcription(str(audio_path), model_name, language, expected, preferred_user=preferred_user)
+        stt_debug_log("request_transcribe_result", audio_path=str(audio_path), job_id=result.get("job_id", ""), text=clean(result.get("text", "")), words=len(result.get("words", []) or []))
+        text = clean(result.get("text", ""))
+        words = list(result.get("words", []) or [])
+        scoring = {key: result.get(key) for key in ("score", "correct", "total", "extra_words", "missing_words", "details", "feedback", "speech_training") if key in result} if expected else {}
+        self.send_json(
+            200,
+            {
+                "ok": True,
+                "text": text,
+                "words": words,
+                "audio_path": str(audio_path),
+                "job_id": result.get("job_id", ""),
+                "queue_position": result.get("queue_position", 0),
+                "queue_wait_ms": result.get("queue_wait_ms", 0),
+                "queue_process_ms": result.get("queue_process_ms", 0),
+                "model": SERVER_STATE.get("model_name", model_name),
+                "model_ref": SERVER_STATE.get("model_ref", ""),
+                "language": language,
+                **scoring,
+            },
+        )
+    except Exception as exc:
+        SERVER_STATE.update({"loading": False, "last_error": str(exc)})
+        stt_debug_log("request_exception", error=str(exc), traceback=traceback.format_exc())
+        self.send_json(500, {"ok": False, "error": str(exc)})

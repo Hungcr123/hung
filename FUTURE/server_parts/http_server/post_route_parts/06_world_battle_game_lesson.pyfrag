@@ -1,0 +1,469 @@
+    if path == "/world/move":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_move(actor, payload, real_username=username)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["world"]["real_user"] = username
+                result["world"]["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/keyboard-pass":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            result = buy_shared_world_keyboard_pass(username)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {"ok": True, "username": username, "is_admin": is_admin_user(username), **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/chat":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_chat(actor, payload, real_username=username)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["world"]["real_user"] = username
+                result["world"]["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/action":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_action(actor, payload, real_username=username)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["world"]["real_user"] = username
+                result["world"]["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/training/select":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            result = qm_city_training_select(username, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/training/answer":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            result = qm_city_training_answer(username, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/training/upgrade":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            result = qm_city_training_upgrade(username, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/training/skill":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            result = qm_city_training_cast_skill(username, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/training/reset":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = normalize_username(session.get("username", ""))
+            result = qm_city_training_reset(username)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/battle/invite":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_battle_invite(actor, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["real_user"] = username
+                result["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            try:
+                payload = locals().get("payload", {})
+                stt_debug_log(
+                    "picture_ocr_failed",
+                    username=locals().get("username", ""),
+                    path=locals().get("rel_path", ""),
+                    page=(payload.get("page", 1) if isinstance(payload, dict) else 1),
+                    rect=(payload.get("rect", {}) if isinstance(payload, dict) else {}),
+                    error=str(exc),
+                )
+            except Exception:
+                pass
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/battle/respond":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_battle_respond(actor, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["real_user"] = username
+                result["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/battle/answer":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_battle_answer(actor, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["real_user"] = username
+                result["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/battle/skill":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_battle_skill(actor, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["real_user"] = username
+                result["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/world/battle/forfeit":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            result = shared_world_battle_forfeit(actor, payload)
+            chat_mark_online(username)
+            touch_user_activity_seen(username)
+            if actor != username:
+                result["real_user"] = username
+                result["acting_as"] = actor
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/registry/sync":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            raw_words = payload.get("words") if isinstance(payload.get("words"), list) else (
+                payload.get("learnedWords") if isinstance(payload.get("learnedWords"), list) else []
+            )
+            allowed, ignore_reason = space_v_registry_sync_allowed(username, payload)
+            if not allowed:
+                chat_mark_online(username)
+                summary = read_user_vocab_registry_summary(username)
+                self.send_json(200, {
+                    "ok": True,
+                    "username": username,
+                    "ignored": True,
+                    "reason": ignore_reason,
+                    "total_words": max(0, space_w_int(summary.get("total_words", 0), 0)),
+                    "updated_at": clean(summary.get("updated_at", "")),
+                    "response_schema": "vocab-registry-sync-compact-v1",
+                })
+                return
+            result = record_user_vocabulary_items(
+                username,
+                raw_words,
+                clean(payload.get("path", "")),
+                increment_count=False,
+                sync_main=False,
+                verify_registry=False,
+            )
+            chat_mark_online(username)
+            mark_user_activity(username, {
+                "status": "Syncing Space_V vocabulary",
+                "space": "Space_V",
+                "title": clean(payload.get("title", "")),
+                "path": clean(payload.get("path", "")),
+                "nodeIndex": 0,
+                "nodeCount": max(0, space_w_int(result.get("total_words", 0), 0)),
+            })
+            summary = read_user_vocab_registry_summary(username)
+            self.send_json(200, {
+                "ok": True,
+                "username": username,
+                "vocabulary": result,
+                "total_words": max(0, space_w_int(summary.get("total_words", result.get("total_words", 0)), 0)),
+                "updated_at": clean(summary.get("updated_at", "")),
+                "response_schema": "vocab-registry-sync-compact-v1",
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/sync-main-offline-push":
+        try:
+            payload = self.read_json_body()
+            reason = clean(payload.get("reason", "")) or "main-login-remote"
+            result = start_pushed_main_vocab_sync(payload, reason=reason)
+            self.send_json(202, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/inventory/award":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(urlparse(self.path).query)
+            delta_response = clean((query.get("response") or [""])[0]).lower() == "delta-v1"
+            payload = self.read_json_body()
+            result = award_inventory_item(session.get("username", ""), payload)
+            if not delta_response:
+                result["inventory"] = public_inventory(session.get("username", "")).get("inventory", {})
+                result["inventory_delta"] = False
+            result["response_schema"] = "inventory-delta-v1" if delta_response else "inventory-full-v1"
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/game/create":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            room = game_create_room(session.get("username", ""), payload)
+            self.send_json(200, {"ok": True, "room": room})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/game/join":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            room = game_join_room(session.get("username", ""), payload.get("room", ""))
+            self.send_json(200, {"ok": True, "room": room})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/game/select":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            room = game_select_words(session.get("username", ""), payload)
+            self.send_json(200, {"ok": True, "room": room})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/game/ready":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            room = game_ready(session.get("username", ""), payload)
+            self.send_json(200, {"ok": True, "room": room})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/game/cancel":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            result = game_cancel_room(session.get("username", ""), payload)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lessons/open":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body() or {}
+            username = normalize_username(session.get("username", ""))
+            descriptor = open_lesson_descriptor(
+                username,
+                payload.get("path", ""),
+                admin=is_admin_user(username),
+            )
+            self.send_json(200, {"ok": True, "username": username, "lesson": descriptor})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson/time":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            rate_allowed, retry_after = anti_robot_rate_allowed(f"lesson-time:{normalize_username(username).lower()}", 12, 10)
+            if not rate_allowed:
+                self.send_json(429, {"ok": False, "error": "Lesson heartbeat rate limit exceeded.", "retryAfter": retry_after})
+                return
+            row = add_lesson_study_time(username, payload)
+            if max(0, space_w_int(row.get("acceptedSeconds", 0), 0)) > 0 or clean(row.get("heartbeatReason", "")) == "session_started":
+                chat_mark_online(username)
+                mark_user_activity(username, {
+                    "status": "Studying lesson",
+                    "space": clean(row.get("space", "")),
+                    "title": clean(row.get("title", "")),
+                    "path": clean(row.get("path", "")),
+                    "studySeconds": int(row.get("seconds", 0) or 0),
+                })
+            self.send_json(200, {"ok": True, "username": username, "time": row})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/lesson/complete":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            trace_id = clean(payload.get("completion_trace_id") or self.headers.get("X-Future-Completion-Trace", ""))[:160]
+            completion_transaction_prepare = globals().get("postgres_request_transaction_prepare")
+            completion_transaction_commit = globals().get("postgres_request_transaction_commit")
+            completion_transaction_rollback = globals().get("postgres_request_transaction_rollback")
+            if callable(completion_transaction_prepare):
+                completion_transaction_prepare()
+            result = record_lesson_completion(
+                payload.get("path", ""),
+                session.get("username", ""),
+                payload,
+            )
+            if callable(completion_transaction_commit):
+                completion_transaction_commit()
+            if trace_id and isinstance(result, dict):
+                result["completion_trace_id"] = trace_id
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            if callable(locals().get("completion_transaction_rollback")):
+                try:
+                    completion_transaction_rollback()
+                except Exception:
+                    pass
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

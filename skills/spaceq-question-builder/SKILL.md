@@ -1,0 +1,120 @@
+---
+name: spaceq-question-builder
+description: Build Future Translation Gate Space_Q question exercise files with future_question_builder_gui.py, including root cards, question cards, audio cards, answer explanations, root highlights, and validation. Use when creating or updating .Space_Q bài tập trắc nghiệm, tự luận input, nghe, giải thích tiếng Việt, picture-region questions, or popup guidance in C:\programe\write_html.
+---
+
+# Space_Q Question Builder
+
+## Fixed Paths
+
+- App directory: `C:\programe\write_html`
+- Builder module: `C:\programe\write_html\future_question_builder_gui.py`
+- Output file: usually `C:\programe\write_html\<title>.Space_Q`
+- Manifest structure root: `C:\server data\Structure`
+- Audio assets: `C:\server data\Sound`
+- Picture assets: `C:\server data\Picture`
+
+## Required Workflow
+
+1. Inspect the relevant course material under `C:\programe\write_html\Giáo trình pdf` or its generator `.py` when available.
+2. Create a JSON spec with:
+   - `title`: lesson title.
+   - `order`: `sequence` or `shuffle`.
+   - `nodes`: list of root nodes.
+3. Build with `scripts/build_spaceq_from_spec.py`; it imports the real GUI builder and calls `BuildQuestionWorker.run()` so the file matches the app format.
+4. Validate by decoding the output with `decode_space_q_payload()` and checking node/question/audio counts.
+
+## Node Spec Shape
+
+```json
+{
+  "id": "qnode-past-simple-001",
+  "root": "Instruction or passage shown on the root card.",
+  "root_font_size": 34,
+  "input_text_color": "#7eebff",
+  "input_text_prysm": false,
+  "ship_type": "ship-1",
+  "connector_style": "connector-1",
+  "audio_enabled": true,
+  "audio_text": "Text for the Audio card.",
+  "audio_voice": "sot:en-US",
+  "questions_enabled": true,
+  "questions": [
+    {
+      "type": "choice",
+      "question": "Question text",
+      "answer": "correct answer",
+      "wrong": ["wrong 1", "wrong 2"],
+      "audio": {"mode": "click", "voice": "sot:en-US"},
+      "answer_audio": {"mode": "click", "voice": "sot:en-US"},
+      "answer_info": {
+        "items": [
+          {
+            "text": "correct answer",
+            "info_text": "Vietnamese explanation.",
+            "mode": "audio",
+            "voice": "edge:vi-VN-NamMinhNeural"
+          }
+        ]
+      },
+      "root_highlights": [
+        {
+          "text": "last night",
+          "info": "Dấu hiệu thời gian quá khứ.",
+          "color": "#fbbf24",
+          "style": "style-1",
+          "camera_focus": false
+        }
+      ]
+    }
+  ]
+}
+```
+
+Set `"camera_focus": true` only for highlights or picture regions that should pull the learner's view before the highlight/region animation. Omit it or set it to `false` for the calmer default where the question card stays centered.
+
+## Pan View / Camera Focus
+
+- In `future_question_builder_gui.py`, the per-highlight checkbox is named `Pan view`.
+- Checked `Pan view` serializes to `"camera_focus": true` on that root highlight or picture-region question.
+- Unchecked `Pan view` serializes as omitted/false and should not move the learner away from the question card.
+- Runtime behavior for checked highlights: pan smoothly to the root highlight or picture region, wait briefly, run the highlight/region animation, wait briefly, then pan smoothly back to the question card before revealing the new prompt.
+- Runtime behavior for unchecked highlights: root highlight may animate in place, but it must not block the next question card reveal or pull camera focus.
+- Use `camera_focus: true` sparingly for important grammar signals, quoted evidence, or picture regions the learner must inspect. For normal fill-in, translation, rewrite, or theory questions, prefer `false` so the exercise flow stays calm.
+
+For input questions, set `"type": "input"` and optionally add `"answers"` for accepted alternatives. For choice questions, include useful wrong options.
+
+For input-answer styling, set `"input_text_color"` on the node to control the typed text color. Set `"input_text_prysm": true` when the typed answer should render with a prism/crystal mixed-color effect instead of a single solid color.
+
+## Audio Guidance
+
+- Use `sot:en-US` or `sot:en-GB` for English question/answer listening.
+- Use `edge:vi-VN-NamMinhNeural` for Vietnamese explanations.
+- Builder output should include payload-level `effects.true` and `effects.false` answer sounds so runtime can play the true sound for correct input/choice answers and the false sound for wrong answers.
+- If audio generation is too slow or unavailable, keep the Space_Q structurally valid and clearly report which audio was not generated.
+
+## Validation Command
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+python C:\Users\hungc\.codex\skills\spaceq-question-builder\scripts\build_spaceq_from_spec.py `
+  --spec C:\path\to\spec.json `
+  --output C:\programe\write_html\Past-Simple-50.Space_Q
+```
+
+Then decode:
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+@'
+from pathlib import Path
+import sys
+sys.path.insert(0, r"C:\programe\write_html")
+import future_question_builder_gui as q
+p = Path(r"C:\programe\write_html\Past-Simple-50.Space_Q")
+payload = q.decode_space_q_payload(p)
+nodes = payload.get("nodes", [])
+print(payload.get("title"), len(nodes))
+print(sum(len(n.get("cards", {}).get("questions", [])) for n in nodes))
+'@ | python -
+```

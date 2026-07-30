@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fireball bubble test</title>
+<style>
+body { background:#08121f; color:#fff3d4; font-family: Inter, sans-serif; padding:20px; }
+#log { white-space:pre-wrap; font-family: monospace; font-size:12px; max-height:300px; overflow:auto; background:#04101a; border:1px solid rgba(255,190,91,0.4); padding:8px; border-radius:8px; }
+button { background:#102030; color:#fff; border:1px solid rgba(255,190,91,0.6); padding:6px 12px; border-radius:8px; cursor:pointer; margin:4px; }
+</style>
+<link rel="stylesheet" href="/future-assets/future.css">
+</head>
+<body>
+<h2>Fireball bubble test (manual)</h2>
+<p>This page exposes <code>window.__pdfAiTest</code> with hooks into the runtime functions.</p>
+<p>Steps:</p>
+<ol>
+<li>Open Space_PDF as admin and select a region.</li>
+<li>Click <em>Set AI notice</em>, enter text <code>One|Two|Three</code> and Save.</li>
+<li>Click the small fireball icon on the page region.</li>
+<li>Watch the bubble: type "One", wait ~3s, type "Two", etc. Counter shows 1/3, 2/3, 3/3.</li>
+<li>Click the bubble to advance manually.</li>
+</ol>
+<div id="log"></div>
+<script>
+const log = document.getElementById("log");
+function addLog(msg) {
+  const line = (new Date()).toISOString().split("T")[1] + " " + msg;
+  log.textContent += line + "\n";
+  log.scrollTop = log.scrollHeight;
+}
+addLog("test page loaded; visit /space_pdf as admin to test");
+</script>
+</body>
+</html>

@@ -1,0 +1,596 @@
+    if path == "/chat/upload":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            fields, files = parse_multipart_form(self.headers, self.rfile, max_bytes=34 * 1024 * 1024)
+            upload = files.get("file") or files.get("attachment") or (next(iter(files.values())) if files else None)
+            if not upload:
+                raise RuntimeError("Chua chon tep dinh kem.")
+            username = session.get("username", "")
+            chat_mark_online(username)
+            attachment = save_chat_attachment(username, upload, "user")
+            text = str(fields.get("text", "") or "")
+            audio_enabled = truthy(fields.get("audio_enabled", ""), False)
+            language = clean(fields.get("language", "en")).lower()
+            if language != "vi":
+                language = "en"
+            voice = clean(fields.get("voice", ""))
+            label = clean(fields.get("voice_label", ""))
+            extra = {"attachments": [attachment], "language": language}
+            if text.strip() and audio_enabled and voice:
+                try:
+                    extra.update(chat_synthesize_message_audio_queued(text, voice, preferred_user=username))
+                except Exception as exc:
+                    # Added 2026-07-11: keep upload chat text when selected voice cannot synthesize.
+                    extra["audio_error"] = clean(exc)
+            item = chat_add_message(username, "user", text, extra=extra)
+            self.send_json(200, {"ok": True, "message": item, "unread": chat_user_unread(username)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/admin/upload":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi gui dinh kem chat."})
+            return
+        try:
+            fields, files = parse_multipart_form(self.headers, self.rfile, max_bytes=34 * 1024 * 1024)
+            username = fields.get("username", "")
+            upload = files.get("file") or files.get("attachment") or (next(iter(files.values())) if files else None)
+            if not upload:
+                raise RuntimeError("Chua chon tep dinh kem.")
+            attachment = save_chat_attachment(username, upload, "admin")
+            text = str(fields.get("text", "") or "")
+            audio_enabled = truthy(fields.get("audio_enabled", None), True)
+            voice = clean(fields.get("voice", ""))
+            extra = {"attachments": [attachment]}
+            if text.strip() and audio_enabled and voice:
+                try:
+                    extra.update(chat_synthesize_message_audio_queued(text, voice, preferred_user=username))
+                except Exception as exc:
+                    # Added 2026-07-11: show voice synthesis failure in chat instead of dropping admin upload.
+                    extra["audio_error"] = clean(exc)
+            item = chat_add_message(username, "admin", text, extra=extra)
+            self.send_json(200, {"ok": True, "message": item, **chat_admin_state(message_user=username)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/send":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            text = str(payload.get("text", "") or "")
+            audio_enabled = truthy(payload.get("audio_enabled", payload.get("audioEnabled")), False)
+            language = clean(payload.get("language", "en")).lower()
+            if language != "vi":
+                language = "en"
+            voice = clean(payload.get("voice", ""))
+            label = clean(payload.get("voice_label", "") or payload.get("voiceLabel", ""))
+            extra = {
+                "language": language,
+                "operation_id": clean(payload.get("operation_id") or payload.get("operationId") or "")[:160],
+            }
+            if text.strip() and audio_enabled and voice:
+                try:
+                    extra.update(chat_synthesize_message_audio_queued(text, voice, preferred_user=username))
+                except Exception as exc:
+                    # Added 2026-07-10: do not drop chat text when a cold/failed VI voice cannot synthesize.
+                    extra["audio_error"] = clean(exc)
+            item = chat_add_message(username, "user", text, extra=extra)
+            self.send_json(200, {"ok": True, "message": item, "unread": chat_user_unread(username)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/admin/send":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi gui chat."})
+            return
+        try:
+            payload = self.read_json_body()
+            text = str(payload.get("text", "") or "")
+            voice = clean(payload.get("voice", ""))
+            audio_enabled = truthy(payload.get("audio_enabled", payload.get("audioEnabled")), True)
+            extra = {"operation_id": clean(payload.get("operation_id") or payload.get("operationId") or "")[:160]}
+            if text.strip() and audio_enabled and voice:
+                try:
+                    extra.update(chat_synthesize_message_audio_queued(text, voice, preferred_user=payload.get("username", "")))
+                except Exception as exc:
+                    # Added 2026-07-11: keep admin chat visible when Kokoro VI voice is unavailable.
+                    extra["audio_error"] = clean(exc)
+            translated_from = clean(payload.get("translated_from", ""))
+            if translated_from:
+                extra["translated_from"] = translated_from
+            item = chat_add_message(payload.get("username", ""), "admin", text, extra=extra)
+            self.send_json(200, {"ok": True, "message": item, **chat_admin_state(message_user=payload.get("username", ""))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/admin/translate":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi dich chat."})
+            return
+        try:
+            payload = self.read_json_body()
+            source = str(payload.get("text", "") or "")
+            translated = chat_translate_to_english(source)
+            self.send_json(200, {"ok": True, "source": source, "translation": translated})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-w/speak-skip/request":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            request = request_space_w_speak_skip(username, payload)
+            self.send_json(200, {"ok": True, "username": username, "request": request})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-w/speak-skip/respond":
+        manager = self.speak_skip_admin_session()
+        if not manager:
+            self.send_json(403, {"ok": False, "error": "Chi admin moi duoc duyet Speak skip."})
+            return
+        try:
+            payload = self.read_json_body()
+            if payload.get("all") or clean(payload.get("id", payload.get("request_id", ""))).lower() in {"all", "*"}:
+                requests = respond_space_w_speak_skip_many(payload.get("username", ""), payload.get("action", "accept"))
+                self.send_json(200, {"ok": True, "requests": requests, "request": requests[0] if requests else None, **chat_admin_state()})
+            else:
+                request = respond_space_w_speak_skip(
+                    payload.get("username", ""),
+                    payload.get("id", payload.get("request_id", "")),
+                    payload.get("action", "accept"),
+                )
+                self.send_json(200, {"ok": True, "request": request, **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/request":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            chat_mark_online(username)
+            self.send_json(200, {"ok": True, "session": stream_request(username, "user")})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/action":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            self.send_json(200, {"ok": True, "session": stream_action(username, "user", payload.get("action", ""), payload.get("session", ""))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/chunk":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            self.send_json(200, {"ok": True, **stream_add_chunk(username, "user", payload.get("session", ""), payload.get("data", ""), payload.get("mime", ""))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/signal":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            result = stream_submit_signal(username, "user", payload.get("session", ""), payload.get("type", ""), payload.get("data", {}))
+            self.send_json(200, {"ok": True, "session": result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/admin/request":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi stream."})
+            return
+        try:
+            payload = self.read_json_body()
+            self.send_json(200, {"ok": True, "session": stream_request(payload.get("username", ""), "admin"), **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/admin/signal":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi stream."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = stream_submit_signal(payload.get("username", ""), "admin", payload.get("session", ""), payload.get("type", ""), payload.get("data", {}))
+            self.send_json(200, {"ok": True, "session": result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/admin/action":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi stream."})
+            return
+        try:
+            payload = self.read_json_body()
+            self.send_json(200, {"ok": True, "session": stream_action(payload.get("username", ""), "admin", payload.get("action", ""), payload.get("session", "")), **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/stream/admin/chunk":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi stream."})
+            return
+        try:
+            payload = self.read_json_body()
+            self.send_json(200, {"ok": True, **stream_add_chunk(payload.get("username", ""), "admin", payload.get("session", ""), payload.get("data", ""), payload.get("mime", ""))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/action":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            self.send_json(200, {"ok": True, "session": screen_action(username, "user", payload.get("action", ""), payload.get("session", ""))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/request":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            username = session.get("username", "")
+            chat_mark_online(username)
+            self.send_json(200, {"ok": True, "session": screen_request(username, "user")})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/frame":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            result = screen_store_frame(
+                username,
+                payload.get("session", ""),
+                payload.get("data", ""),
+                payload.get("width", 0),
+                payload.get("height", 0),
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/frame-binary":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            try:
+                content_length = int(clean(self.headers.get("Content-Length", "0")) or 0)
+            except ValueError:
+                content_length = 0
+            max_bytes = max(1, int((SCREEN_FRAME_MAX_CHARS - 64) * 3 / 4))
+            if content_length <= 0:
+                raise RuntimeError("Missing screen frame.")
+            if content_length > max_bytes:
+                raise RuntimeError("Screen frame qua lon.")
+            raw = self.rfile.read(content_length)
+            username = session.get("username", "")
+            chat_mark_online(username)
+            result = screen_store_frame_bytes(
+                username,
+                (query.get("session") or [""])[0],
+                raw,
+                (query.get("mime") or [self.headers.get("Content-Type", "image/webp")])[0],
+                (query.get("width") or ["0"])[0],
+                (query.get("height") or ["0"])[0],
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/audio-chunk":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            result = screen_add_audio_chunk(
+                username,
+                payload.get("session", ""),
+                payload.get("data", ""),
+                payload.get("mime", ""),
+                "user",
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/auth-admin/audio-chunk":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can speak to screen users."})
+            return
+        try:
+            payload = self.read_json_body()
+            username = clean(payload.get("username", ""))
+            chat_mark_online(admin_session.get("username", ""))
+            result = screen_add_audio_chunk(
+                username,
+                payload.get("session", ""),
+                payload.get("data", ""),
+                payload.get("mime", ""),
+                "admin",
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/signal":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            result = screen_submit_signal(username, "user", payload.get("session", ""), payload.get("type", ""), payload.get("data", {}))
+            self.send_json(200, {"ok": True, "session": result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/admin/request":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi yeu cau man hinh."})
+            return
+        try:
+            payload = self.read_json_body()
+            self.send_json(200, {"ok": True, "session": screen_request(payload.get("username", ""), "admin"), **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/auth-admin/request":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can request user screens."})
+            return
+        try:
+            payload = self.read_json_body()
+            chat_mark_online(admin_session.get("username", ""))
+            self.send_json(200, {"ok": True, "session": screen_request(payload.get("username", ""), "admin"), **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/admin/signal":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xem man hinh."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = screen_submit_signal(payload.get("username", ""), "admin", payload.get("session", ""), payload.get("type", ""), payload.get("data", {}))
+            self.send_json(200, {"ok": True, "session": result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/auth-admin/signal":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can send screen signals."})
+            return
+        try:
+            payload = self.read_json_body()
+            chat_mark_online(admin_session.get("username", ""))
+            result = screen_submit_signal(payload.get("username", ""), "admin", payload.get("session", ""), payload.get("type", ""), payload.get("data", {}))
+            self.send_json(200, {"ok": True, "session": result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/admin/control":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi dieu khien man hinh."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = screen_add_control(
+                payload.get("username", ""),
+                payload.get("session", ""),
+                payload.get("commands", payload.get("command", payload)),
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/auth-admin/control":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can control user screens."})
+            return
+        try:
+            payload = self.read_json_body()
+            chat_mark_online(admin_session.get("username", ""))
+            result = screen_add_control(
+                payload.get("username", ""),
+                payload.get("session", ""),
+                payload.get("commands", payload.get("command", payload)),
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/auth-admin/transport-log":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can write screen transport logs."})
+            return
+        try:
+            payload = self.read_json_body()
+            chat_mark_online(admin_session.get("username", ""))
+            result = screen_transport_log_append(
+                payload.get("username", ""),
+                admin_session.get("username", ""),
+                payload,
+            )
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/admin/action":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi tat man hinh."})
+            return
+        try:
+            payload = self.read_json_body()
+            self.send_json(200, {"ok": True, "session": screen_action(payload.get("username", ""), "admin", payload.get("action", ""), payload.get("session", "")), **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/screen/auth-admin/action":
+        admin_session = self.auth_admin_session()
+        if not admin_session:
+            self.send_json(403, {"ok": False, "error": "Only admins can stop user screens."})
+            return
+        try:
+            payload = self.read_json_body()
+            chat_mark_online(admin_session.get("username", ""))
+            self.send_json(200, {"ok": True, "session": screen_action(payload.get("username", ""), "admin", payload.get("action", ""), payload.get("session", "")), **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/admin/read":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi doc chat."})
+            return
+        try:
+            payload = self.read_json_body()
+            chat_mark_admin_read(payload.get("username", ""))
+            self.send_json(200, {"ok": True, **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/chat/admin/clear":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi xoa chat."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = clear_chat_for_user(payload.get("username", ""))
+            self.send_json(200, {"ok": True, **result, **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/paint/sync":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            state = paint_update_state(username, payload.get("data", ""), payload.get("width", 0), payload.get("height", 0), "user")
+            self.send_json(200, {"ok": True, "state": state})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/paint/cursor":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            state = paint_update_cursor(username, payload.get("cursor", payload), "user", username)
+            self.send_json(200, {"ok": True, "state": state})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/paint/admin/sync":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi sua paint."})
+            return
+        try:
+            payload = self.read_json_body()
+            state = paint_update_state(payload.get("username", ""), payload.get("data", ""), payload.get("width", 0), payload.get("height", 0), "admin")
+            self.send_json(200, {"ok": True, "state": state, **chat_admin_state()})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/paint/admin/cursor":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi sua paint."})
+            return
+        try:
+            payload = self.read_json_body()
+            state = paint_update_cursor(payload.get("username", ""), payload.get("cursor", payload), "admin", "Admin")
+            self.send_json(200, {"ok": True, "state": state})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/announcements":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi duoc sua thong bao."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = save_announcements(str(payload.get("text", "") or ""))
+            self.send_json(200, {"ok": True, "raw": "\n".join(result.get("items", [])), **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/settings":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi duoc sua settings."})
+            return
+        try:
+            payload = self.read_json_body()
+            previous_settings = load_server_settings()
+            result = save_server_settings(payload)
+            enforce_all_chat_attachment_quotas()
+            restart_tunnel_after_settings_change(previous_settings, result)
+            self.send_json(200, {"ok": True, **public_server_settings(result)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

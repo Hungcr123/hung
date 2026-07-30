@@ -1,0 +1,2056 @@
+  <script>
+    const statusNode = document.getElementById("status");
+    const dashboardFreshnessNode = document.getElementById("dashboard-freshness");
+    const dashboardWarmLogNode = document.getElementById("dashboard-warm-log");
+    const modelNode = document.getElementById("model");
+    const languageNode = document.getElementById("language");
+    const modelRefNode = document.getElementById("model-ref");
+    const publicUrlNode = document.getElementById("public-url");
+    const copyPublicButton = document.getElementById("copy-public");
+    const killOtherServersButton = document.getElementById("kill-other-servers");
+    const cleanCloseAllRuntimeButton = document.getElementById("clean-close-all-runtime");
+    const frontendUpdateClientsButton = document.getElementById("frontend-update-clients");
+    const closeServerButton = document.getElementById("dashboard-close-server");
+    const endpointNode = document.getElementById("endpoint");
+    const queueStatusNode = document.getElementById("queue-status");
+    const queueJobsNode = document.getElementById("queue-jobs");
+    const cpuGuardStatusNode = document.getElementById("cpu-guard-status");
+    const learningEventNode = document.getElementById("learning-event");
+    const uptimeNode = document.getElementById("uptime");
+    const messageNode = document.getElementById("message");
+    const securityPollList = document.getElementById("security-poll-list");
+    const adminStreamModeButtons = Array.from(document.querySelectorAll("[data-admin-stream-mode]"));
+    const adminStreamModeNote = document.getElementById("admin-stream-mode-note");
+    const pendingUsersNode = document.getElementById("pending-users");
+    const passwordResetUsersNode = document.getElementById("password-reset-users");
+    const announcementInput = document.getElementById("announcement-input");
+    const announcementSave = document.getElementById("announcement-save");
+    const announcementState = document.getElementById("announcement-state");
+    const announcementPreview = document.getElementById("announcement-preview");
+    const hintCycleInput = document.getElementById("hint-cycle-input");
+    const paragraphHintInput = document.getElementById("paragraph-hint-input");
+    const questionHudInput = document.getElementById("question-hud-input");
+    const chatAttachmentLimitInput = document.getElementById("chat-attachment-limit-input");
+    const heavyUserQuotaInput = document.getElementById("heavy-user-quota-input");
+    const heavyUserIntervalInput = document.getElementById("heavy-user-interval-input");
+    const aiAgentNoticeVoiceInput = document.getElementById("ai-agent-notice-voice-input");
+    const spaceWAiCheckToggle = document.getElementById("space-w-ai-check-toggle");
+    const leaderboardReactionsInput = document.getElementById("leaderboard-reactions-input");
+    const cpuThresholdInput = document.getElementById("cpu-threshold-input");
+    const cpuGuardToggle = document.getElementById("cpu-guard-toggle");
+    const cpuGuardApply = document.getElementById("cpu-guard-apply");
+    const qmdictReload = document.getElementById("qmdict-reload");
+    const spaceVRepair = document.getElementById("space-v-repair");
+    const qmdictWordAudioRefresh = document.getElementById("qmdict-word-audio-refresh");
+    const qmdictMeaningAudioRefresh = document.getElementById("qmdict-meaning-audio-refresh");
+    const qmdictWordAudioRetry = document.getElementById("qmdict-word-audio-retry");
+    const qmdictReloadState = document.getElementById("qmdict-reload-state");
+    const serverDataManifestRefresh = document.getElementById("server-data-manifest-refresh");
+    const serverDataManifestState = document.getElementById("server-data-manifest-state");
+    const qmdictAudioProgress = document.getElementById("qmdict-audio-progress");
+    const qmdictAudioProgressFill = document.getElementById("qmdict-audio-progress-fill");
+    const qmdictAudioProgressCopy = document.getElementById("qmdict-audio-progress-copy");
+    const cloudflareHostnameInput = document.getElementById("cloudflare-hostname-input");
+    const cloudflareTunnelNameInput = document.getElementById("cloudflare-tunnel-name-input");
+    const hostedClientSecretInput = document.getElementById("hosted-client-secret-input");
+    const settingsSave = document.getElementById("settings-save");
+    const settingsState = document.getElementById("settings-state");
+    const tabMain = document.getElementById("tab-main");
+    const tabUsers = document.getElementById("tab-users");
+    const tabLoginLog = document.getElementById("tab-login-log");
+  const tabLearningLog = document.getElementById("tab-learning-log");
+  const tabAdmins = document.getElementById("tab-admins");
+  const tabPasswordReset = document.getElementById("tab-password-reset");
+  const tabSecurity = document.getElementById("tab-security");
+  const tabEmailRouting = document.getElementById("tab-email-routing");
+    const tabWorkers = document.getElementById("tab-workers");
+    const tabRewards = document.getElementById("tab-rewards");
+    const tabQmCity = document.getElementById("tab-qm-city");
+    const tabQmCityNpc = document.getElementById("tab-qm-city-npc");
+    const tabQmCityLevels = document.getElementById("tab-qm-city-levels");
+    const panelMain = document.getElementById("panel-main");
+    const panelUsers = document.getElementById("panel-users");
+    const panelLoginLog = document.getElementById("panel-login-log");
+  const panelLearningLog = document.getElementById("panel-learning-log");
+  const panelAdmins = document.getElementById("panel-admins");
+  const panelPasswordReset = document.getElementById("panel-password-reset");
+  const panelSecurity = document.getElementById("panel-security");
+  const panelEmailRouting = document.getElementById("panel-email-routing");
+    const panelWorkers = document.getElementById("panel-workers");
+    const panelRewards = document.getElementById("panel-rewards");
+    const panelQmCity = document.getElementById("panel-qm-city");
+    const panelQmCityNpc = document.getElementById("panel-qm-city-npc");
+    const panelQmCityLevels = document.getElementById("panel-qm-city-levels");
+    const qmCityMinEnglishInput = document.getElementById("qm-city-min-english-input");
+    const qmCityInvalidRunInput = document.getElementById("qm-city-invalid-run-input");
+    const qmCitySkinsInput = document.getElementById("qm-city-skins-input");
+    const qmCitySave = document.getElementById("qm-city-save");
+    const qmCityState = document.getElementById("qm-city-state");
+    const qmCityNpcEnabledToggle = document.getElementById("qm-city-npc-enabled-toggle");
+    const qmCityNpcMixToggle = document.getElementById("qm-city-npc-mix-toggle");
+    const qmCityNpcSpawnChanceInput = document.getElementById("qm-city-npc-spawn-chance-input");
+    const qmCityNpcMinActiveInput = document.getElementById("qm-city-npc-min-active-input");
+    const qmCityNpcMaxActiveInput = document.getElementById("qm-city-npc-max-active-input");
+    const qmCityNpcOnlineMinInput = document.getElementById("qm-city-npc-online-min-input");
+    const qmCityNpcOnlineMaxInput = document.getElementById("qm-city-npc-online-max-input");
+    const qmCityNpcAnswerInput = document.getElementById("qm-city-npc-answer-input");
+    const qmCityNpcStealInput = document.getElementById("qm-city-npc-steal-input");
+    const qmCityNpcInviteInput = document.getElementById("qm-city-npc-invite-input");
+    const qmCityNpcInviteMinInput = document.getElementById("qm-city-npc-invite-min-input");
+    const qmCityNpcInviteMaxInput = document.getElementById("qm-city-npc-invite-max-input");
+    const qmCityNpcSave = document.getElementById("qm-city-npc-save");
+    const qmCityNpcState = document.getElementById("qm-city-npc-state");
+    const qmCityLevelList = document.getElementById("qm-city-level-list");
+    const qmCityLevelAdd = document.getElementById("qm-city-level-add");
+    const qmCityLevelSave = document.getElementById("qm-city-level-save");
+    const qmCityLevelState = document.getElementById("qm-city-level-state");
+    const rewardSettingsGrid = document.getElementById("reward-settings-grid");
+    const rewardSettingsSave = document.getElementById("reward-settings-save");
+    const leaderboardResetDay = document.getElementById("leaderboard-reset-day");
+    const leaderboardResetWeek = document.getElementById("leaderboard-reset-week");
+    const leaderboardResetMonth = document.getElementById("leaderboard-reset-month");
+    const spaceLeaderboardResetTodayTest = document.getElementById("space-leaderboard-reset-today-test");
+    const rewardSettingsState = document.getElementById("reward-settings-state");
+    const loginLogDate = document.getElementById("login-log-date");
+    const loginLogSearch = document.getElementById("login-log-search");
+    const loginLogRefresh = document.getElementById("login-log-refresh");
+    const loginLogList = document.getElementById("login-log-list");
+    const learningLogDate = document.getElementById("learning-log-date");
+    const learningLogSearch = document.getElementById("learning-log-search");
+  const learningLogRefresh = document.getElementById("learning-log-refresh");
+  const learningLogList = document.getElementById("learning-log-list");
+  const adminUserList = document.getElementById("admin-user-list");
+  const adminUserSearch = document.getElementById("admin-user-search");
+  const emailRoutingDomainInput = document.getElementById("email-routing-domain-input");
+    const emailRoutingCurrentAddress = document.getElementById("email-routing-current-address");
+    const emailRoutingRandom = document.getElementById("email-routing-random");
+    const emailRoutingCopy = document.getElementById("email-routing-copy");
+    const emailRoutingDefaultDestinationInput = document.getElementById("email-routing-default-destination-input");
+    const emailRoutingAccountIdInput = document.getElementById("email-routing-account-id-input");
+    const emailRoutingZoneIdInput = document.getElementById("email-routing-zone-id-input");
+    const emailRoutingApiTokenInput = document.getElementById("email-routing-api-token-input");
+    const emailRoutingInboundSecretInput = document.getElementById("email-routing-inbound-secret-input");
+    const emailRoutingSave = document.getElementById("email-routing-save");
+    const emailRoutingVerifyDestination = document.getElementById("email-routing-verify-destination");
+    const emailRoutingRegenerateSecret = document.getElementById("email-routing-regenerate-secret");
+    const emailRoutingRefresh = document.getElementById("email-routing-refresh");
+    const emailRoutingWorker = document.getElementById("email-routing-worker");
+    const emailRoutingOpenFull = document.getElementById("email-routing-open-full");
+    const emailRoutingState = document.getElementById("email-routing-state");
+    const emailRoutingAliasInput = document.getElementById("email-routing-alias-input");
+    const emailRoutingAliasDestinationInput = document.getElementById("email-routing-alias-destination-input");
+    const emailRoutingAliasNameInput = document.getElementById("email-routing-alias-name-input");
+    const emailRoutingCreateAlias = document.getElementById("email-routing-create-alias");
+    const emailRoutingCreateRoute = document.getElementById("email-routing-create-route");
+    const emailRoutingAddressHistory = document.getElementById("email-routing-address-history");
+    const emailRoutingAddressHistoryPanel = document.getElementById("email-routing-address-history-panel");
+    const emailRoutingAddressSearch = document.getElementById("email-routing-address-search");
+    const emailRoutingReceivedAddressList = document.getElementById("email-routing-received-address-list");
+    const emailRoutingAliasList = document.getElementById("email-routing-alias-list");
+    const emailRoutingMessageCount = document.getElementById("email-routing-message-count");
+    const emailRoutingMessageList = document.getElementById("email-routing-message-list");
+    const emailRoutingReaderBack = document.getElementById("email-routing-reader-back");
+    const emailRoutingReaderSubject = document.getElementById("email-routing-reader-subject");
+    const emailRoutingReaderSender = document.getElementById("email-routing-reader-sender");
+    const emailRoutingReaderTime = document.getElementById("email-routing-reader-time");
+    const emailRoutingReaderCode = document.getElementById("email-routing-reader-code");
+    const emailRoutingReaderBody = document.getElementById("email-routing-reader-body");
+    const distributedWorkerCopyCommand = document.getElementById("distributed-worker-copy-command");
+    const distributedWorkerState = document.getElementById("distributed-worker-state");
+    const distributedWorkerCommand = document.getElementById("distributed-worker-command");
+    const distributedWorkerList = document.getElementById("distributed-worker-list");
+    const distributedWorkerLimitTranslate = document.getElementById("distributed-worker-limit-translate");
+    const distributedWorkerLimitTts = document.getElementById("distributed-worker-limit-tts");
+    const distributedWorkerLimitStt = document.getElementById("distributed-worker-limit-stt");
+    const distributedWorkerLimitGemini = document.getElementById("distributed-worker-limit-gemini");
+    const distributedWorkerLimitPhonemize = document.getElementById("distributed-worker-limit-phonemize");
+    const distributedWorkerMachineLimit = document.getElementById("distributed-worker-machine-limit");
+    const distributedWorkerLimitSave = document.getElementById("distributed-worker-limit-save");
+    const distributedWorkerLogToggle = document.getElementById("distributed-worker-log-toggle");
+    const distributedWorkerLogList = document.getElementById("distributed-worker-log-list");
+  if (distributedWorkerList) distributedWorkerList.classList.add("worker-list");
+  const tabChatBadge = document.getElementById("tab-chat-badge");
+  const tabPasswordResetBadge = document.getElementById("tab-password-reset-badge");
+  const tabSecurityBadge = document.getElementById("tab-security-badge");
+  const onlineUsersNode = document.getElementById("online-users");
+    const adminChatModal = document.getElementById("admin-chat-modal");
+    const adminChatTitle = document.getElementById("admin-chat-title");
+    const adminChatClose = document.getElementById("admin-chat-close");
+    const adminChatLog = document.getElementById("admin-chat-log");
+    const adminChatInput = document.getElementById("admin-chat-input");
+    const adminChatSend = document.getElementById("admin-chat-send");
+    const adminChatTranslate = document.getElementById("admin-chat-translate");
+    const adminChatAttach = document.getElementById("admin-chat-attach");
+    const adminChatMic = document.getElementById("admin-chat-mic");
+    const adminChatSpeechMode = document.getElementById("admin-chat-speech-mode");
+    const adminChatTextMic = document.getElementById("admin-chat-text-mic");
+    const adminChatVoiceSend = document.getElementById("admin-chat-voice-send");
+    const adminChatVoiceCancel = document.getElementById("admin-chat-voice-cancel");
+    const adminChatFile = document.getElementById("admin-chat-file");
+    const adminChatVoiceState = document.getElementById("admin-chat-voice-state");
+    const adminChatViVoice = document.getElementById("admin-chat-vi-voice");
+    const adminChatViAudioToggle = document.getElementById("admin-chat-vi-audio-toggle");
+    const adminChatEnInput = document.getElementById("admin-chat-en-input");
+    const adminChatEnVoice = document.getElementById("admin-chat-en-voice");
+    const adminChatEnAudioToggle = document.getElementById("admin-chat-en-audio-toggle");
+    const adminChatEnSend = document.getElementById("admin-chat-en-send");
+    const adminImageViewer = document.getElementById("admin-image-viewer");
+    const adminImageViewerImg = document.getElementById("admin-image-viewer-img");
+    const adminImageClose = document.getElementById("admin-image-close");
+    const adminImageDownload = document.getElementById("admin-image-download");
+    const adminImageZoomOut = document.getElementById("admin-image-zoom-out");
+    const adminImageZoomReset = document.getElementById("admin-image-zoom-reset");
+    const adminImageZoomIn = document.getElementById("admin-image-zoom-in");
+    const adminScreenModal = document.getElementById("admin-screen-modal");
+    const adminScreenCard = document.getElementById("admin-screen-card");
+    const adminScreenTitle = document.getElementById("admin-screen-title");
+    const adminScreenClose = document.getElementById("admin-screen-close");
+    const adminScreenFullscreen = document.getElementById("admin-screen-fullscreen");
+    const adminScreenMic = document.getElementById("admin-screen-mic");
+    const adminScreenView = document.getElementById("admin-screen-view");
+    const adminScreenVideo = document.getElementById("admin-screen-video");
+    const adminScreenImg = document.getElementById("admin-screen-img");
+    const adminScreenStatus = document.getElementById("admin-screen-status");
+    const adminPaintModal = document.getElementById("admin-paint-modal");
+    const adminPaintCard = document.getElementById("admin-paint-card");
+    const adminPaintTitle = document.getElementById("admin-paint-title");
+    const adminPaintClose = document.getElementById("admin-paint-close");
+    const adminPaintCanvas = document.getElementById("admin-paint-canvas");
+    const adminPaintModeButtons = Array.from(document.querySelectorAll("[data-admin-paint-mode]"));
+    const adminPaintClear = document.getElementById("admin-paint-clear");
+    const adminPaintImage = document.getElementById("admin-paint-image");
+    const adminPaintPaste = document.getElementById("admin-paint-paste");
+    const adminPaintDelete = document.getElementById("admin-paint-delete");
+    const adminPaintZoomOut = document.getElementById("admin-paint-zoom-out");
+    const adminPaintZoomIn = document.getElementById("admin-paint-zoom-in");
+    const adminPaintZoomLabel = document.getElementById("admin-paint-zoom-label");
+    const adminPaintFullscreen = document.getElementById("admin-paint-fullscreen");
+    const adminPaintTab = document.getElementById("admin-paint-tab");
+    const adminPaintImageFile = document.getElementById("admin-paint-image-file");
+    const adminPaintColor = document.getElementById("admin-paint-color");
+    const adminPaintSize = document.getElementById("admin-paint-size");
+    const adminPaintText = document.getElementById("admin-paint-text");
+    const adminPaintStatus = document.getElementById("admin-paint-status");
+    let adminChatState = {{ users: [], online_count: 0 }};
+    let adminChatUser = "";
+    const adminClearChatArmed = new Map();
+    let adminTranslateEnabled = false;
+    let adminTranslateTimer = 0;
+    let adminChatViAudioEnabled = localStorage.getItem("future_admin_chat_vi_audio") !== "0";
+    let adminChatEnAudioEnabled = localStorage.getItem("future_admin_chat_en_audio") !== "0";
+    let adminChatVoices = {{ vi: [], en: [] }};
+    const adminChatPlayedAudioIds = new Set();
+    let adminChatRenderedUser = "";
+    let adminChatRenderedSignature = "";
+    let adminChatRecorder = null;
+    let adminChatRecordStream = null;
+    let adminChatRecordChunks = [];
+    let adminChatRecordBlob = null;
+    let adminChatRecordInput = null;
+    let adminChatRecordStartedAt = 0;
+    let adminChatRecordTimer = 0;
+    let adminChatRecordCanceled = false;
+    let adminChatTextRecognition = null;
+    let adminChatTextInput = null;
+    let adminChatTextBaseValue = "";
+    let adminChatTextFinalText = "";
+    let adminChatTextInterimText = "";
+    let adminChatTextStartedAt = 0;
+    let adminChatTextTimer = 0;
+    const adminScreenPreviewCache = new Map();
+    let adminStreamSession = null;
+    let adminStreamUser = "";
+    let adminStreamRecorder = null;
+    let adminStreamMedia = null;
+    let adminStreamSegmentTimer = 0;
+    let adminStreamRecordChunks = [];
+    let adminStreamLastChunkId = 0;
+    let adminStreamAudioChain = Promise.resolve();
+    let adminStreamAudioQueue = [];
+    let adminStreamAudioPlaying = false;
+    let adminStreamCurrentAudio = null;
+    let adminStreamRelayMediaSource = null;
+    let adminStreamRelaySourceBuffer = null;
+    let adminStreamRelayObjectUrl = "";
+    let adminStreamRelayPendingBuffers = [];
+    let adminStreamRelayMime = "";
+    let adminStreamRelayOpening = false;
+    let adminStreamRelayDropped = 0;
+    let adminStreamAudioUnlocked = false;
+    let adminStreamChunkPolling = false;
+    let adminStreamPeer = null;
+    let adminStreamRemoteAudio = null;
+    let adminStreamInboundStream = null;
+    let adminStreamInboundTrack = null;
+    let adminStreamRemoteCandidateId = 0;
+    let adminStreamOfferSent = false;
+    let adminStreamAnswerSet = false;
+    let adminStreamPeerStartedAt = 0;
+    let adminScreenUser = "";
+    let adminScreenSession = null;
+    let adminScreenFrameId = 0;
+    let adminScreenFrameSeenAt = 0;
+    let adminScreenPollTimer = 0;
+    let adminScreenPeer = null;
+    let adminScreenRemoteCandidateId = 0;
+    let adminScreenOfferSent = false;
+    let adminScreenAnswerSet = false;
+    let adminScreenPeerStartedAt = 0;
+    let adminScreenControlChannel = null;
+    let adminScreenControlQueue = [];
+    let adminScreenControlTimer = 0;
+    let adminScreenControlSending = false;
+    let adminScreenControlLastSentAt = 0;
+    let adminScreenPointerDown = null;
+    let adminPaintUser = "";
+    let adminPaintRevision = 0;
+    let adminPaintMode = "pen";
+    let adminPaintPointer = null;
+    let adminPaintPollTimer = 0;
+    let adminPaintPollInFlight = false;
+    let adminPaintLastRemoteCursorAt = 0;
+    let adminPaintLastPollChangedAt = 0;
+    let adminPaintSendTimer = 0;
+    let adminPaintCursorTimer = 0;
+    let adminPaintCursorSending = false;
+    let adminPaintLastCursorSentAt = 0;
+    let adminPaintLocalCursor = null;
+    let adminPaintRemoteCursor = null;
+    let adminPaintRemoteCursorNode = null;
+    let adminPaintApplyingRemote = false;
+    let adminPaintSending = false;
+    let adminPaintBufferCanvas = null;
+    let adminPaintSelection = null;
+    let adminPaintTextEditor = null;
+    let adminPaintZoom = 1;
+    const adminPaintAutoUser = new URLSearchParams(window.location.search || "").get("paint_user") || "";
+    const ADMIN_PAINT_BOARD_WIDTH = 1200;
+    const ADMIN_PAINT_BOARD_HEIGHT = 720;
+    const adminImageViewerState = {{
+      zoom: 1,
+      x: 0,
+      y: 0,
+      dragging: false,
+      pointerId: 0,
+      startX: 0,
+      startY: 0,
+      originX: 0,
+      originY: 0,
+    }};
+    let dashboardSession = "";
+    try {{
+      dashboardSession = sessionStorage.getItem("future-dashboard-session") || "";
+    }} catch (error) {{
+    }}
+    if (!dashboardSession) {{
+      dashboardSession = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${{Date.now()}}-${{Math.random().toString(16).slice(2)}}`;
+      try {{
+        sessionStorage.setItem("future-dashboard-session", dashboardSession);
+      }} catch (error) {{
+      }}
+    }}
+    const DASHBOARD_VISIBLE_POLL_MS = 30000;
+    const DASHBOARD_HIDDEN_POLL_MS = 600000;
+    const DASHBOARD_FOCUS_MIN_REQUEST_MS = 30000;
+    const dashboardPollIsFocused = () => Boolean(!document.hidden && (!document.hasFocus || document.hasFocus()));
+    const dashboardBasePollDelay = () => dashboardPollIsFocused() ? DASHBOARD_VISIBLE_POLL_MS : DASHBOARD_HIDDEN_POLL_MS;
+    let dashboardPingTimer = 0;
+    let dashboardPingControl = null;
+    let dashboardClosedSignalSent = false;
+    let dashboardRetired = false;
+    const closeRetiredDashboard = (reason) => {{
+      if (dashboardRetired) return;
+      dashboardRetired = true;
+      if (dashboardPingControl && typeof dashboardPingControl.stop === "function") dashboardPingControl.stop();
+      if (dashboardPingTimer) window.clearTimeout(dashboardPingTimer);
+      if (messageNode) {{
+        messageNode.textContent = reason || "Closing old dashboard session...";
+      }}
+      try {{
+        window.close();
+      }} catch (error) {{
+      }}
+      window.setTimeout(() => {{
+        try {{
+          location.replace("about:blank");
+        }} catch (error) {{
+        }}
+      }}, 350);
+    }};
+    const handleDashboardControlPayload = (payload) => {{
+      if (!payload || typeof payload !== "object") return;
+      const activeSession = String(payload.dashboard_session || "");
+      if (payload.close_dashboard && activeSession && activeSession !== dashboardSession) {{
+        closeRetiredDashboard("Closing old dashboard session...");
+      }}
+    }};
+    window.addEventListener("storage", (event) => {{
+      if (event.key !== "future-dashboard-control" || !event.newValue) return;
+      try {{
+        const payload = JSON.parse(event.newValue);
+        if (payload && payload.type === "close-old-dashboards" && payload.keep && payload.keep !== dashboardSession) {{
+          closeRetiredDashboard("Closing old dashboard session...");
+        }}
+      }} catch (error) {{
+      }}
+    }});
+    const broadcastDashboardControl = (payload) => {{
+      try {{
+        localStorage.setItem("future-dashboard-control", JSON.stringify({{ ...payload, at: Date.now() }}));
+        localStorage.removeItem("future-dashboard-control");
+      }} catch (error) {{
+      }}
+    }};
+    const dashboardSignal = (action) => {{
+      const payload = JSON.stringify({{ session: dashboardSession, action }});
+      if (action === "close") {{
+        if (dashboardClosedSignalSent) return;
+        dashboardClosedSignalSent = true;
+        try {{
+          if (navigator.sendBeacon) {{
+            const blob = new Blob([payload], {{ type: "application/json" }});
+            navigator.sendBeacon("/dashboard/close", blob);
+            return;
+          }}
+        }} catch (error) {{
+        }}
+      }}
+      return fetch(`/dashboard/${{action}}`, {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: payload,
+        keepalive: action === "close",
+      }})
+        .then((response) => response.json().catch(() => ({{}})))
+        .then(handleDashboardControlPayload)
+        .catch(() => {{}});
+    }};
+    dashboardSignal("open");
+    let dashboardCloseSent = false;
+    window.addEventListener("pagehide", () => {{
+      if (dashboardPingControl && typeof dashboardPingControl.stop === "function") dashboardPingControl.stop();
+      window.clearTimeout(dashboardPingTimer);
+      if (!dashboardCloseSent) {{
+        dashboardCloseSent = true;
+        dashboardSignal("close");
+      }}
+    }});
+    if (killOtherServersButton) {{
+      killOtherServersButton.addEventListener("click", async () => {{
+        if (!window.confirm("Kill every other Future server process and its child dashboard windows? Current dashboard stays open.")) {{
+          return;
+        }}
+        killOtherServersButton.disabled = true;
+        const previousLabel = killOtherServersButton.textContent;
+        killOtherServersButton.textContent = "Killing...";
+        setTextIfChanged(messageNode, "Killing old Future server processes...");
+        try {{
+          const response = await fetch("/dashboard/kill-other-servers", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ session: dashboardSession }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not kill old Future servers.");
+          }}
+          broadcastDashboardControl({{ type: "close-old-dashboards", keep: dashboardSession }});
+          const killed = Array.isArray(payload.killed) ? payload.killed : [];
+          const failed = Array.isArray(payload.failed) ? payload.failed : [];
+          const stale = Array.isArray(payload.stale_pid_files) ? payload.stale_pid_files : [];
+          const killedPids = killed.map((row) => row && row.pid).filter(Boolean).join(", ");
+          const failedPids = failed.map((row) => row && row.pid).filter(Boolean).join(", ");
+          const stalePids = stale.map((row) => row && row.pid).filter(Boolean).join(", ");
+          const text = killed.length
+            ? `Killed old Future server PID${{killed.length > 1 ? "s" : ""}}: ${{killedPids}}${{failed.length ? ` | failed: ${{failedPids}}` : ""}}`
+            : (failed.length ? `No server killed. Failed: ${{failedPids}}` : (stale.length ? `No running old server found. Cleared stale PID${{stale.length > 1 ? "s" : ""}}: ${{stalePids}}` : "No old Future server process found."));
+          setTextIfChanged(messageNode, text);
+        }} catch (error) {{
+          setTextIfChanged(messageNode, String(error && error.message ? error.message : error));
+        }} finally {{
+          killOtherServersButton.disabled = false;
+          killOtherServersButton.textContent = previousLabel || "Kill old Future servers";
+        }}
+      }});
+    }}
+    if (cleanCloseAllRuntimeButton) {{
+      cleanCloseAllRuntimeButton.addEventListener("click", async () => {{
+        if (!window.confirm("Close Future Server 2 and Cloudflare Tunnel now? Persistent STT/voice workers will stay running for the next server.")) {{
+          return;
+        }}
+        cleanCloseAllRuntimeButton.disabled = true;
+        const previousLabel = cleanCloseAllRuntimeButton.textContent;
+        cleanCloseAllRuntimeButton.textContent = "Closing...";
+        setTextIfChanged(messageNode, "Closing Future server and Cloudflare Tunnel...");
+        try {{
+          const response = await fetch("/dashboard/clean-close-all", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ session: dashboardSession }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not close all Future runtime processes.");
+          }}
+          const targets = Array.isArray(payload.targets) ? payload.targets : [];
+          const pids = targets.map((row) => row && row.pid).filter(Boolean).join(", ");
+          setTextIfChanged(messageNode, pids ? `Close accepted. Closing server/tunnel PID(s): ${{pids}}` : "Close accepted. Server will exit now.");
+          broadcastDashboardControl({{ type: "close-old-dashboards", keep: "" }});
+        }} catch (error) {{
+          setTextIfChanged(messageNode, String(error && error.message ? error.message : error));
+          cleanCloseAllRuntimeButton.disabled = false;
+          cleanCloseAllRuntimeButton.textContent = previousLabel || "Close server + tunnel";
+        }}
+      }});
+    }}
+    if (frontendUpdateClientsButton) {{
+      frontendUpdateClientsButton.addEventListener("click", async () => {{
+        frontendUpdateClientsButton.disabled = true;
+        const previousLabel = frontendUpdateClientsButton.textContent;
+        frontendUpdateClientsButton.textContent = "Updating...";
+        setTextIfChanged(messageNode, "Broadcasting client reload request...");
+        try {{
+          const response = await fetch("/frontend-version/bump", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ reason: "dashboard_update" }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not update connected clients.");
+          }}
+          setTextIfChanged(messageNode, `Client reload token updated: ${{payload.token || "ok"}}`);
+        }} catch (error) {{
+          setTextIfChanged(messageNode, String(error && error.message ? error.message : error));
+        }} finally {{
+          frontendUpdateClientsButton.disabled = false;
+          frontendUpdateClientsButton.textContent = previousLabel || "Update clients";
+        }}
+      }});
+    }}
+    if (closeServerButton) {{
+      closeServerButton.addEventListener("click", async () => {{
+        if (!window.confirm("Close this Future server and disconnect every connected client?")) {{
+          return;
+        }}
+        closeServerButton.disabled = true;
+        if (killOtherServersButton) killOtherServersButton.disabled = true;
+        if (frontendUpdateClientsButton) frontendUpdateClientsButton.disabled = true;
+        const previousLabel = closeServerButton.textContent;
+        closeServerButton.textContent = "Closing...";
+        setTextIfChanged(messageNode, "Requesting Future server shutdown...");
+        if (dashboardPingControl && typeof dashboardPingControl.stop === "function") dashboardPingControl.stop();
+        window.clearTimeout(dashboardPingTimer);
+        dashboardCloseSent = true;
+        try {{
+          const response = await fetch("/dashboard/shutdown", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ session: dashboardSession }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not close the Future server.");
+          }}
+          setTextIfChanged(messageNode, "Server shutdown requested. This dashboard will disconnect in a moment.");
+        }} catch (error) {{
+          setTextIfChanged(messageNode, String(error && error.message ? error.message : error));
+          dashboardCloseSent = false;
+          if (killOtherServersButton) killOtherServersButton.disabled = false;
+          if (frontendUpdateClientsButton) frontendUpdateClientsButton.disabled = false;
+          closeServerButton.disabled = false;
+          closeServerButton.textContent = previousLabel || "Close server";
+          return;
+        }}
+        window.setTimeout(() => {{
+          try {{
+            window.close();
+          }} catch (error) {{
+          }}
+        }}, 120);
+      }});
+    }}
+    endpointNode.textContent = `${{location.origin}}/transcribe`;
+    const fmt = (seconds) => {{
+      const value = Math.max(0, Math.floor(seconds || 0));
+      const m = Math.floor(value / 60);
+      const s = value % 60;
+      return m ? `${{m}}m ${{s}}s` : `${{s}}s`;
+    }};
+    const setTextIfChanged = (node, value) => {{
+      if (!node) return;
+      const text = String(value ?? "");
+      if (node.textContent !== text) node.textContent = text;
+    }};
+    const dashboardUserColorForKey = (key = "") => {{
+      const source = String(key || "").trim().toLowerCase();
+      const palette = ["#7dd3fc", "#86efac", "#facc15", "#f0abfc", "#fb7185", "#38bdf8", "#a7f3d0", "#fdba74", "#c4b5fd", "#5eead4"];
+      if (!source || source === "-") return "#e5e7eb";
+      if (source === "server") return "#f8fafc";
+      let hash = 0;
+      for (let index = 0; index < source.length; index += 1) hash = ((hash * 33) + source.charCodeAt(index)) >>> 0;
+      return palette[hash % palette.length];
+    }};
+    const colorDashboardUserNode = (node, key = "") => {{
+      if (!node) return;
+      node.style.color = dashboardUserColorForKey(key);
+    }};
+    const WORKER_LOG_VISIBLE_KEY = "future-dashboard-worker-log-visible";
+    let distributedWorkerLogsVisible = localStorage.getItem(WORKER_LOG_VISIBLE_KEY) !== "0";
+    // Added 2026-07-15: keeps the server console worker-poll filter synced with the dashboard toggle.
+    const syncDistributedWorkerLogVisibility = (visible) => {{
+      fetch("/dashboard/worker-log-visibility", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{ visible: !!visible }}),
+      }}).catch(() => {{}});
+    }};
+    const renderDistributedWorkerLogToggle = () => {{
+      if (distributedWorkerLogToggle) {{
+        setTextIfChanged(distributedWorkerLogToggle, distributedWorkerLogsVisible ? "Hide worker logs" : "Show worker logs");
+        distributedWorkerLogToggle.setAttribute("aria-pressed", distributedWorkerLogsVisible ? "true" : "false");
+      }}
+      if (distributedWorkerLogList) {{
+        distributedWorkerLogList.hidden = !distributedWorkerLogsVisible;
+      }}
+    }};
+    if (distributedWorkerLogToggle) {{
+      distributedWorkerLogToggle.addEventListener("click", () => {{
+        distributedWorkerLogsVisible = !distributedWorkerLogsVisible;
+        localStorage.setItem(WORKER_LOG_VISIBLE_KEY, distributedWorkerLogsVisible ? "1" : "0");
+        renderDistributedWorkerLogToggle();
+        syncDistributedWorkerLogVisibility(distributedWorkerLogsVisible);
+      }});
+      renderDistributedWorkerLogToggle();
+      syncDistributedWorkerLogVisibility(distributedWorkerLogsVisible);
+    }}
+    let dashboardStatusSignature = "";
+    const dashboardOpenedAt = Date.now();
+    const updateDashboardFreshness = () => {{
+      if (!dashboardFreshnessNode) return;
+      const elapsed = Math.max(0, Math.floor((Date.now() - dashboardOpenedAt) / 1000));
+      const remaining = Math.max(0, 60 - elapsed);
+      const isNew = remaining > 0;
+      const nextText = isNew ? `NEW | ${{remaining}}s` : "OLD";
+      dashboardFreshnessNode.classList.toggle("is-old", !isNew);
+      setTextIfChanged(dashboardFreshnessNode, nextText);
+      dashboardFreshnessNode.title = isNew
+        ? `Dashboard opened recently. NEW for ${{remaining}} second${{remaining === 1 ? "" : "s"}}.`
+        : "Dashboard has been open for more than one minute.";
+    }};
+    updateDashboardFreshness();
+    window.setInterval(updateDashboardFreshness, 1000);
+    const setDashboardStatus = (label, classes = []) => {{
+      if (!statusNode) return;
+      const cleanClasses = Array.isArray(classes) ? classes.filter(Boolean) : [];
+      const signature = `${{label}}|${{cleanClasses.join(" ")}}`;
+      if (dashboardStatusSignature === signature) return;
+      dashboardStatusSignature = signature;
+      statusNode.className = `pill ${{cleanClasses.join(" ")}}`.trim();
+      statusNode.innerHTML = `<span class="pulse"></span>${{label}}`;
+    }};
+    const renderDashboardWarmLog = (state = {{}}) => {{
+      if (!dashboardWarmLogNode) return;
+      const ready = Boolean(state.warm_ready);
+      const status = String(state.warm_status || (ready ? "Warm ready" : "Warm queue running...")).trim();
+      dashboardWarmLogNode.classList.toggle("is-ready", ready);
+      setTextIfChanged(dashboardWarmLogNode, ready ? "Warm ready" : status);
+      dashboardWarmLogNode.title = ready
+        ? "Background warm tasks are ready."
+        : status;
+    }};
+    const normalizeWorkerJobLimits = (value = {{}}) => {{
+      const source = value && typeof value === "object" ? value : {{}};
+      const limit = (key, fallback) => {{
+        const number = Math.round(Number(source[key]));
+        return Number.isFinite(number) ? Math.max(0, Math.min(64, number)) : fallback;
+      }};
+      return {{
+        translate: limit("translate", 4),
+        tts: limit("tts", 4),
+        stt: limit("stt", 4),
+        gemini: limit("gemini", 4),
+        phonemize: limit("phonemize", 8),
+      }};
+    }};
+    const renderWorkerJobLimitInputs = (limits = {{}}) => {{
+      const normalized = normalizeWorkerJobLimits(limits);
+      const pairs = [
+        [distributedWorkerLimitTranslate, normalized.translate],
+        [distributedWorkerLimitTts, normalized.tts],
+        [distributedWorkerLimitStt, normalized.stt],
+        [distributedWorkerLimitGemini, normalized.gemini],
+        [distributedWorkerLimitPhonemize, normalized.phonemize],
+      ];
+      pairs.forEach(([input, value]) => {{
+        if (input && document.activeElement !== input) input.value = String(value);
+      }});
+    }};
+    const normalizeWorkerMachineLimit = (value) => {{
+      const number = Math.round(Number(value));
+      return Number.isFinite(number) ? Math.max(1, Math.min(32, number)) : 1;
+    }};
+    const renderWorkerMachineLimitInput = (value) => {{
+      if (distributedWorkerMachineLimit && document.activeElement !== distributedWorkerMachineLimit) {{
+        distributedWorkerMachineLimit.value = String(normalizeWorkerMachineLimit(value));
+      }}
+    }};
+    const renderDistributedWorkers = (payload = {{}}) => {{
+      if (!distributedWorkerList) return;
+      const workers = Array.isArray(payload.workers) ? payload.workers : [];
+      const logs = Array.isArray(payload.logs) ? payload.logs : [];
+      const stats = payload.stats || {{}};
+      const limits = normalizeWorkerJobLimits(payload.job_limits || {{}});
+      const machineLimit = normalizeWorkerMachineLimit(payload.machine_limit);
+      const activeByKind = payload.active_by_kind || {{}};
+      const command = String(payload.command || "");
+      renderWorkerJobLimitInputs(limits);
+      renderWorkerMachineLimitInput(machineLimit);
+      if (distributedWorkerCommand) setTextIfChanged(distributedWorkerCommand, command || "Open dashboard on the server machine to see the tokenized command.");
+      if (distributedWorkerState) {{
+        const online = Number(payload.online || 0);
+        const queued = Number(payload.queued || 0);
+        const claimed = Number(payload.claimed || 0);
+        const laneText = `T ${{Number(activeByKind.translate || 0)}}/${{limits.translate}} | Voice ${{Number(activeByKind.tts || 0)}}/${{limits.tts}} | STT ${{Number(activeByKind.stt || 0)}}/${{limits.stt}} | Gemini ${{Number(activeByKind.gemini || 0)}}/${{limits.gemini}} | IPA ${{Number(activeByKind.phonemize || 0)}}/${{limits.phonemize}}`;
+        setTextIfChanged(
+          distributedWorkerState,
+          `${{online}} online | max ${{machineLimit}}/machine | ${{queued}} queued | ${{claimed}} running | ${{laneText}} | done ${{Number(stats.completed || 0)}} | failed ${{Number(stats.failed || 0)}} | token ${{payload.token_hint || "ready"}}`
+        );
+      }}
+      distributedWorkerList.textContent = "";
+      if (!workers.length) {{
+        const empty = document.createElement("div");
+        empty.className = "dashboard-log-row worker-row";
+        empty.textContent = "No workers connected. Learners download the worker package from the WORKER button in the user frontend.";
+        distributedWorkerList.appendChild(empty);
+        return;
+      }}
+      const workerKinds = ["translate", "tts", "stt", "gemini", "phonemize"];
+      const workerKindLabel = {{ translate: "T", tts: "Voice", stt: "STT", gemini: "Gemini", phonemize: "IPA" }};
+      const workerLoadText = (active = {{}}, caps = {{}}) => workerKinds
+        .map((kind) => `${{workerKindLabel[kind]}} ${{Array.isArray(active[kind]) ? active[kind].length : 0}}/${{Number(caps[kind] || 0)}}`)
+        .join(" | ");
+      const workerJobText = (active = {{}}) => workerKinds
+        .flatMap((kind) => (Array.isArray(active[kind]) ? active[kind] : []).map((jobId) => `${{workerKindLabel[kind]}}:${{jobId}}`))
+        .join(", ");
+      const groups = new Map();
+      workers.forEach((worker) => {{
+        const machineKey = String(worker.client_ip || worker.name || worker.owner_user || "unknown-machine");
+        const ownerKey = String(worker.owner_user || "");
+        const groupKey = `${{machineKey}}|${{ownerKey}}`;
+        if (!groups.has(groupKey)) {{
+          groups.set(groupKey, {{
+            machine: machineKey,
+            owner: ownerKey,
+            workers: [],
+            active: {{ translate: 0, tts: 0, stt: 0, gemini: 0, phonemize: 0 }},
+            caps: {{ translate: 0, tts: 0, stt: 0, gemini: 0, phonemize: 0 }},
+            completed: 0,
+            failed: 0,
+          }});
+        }}
+        const group = groups.get(groupKey);
+        group.workers.push(worker);
+        const caps = normalizeWorkerJobLimits(worker.max_jobs_by_kind || {{}});
+        const active = worker.active_jobs && typeof worker.active_jobs === "object" ? worker.active_jobs : {{}};
+        workerKinds.forEach((kind) => {{
+          group.active[kind] += Array.isArray(active[kind]) ? active[kind].length : 0;
+          group.caps[kind] += Number(caps[kind] || 0);
+        }});
+        group.completed += Number(worker.completed || 0);
+        group.failed += Number(worker.failed || 0);
+      }});
+      Array.from(groups.values()).sort((a, b) => {{
+        const busyDiff = workerKinds.reduce((sum, kind) => sum + b.active[kind] - a.active[kind], 0);
+        if (busyDiff) return busyDiff;
+        return String(a.machine).localeCompare(String(b.machine));
+      }}).forEach((group) => {{
+        const groupRow = document.createElement("div");
+        groupRow.className = "dashboard-log-row worker-row worker-machine-row";
+        const groupState = document.createElement("div");
+        groupState.className = "dashboard-log-time";
+        const groupBusy = workerKinds.reduce((sum, kind) => sum + group.active[kind], 0);
+        groupState.textContent = groupBusy ? "Active" : "Ready";
+        const groupName = document.createElement("div");
+        groupName.className = "dashboard-log-user";
+        groupName.textContent = `Machine ${{group.machine}}`;
+        colorDashboardUserNode(groupName, group.owner || group.machine);
+        const groupDetail = document.createElement("div");
+        groupDetail.className = "dashboard-log-detail";
+        const owner = group.owner ? `owner ${{group.owner}} | ` : "";
+        groupDetail.textContent = `${{owner}}${{group.workers.length}} worker${{group.workers.length === 1 ? "" : "s"}} | ${{workerLoadText(Object.fromEntries(workerKinds.map((kind) => [kind, Array(group.active[kind]).fill("job")])), group.caps)}} | done ${{group.completed}} / failed ${{group.failed}}`;
+        groupRow.append(groupState, groupName, groupDetail);
+        distributedWorkerList.appendChild(groupRow);
+        group.workers.sort((a, b) => String(a.worker_id || "").localeCompare(String(b.worker_id || ""))).forEach((worker) => {{
+        const row = document.createElement("div");
+        row.className = "dashboard-log-row worker-row worker-instance-row";
+        const at = document.createElement("div");
+        at.className = "dashboard-log-time";
+        at.textContent = worker.busy ? "Busy" : String(worker.status || "offline");
+        const name = document.createElement("div");
+        name.className = "dashboard-log-user";
+        name.textContent = String(worker.name || worker.worker_id || "worker");
+        colorDashboardUserNode(name, worker.owner_user || worker.name || worker.worker_id || "");
+        const detail = document.createElement("div");
+        detail.className = "dashboard-log-detail";
+        const caps = Array.isArray(worker.capabilities) ? worker.capabilities.join(", ") : "";
+        const busyKinds = Array.isArray(worker.busy_kinds) ? worker.busy_kinds.join(",") : "";
+        const maxJobs = normalizeWorkerJobLimits(worker.max_jobs_by_kind || {{}});
+        const active = worker.active_jobs && typeof worker.active_jobs === "object" ? worker.active_jobs : {{}};
+        const laneCaps = workerLoadText(active, maxJobs);
+        const lastSeen = Number(worker.last_seen_seconds || 0);
+        const currentJob = workerJobText(active) || (worker.current_job ? String(worker.current_job) : "");
+        const ip = worker.client_ip ? ` | ${{worker.client_ip}}` : "";
+        const err = worker.last_error ? ` | error: ${{worker.last_error}}` : "";
+        const owner = worker.owner_user ? ` | owner ${{worker.owner_user}}` : "";
+        const jobPart = currentJob ? ` | doing ${{currentJob}}` : "";
+        const features = worker.features && typeof worker.features === "object" ? worker.features : {{}};
+        const kviBase = features.tts_kokoro_vi_cuda ? "Kokoro VI CUDA" : "Kokoro VI";
+        const kvi = features.tts_kokoro_vi
+          ? (features.tts_kokoro_vi_warm ? `${{kviBase}} warm` : `${{kviBase}} ready`)
+          : "Kokoro VI missing";
+        const kviError = !features.tts_kokoro_vi && features.kokoro_vi_error ? ` (${{features.kokoro_vi_error}})` : "";
+        const kviPython = features.kokoro_vi_python ? ` | py ${{features.kokoro_vi_python}}` : "";
+        const ipaWarm = features.phonemize_warm || features.spacy_warm ? ` | IPA ${{features.phonemize_warm ? "phonetic warm" : "phonetic cold"}} / ${{features.spacy_warm ? "spaCy warm" : "spaCy cold"}}` : "";
+        detail.textContent = `${{caps || "no caps"}} | ${{laneCaps}} | ${{kvi}}${{kviError}}${{kviPython}}${{ipaWarm}}${{busyKinds ? ` | busy ${{busyKinds}}` : ""}}${{owner}} | seen ${{lastSeen}}s ago | done ${{Number(worker.completed || 0)}} / failed ${{Number(worker.failed || 0)}}${{jobPart}}${{ip}}${{err}}`;
+        row.append(at, name, detail);
+        distributedWorkerList.appendChild(row);
+        }});
+      }});
+      if (distributedWorkerLogList) {{
+        renderDistributedWorkerLogToggle();
+        if (!distributedWorkerLogsVisible) return;
+        distributedWorkerLogList.textContent = "";
+        if (!logs.length) {{
+          const emptyLog = document.createElement("div");
+          emptyLog.className = "dashboard-log-row";
+          emptyLog.textContent = "No worker logs yet.";
+          distributedWorkerLogList.appendChild(emptyLog);
+        }} else {{
+          logs.slice().reverse().forEach((item) => {{
+            const row = document.createElement("div");
+            row.className = "dashboard-log-row";
+            const at = document.createElement("div");
+            at.className = "dashboard-log-time";
+            at.textContent = String(item.time || "");
+            const name = document.createElement("div");
+            name.className = "dashboard-log-user";
+            name.textContent = String(item.name || item.worker_id || "worker");
+            colorDashboardUserNode(name, item.owner_user || item.name || item.worker_id || "");
+            const detail = document.createElement("div");
+            detail.className = "dashboard-log-detail";
+            const owner = item.owner_user ? `owner ${{item.owner_user}} | ` : "";
+            const ip = item.client_ip ? `${{item.client_ip}} | ` : "";
+            const version = item.version ? `v${{item.version}} | ` : "";
+            const job = item.job_id ? `${{item.kind || "job"}} ${{item.job_id}} | ` : (item.kind ? `${{item.kind}} | ` : "");
+            const error = item.error ? ` | error: ${{String(item.error || "").slice(0, 900)}}` : "";
+            detail.textContent = `${{owner}}${{ip}}${{version}}${{job}}${{String(item.message || "")}}${{error}}`;
+            row.append(at, name, detail);
+            distributedWorkerLogList.appendChild(row);
+          }});
+        }}
+      }}
+    }};
+    const blockSecurityPollIdentity = async (type, identity) => {{
+      if (!type || !identity) return;
+      try {{
+        const response = await fetch("/dashboard/security/block", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ type, identity, minutes: 10 }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not block this poller.");
+        }}
+        if (messageNode) messageNode.textContent = `Blocked ${{type}} ${{identity}} for 10 minutes.`;
+        renderSecurityPoll(payload.security_poll || {{}}, payload.security_alerts || []);
+      }} catch (error) {{
+        if (messageNode) messageNode.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    // Added 2026-07-09: keeps the Security dashboard tab visibly marked only when poll pressure needs attention.
+    const renderSecurityBadge = (payload = {{}}, alerts = []) => {{
+      if (!tabSecurityBadge) return;
+      const alertCount = Array.isArray(alerts) ? alerts.length : 0;
+      const pressureCount = Array.isArray(payload.top) ? payload.top.length : 0;
+      const hasWarning = Boolean(payload.poll_cpu_alert) || alertCount > 0;
+      tabSecurityBadge.textContent = hasWarning ? "!" : String(pressureCount || 0);
+      tabSecurityBadge.classList.toggle("is-empty", !hasWarning && pressureCount <= 0);
+      tabSecurityBadge.title = hasWarning
+        ? `${{alertCount}} security alert(s), poll CPU ${{Number(payload.poll_cpu_percent || 0).toFixed(1)}}%`
+        : "No security warning.";
+    }};
+    const renderSecurityPoll = (payload = {{}}, alerts = []) => {{
+      if (!securityPollList) return;
+      renderSecurityBadge(payload, alerts);
+      securityPollList.textContent = "";
+      const rows = Array.isArray(payload.top) ? payload.top : [];
+      const cpu = Number(payload.poll_cpu_percent || 0) || 0;
+      const total = Number(payload.total_recent || 0) || 0;
+      const header = document.createElement("div");
+      header.className = "dashboard-log-row";
+      const h1 = document.createElement("span");
+      h1.className = "dashboard-log-time";
+      h1.textContent = payload.poll_cpu_alert ? "ALERT" : "OK";
+      const h2 = document.createElement("span");
+      h2.className = "dashboard-log-user";
+      h2.textContent = "poll";
+      const h3 = document.createElement("span");
+      h3.className = "dashboard-log-detail";
+      h3.textContent = `${{payload.poll_cpu_alert ? "Poll CPU high" : "Poll normal"}} | CPU ${{cpu.toFixed(1)}}% | recent ${{total}}`;
+      header.append(h1, h2, h3);
+      securityPollList.appendChild(header);
+      if (!rows.length) {{
+        const empty = document.createElement("div");
+        empty.className = "dashboard-log-row";
+        empty.innerHTML = '<span class="dashboard-log-time">No data</span><span class="dashboard-log-user">-</span><span class="dashboard-log-detail">No active poll pressure.</span>';
+        securityPollList.appendChild(empty);
+      }} else {{
+        rows.forEach((item) => {{
+          const row = document.createElement("div");
+          row.className = "dashboard-log-row worker-row";
+          const at = document.createElement("span");
+          at.className = "dashboard-log-time";
+          at.textContent = item.last_seen || "";
+          const who = document.createElement("span");
+          who.className = "dashboard-log-user";
+          const type = item.identity_type || (item.username ? "user" : "ip");
+          const identity = item.identity || item.username || item.ip || "";
+          who.textContent = `${{type}}:${{identity}}`;
+          const detail = document.createElement("span");
+          detail.className = "dashboard-log-detail";
+          detail.textContent = `${{item.method || ""}} ${{item.path || ""}} | count/min ${{item.count || 0}} | ip ${{item.ip || ""}} `;
+          const button = document.createElement("button");
+          button.className = "pending-action reject";
+          button.type = "button";
+          button.textContent = "Block 10m";
+          button.addEventListener("click", () => blockSecurityPollIdentity(type, identity));
+          detail.appendChild(button);
+          row.append(at, who, detail);
+          securityPollList.appendChild(row);
+        }});
+      }}
+      (Array.isArray(alerts) ? alerts.slice(0, 4) : []).forEach((item) => {{
+        const row = document.createElement("div");
+        row.className = "dashboard-log-row worker-row";
+        const at = document.createElement("span");
+        at.className = "dashboard-log-time";
+        at.textContent = item.last_seen || "";
+        const who = document.createElement("span");
+        who.className = "dashboard-log-user";
+        who.textContent = item.ip || "";
+        const detail = document.createElement("span");
+        detail.className = "dashboard-log-detail";
+        detail.textContent = `${{item.reason || ""}} | ${{item.path || ""}} | blocked hits ${{item.count || 0}}`;
+        row.append(at, who, detail);
+        securityPollList.appendChild(row);
+      }});
+    }};
+    const render = (state) => {{
+      renderDashboardWarmLog(state || {{}});
+      renderDistributedWorkers(state.distributed_workers || {{}});
+      renderSecurityPoll(state.security_poll || {{}}, state.security_alerts || []);
+      setTextIfChanged(modelNode, state.model_name || "small");
+      setTextIfChanged(languageNode, state.language || "en");
+      setTextIfChanged(modelRefNode, state.model_ref || (state.loading ? "Loading model..." : "No model path"));
+      const publicAppUrl = state.public_app_url || "";
+      const tunnelStatus = state.tunnel_status || "not_started";
+      const tunnelError = state.tunnel_error || "";
+      const pending = Number(state.queue_pending || 0);
+      const active = Boolean(state.queue_active);
+      const total = Number(state.queue_total || 0);
+      const completed = Number(state.queue_completed || 0);
+      const failed = Number(state.queue_failed || 0);
+      const timeout = Number(state.queue_timeout || 0);
+      const lastWait = Number(state.queue_last_wait_ms || 0);
+      const lastRun = Number(state.queue_last_process_ms || 0);
+      const activeSeconds = active ? Math.max(0, Math.floor(Date.now() / 1000 - Number(state.queue_active_started_at || 0))) : 0;
+      setTextIfChanged(queueStatusNode, active
+        ? `Running ${{state.queue_active_id || ""}} (${{activeSeconds}}s) | waiting ${{pending}}`
+        : `Idle | waiting ${{pending}} | last wait ${{lastWait}}ms | last run ${{lastRun}}ms`);
+      setTextIfChanged(queueJobsNode, `${{completed}} done / ${{failed}} failed / ${{timeout}} timeout / ${{total}} total`);
+      const workload = state.workload || {{}};
+      const heavyQueues = workload.queues || {{}};
+      const heavyPending = Object.values(heavyQueues).reduce((sum, item) => sum + Number((item && item.pending) || 0), 0);
+      const heavyActive = Object.values(heavyQueues).reduce((sum, item) => sum + Number((item && item.active) || 0), 0);
+      setTextIfChanged(cpuGuardStatusNode, `${{workload.cpu_guard_enabled === false ? "Off" : "On"}} | CPU ${{Number(workload.cpu_percent || 0).toFixed(0)}}% / ${{Number(workload.cpu_queue_threshold || 90)}}% | heavy ${{heavyActive}} active, ${{heavyPending}} wait`);
+      const learning = state.last_learning_event || {{}};
+      setTextIfChanged(learningEventNode, learning.user
+        ? `${{learning.user}} completed ${{learning.file || learning.path || "lesson"}} | user ${{learning.user_count || 1}} time(s) | file ${{learning.total || state.learning_total || 1}} time(s) | ${{learning.at || ""}}`
+        : `Total completions: ${{Number(state.learning_total || 0)}}`);
+      if (publicAppUrl) {{
+        setTextIfChanged(publicUrlNode, publicAppUrl);
+        copyPublicButton.disabled = false;
+      }} else {{
+        setTextIfChanged(publicUrlNode, tunnelStatus === "missing"
+          ? "cloudflared.exe is missing"
+          : tunnelStatus === "restarting" ? "Tunnel is restarting..." : tunnelStatus === "stopped"
+            ? "Tunnel stopped"
+            : "Building Cloudflare Tunnel...");
+        copyPublicButton.disabled = true;
+      }}
+      setTextIfChanged(uptimeNode, fmt(Date.now() / 1000 - Number(state.started_at || 0)));
+      if (state.last_error) {{
+        setDashboardStatus("Error", ["error"]);
+        setTextIfChanged(messageNode, state.last_error);
+      }} else if (tunnelStatus === "restarting") {{
+        setDashboardStatus("Tunnel", ["is-busy"]);
+        setTextIfChanged(messageNode, tunnelError || "Cloudflare Tunnel is retrying automatically. Keep the server window open.");
+      }} else if (tunnelError && !publicAppUrl) {{
+        setDashboardStatus("Online");
+        setTextIfChanged(messageNode, tunnelError);
+      }} else if (active || pending > 0) {{
+        setDashboardStatus("Queue", ["is-busy"]);
+        setTextIfChanged(messageNode, active
+          ? `Voice scoring job ${{state.queue_active_id || ""}} is running. ${{pending}} request(s) waiting.`
+          : `Waiting to process ${{pending}} request(s).`);
+      }} else if (state.ready) {{
+        setDashboardStatus("Ready", ["ready"]);
+        setTextIfChanged(messageNode, "Server is ready to receive audio from the Speak popup.");
+      }} else if (state.loading) {{
+        setDashboardStatus("Loading", ["is-busy"]);
+        setTextIfChanged(messageNode, "Warming the small model in the background. This can take a little time.");
+      }} else {{
+        setDashboardStatus("Online");
+        setTextIfChanged(messageNode, "Server is waiting. The small model will load when the Speak popup sends the first recording.");
+      }}
+    }};
+    copyPublicButton.addEventListener("click", async () => {{
+      const text = publicUrlNode.textContent || "";
+      if (!/^https?:\/\//.test(text)) {{
+        return;
+      }}
+      try {{
+        await navigator.clipboard.writeText(text);
+        copyPublicButton.textContent = "Copied";
+        window.setTimeout(() => copyPublicButton.textContent = "Copy learning link", 1200);
+      }} catch (error) {{
+        window.prompt("Copy this link:", text);
+      }}
+    }});
+    if (distributedWorkerCopyCommand) distributedWorkerCopyCommand.addEventListener("click", async () => {{
+      const text = distributedWorkerCommand ? distributedWorkerCommand.textContent || "" : "";
+      if (!text) return;
+      try {{
+        await navigator.clipboard.writeText(text);
+        distributedWorkerCopyCommand.textContent = "Copied";
+        window.setTimeout(() => distributedWorkerCopyCommand.textContent = "Copy command", 1200);
+      }} catch (error) {{
+        window.prompt("Copy this command:", text);
+      }}
+    }});
+    const noticeFirstUpper = (value) => {{
+      const raw = String(value || "").replace(/\s+/g, " ").trim();
+      if (!raw) return "";
+      const chars = Array.from(raw);
+      for (let index = 0; index < chars.length; index += 1) {{
+        const char = chars[index];
+        if (char.toLocaleLowerCase("vi-VN") !== char.toLocaleUpperCase("vi-VN")) {{
+          chars[index] = char.toLocaleUpperCase("vi-VN");
+          return chars.join("");
+        }}
+      }}
+      return raw;
+    }};
+    const noticeLines = (text) => String(text || "")
+      .replace(/\\r\\n/g, "\\n")
+      .replace(/\\r/g, "\\n")
+      .split("\\n")
+      .map(noticeFirstUpper)
+      .filter(Boolean)
+      .slice(0, 8);
+    const renderAnnouncementPreview = (items) => {{
+      const rows = Array.isArray(items) ? items : noticeLines(announcementInput.value);
+      announcementPreview.textContent = "";
+      if (!rows.length) {{
+        const empty = document.createElement("div");
+        empty.className = "notice-preview-line";
+        empty.textContent = "No announcement yet. Login will show the default system status.";
+        announcementPreview.appendChild(empty);
+        return;
+      }}
+      rows.forEach((item) => {{
+        const line = document.createElement("div");
+        line.className = "notice-preview-line";
+        line.textContent = item;
+        announcementPreview.appendChild(line);
+      }});
+    }};
+    const loadAnnouncements = async () => {{
+      try {{
+        const response = await fetch("/announcements?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not load announcements.");
+        }}
+        const text = payload.raw || (Array.isArray(payload.items) ? payload.items.join("\\n") : "");
+        if (document.activeElement !== announcementInput) {{
+          announcementInput.value = text;
+        }}
+        renderAnnouncementPreview(payload.items || noticeLines(text));
+        announcementState.textContent = payload.updated_at ? "Updated: " + payload.updated_at : "Default announcement.";
+      }} catch (error) {{
+        announcementState.textContent = String(error && error.message ? error.message : error);
+        renderAnnouncementPreview([]);
+      }}
+    }};
+    if (announcementInput) {{
+      announcementInput.addEventListener("input", () => {{
+        renderAnnouncementPreview(noticeLines(announcementInput.value));
+        announcementState.textContent = "Unsaved.";
+      }});
+    }}
+    if (announcementSave) {{
+      announcementSave.addEventListener("click", async () => {{
+        announcementSave.disabled = true;
+        announcementState.textContent = "Saving...";
+        try {{
+          const response = await fetch("/announcements", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ text: announcementInput.value || "" }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not save announcements.");
+          }}
+          announcementInput.value = payload.raw || "";
+          renderAnnouncementPreview(payload.items || noticeLines(announcementInput.value));
+          announcementState.textContent = "Saved. Login will update automatically.";
+        }} catch (error) {{
+          announcementState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          announcementSave.disabled = false;
+        }}
+      }});
+    }}
+    const normalizeHintSeconds = (value) => {{
+      const parsed = Math.round(Number(value || 30));
+      if (!Number.isFinite(parsed)) return 30;
+      return Math.max(5, Math.min(180, parsed));
+    }};
+    const normalizeParagraphHintSeconds = (value) => {{
+      const parsed = Math.round(Number(value || 30));
+      if (!Number.isFinite(parsed)) return 30;
+      return Math.max(3, Math.min(300, parsed));
+    }};
+    const normalizeChatAttachmentLimitMb = (value) => {{
+      const parsed = Math.round(Number(value || 100));
+      if (!Number.isFinite(parsed)) return 100;
+      return Math.max(1, Math.min(4096, parsed));
+    }};
+    const normalizeHeavyUserQuota = (value) => {{
+      const parsed = Math.round(Number(value || 5));
+      if (!Number.isFinite(parsed)) return 5;
+      return Math.max(1, Math.min(120, parsed));
+    }};
+    const normalizeHeavyUserInterval = (value) => {{
+      const parsed = Math.round(Number(value || 5));
+      if (!Number.isFinite(parsed)) return 5;
+      return Math.max(0, Math.min(60, parsed));
+    }};
+    let cpuGuardEnabled = true;
+    let spaceWAiCheckVoiceEnabled = true;
+    const normalizeCpuThreshold = (value) => {{
+      const parsed = Math.round(Number(value || 90));
+      if (!Number.isFinite(parsed)) return 90;
+      return Math.max(45, Math.min(98, parsed));
+    }};
+    const normalizeQmCityPercent = (value) => {{
+      const parsed = Math.round(Number(value || 50));
+      if (!Number.isFinite(parsed)) return 50;
+      return Math.max(1, Math.min(100, parsed));
+    }};
+    const normalizeQmCityInvalidRun = (value) => {{
+      const parsed = Math.round(Number(value || 4));
+      if (!Number.isFinite(parsed)) return 4;
+      return Math.max(1, Math.min(20, parsed));
+    }};
+    const clampDashboardInt = (value, fallback, min, max) => {{
+      const parsed = Math.round(Number(value ?? fallback));
+      if (!Number.isFinite(parsed)) return Number(fallback);
+      return Math.max(Number(min), Math.min(Number(max), parsed));
+    }};
+    let qmCityNpcEnabled = true;
+    let qmCityNpcMode = "top";
+    const normalizeQmCityNpcMode = (source = {{}}) => {{
+      const raw = String(source.mode ?? source.source_mode ?? source.sourceMode ?? source.npc_mode ?? source.npcMode ?? "").trim().toLowerCase();
+      if (["mixed", "mix", "all", "both", "top+city", "city+top"].includes(raw)) return "mixed";
+      if (["city", "citizen", "citizens", "resident", "residents", "off", "default"].includes(raw)) return "city";
+      if (["top", "tops", "racer", "racers", "npc_top", "npc-top", "on"].includes(raw)) return "top";
+      return source.enabled === false ? "city" : "top";
+    }};
+    const normalizeQmCityNpcSettings = (value = {{}}) => {{
+      const source = value && typeof value === "object" ? value : {{}};
+      const minActive = clampDashboardInt(source.min_active ?? source.minActive ?? 1, 1, 0, 5);
+      const maxActive = Math.max(minActive, clampDashboardInt(source.max_active ?? source.maxActive ?? 5, 5, 1, 8));
+      const onlineMin = clampDashboardInt(source.online_min_minutes ?? source.onlineMinMinutes ?? 20, 20, 5, 180);
+      const onlineMax = Math.max(onlineMin, clampDashboardInt(source.online_max_minutes ?? source.onlineMaxMinutes ?? 40, 40, 5, 240));
+      const inviteMin = clampDashboardInt(source.invite_cooldown_min_seconds ?? source.inviteCooldownMinSeconds ?? 70, 70, 15, 900);
+      const inviteMax = Math.max(inviteMin, clampDashboardInt(source.invite_cooldown_max_seconds ?? source.inviteCooldownMaxSeconds ?? 180, 180, 20, 1200));
+      const mode = normalizeQmCityNpcMode(source);
+      return {{
+        enabled: mode !== "city",
+        mode,
+        spawn_chance_percent: clampDashboardInt(source.spawn_chance_percent ?? source.spawnChancePercent ?? 55, 55, 0, 100),
+        min_active: minActive,
+        max_active: maxActive,
+        online_min_minutes: onlineMin,
+        online_max_minutes: onlineMax,
+        answer_correct_percent: clampDashboardInt(source.answer_correct_percent ?? source.answerCorrectPercent ?? 58, 58, 0, 100),
+        steal_correct_percent: clampDashboardInt(source.steal_correct_percent ?? source.stealCorrectPercent ?? 34, 34, 0, 100),
+        invite_chance_percent: clampDashboardInt(source.invite_chance_percent ?? source.inviteChancePercent ?? 8, 8, 0, 100),
+        invite_cooldown_min_seconds: inviteMin,
+        invite_cooldown_max_seconds: inviteMax,
+      }};
+    }};
+    const renderQmCityNpcToggle = () => {{
+      const topMode = qmCityNpcMode === "top";
+      const cityMode = qmCityNpcMode === "city";
+      const mixedMode = qmCityNpcMode === "mixed";
+      if (qmCityNpcEnabledToggle) {{
+        qmCityNpcEnabledToggle.classList.toggle("is-on", topMode || mixedMode);
+        qmCityNpcEnabledToggle.setAttribute("aria-pressed", topMode || mixedMode ? "true" : "false");
+        qmCityNpcEnabledToggle.textContent = cityMode ? "City residents" : topMode ? "Top racers" : "Top + residents";
+      }}
+      if (qmCityNpcMixToggle) {{
+        qmCityNpcMixToggle.classList.toggle("is-on", mixedMode);
+        qmCityNpcMixToggle.setAttribute("aria-pressed", mixedMode ? "true" : "false");
+        qmCityNpcMixToggle.textContent = mixedMode ? "Mixed on" : "Mix";
+      }}
+    }};
+    const collectQmCityNpcSettings = () => normalizeQmCityNpcSettings({{
+      enabled: qmCityNpcEnabled,
+      mode: qmCityNpcMode,
+      spawn_chance_percent: qmCityNpcSpawnChanceInput ? qmCityNpcSpawnChanceInput.value : 55,
+      min_active: qmCityNpcMinActiveInput ? qmCityNpcMinActiveInput.value : 1,
+      max_active: qmCityNpcMaxActiveInput ? qmCityNpcMaxActiveInput.value : 5,
+      online_min_minutes: qmCityNpcOnlineMinInput ? qmCityNpcOnlineMinInput.value : 20,
+      online_max_minutes: qmCityNpcOnlineMaxInput ? qmCityNpcOnlineMaxInput.value : 40,
+      answer_correct_percent: qmCityNpcAnswerInput ? qmCityNpcAnswerInput.value : 58,
+      steal_correct_percent: qmCityNpcStealInput ? qmCityNpcStealInput.value : 34,
+      invite_chance_percent: qmCityNpcInviteInput ? qmCityNpcInviteInput.value : 8,
+      invite_cooldown_min_seconds: qmCityNpcInviteMinInput ? qmCityNpcInviteMinInput.value : 70,
+      invite_cooldown_max_seconds: qmCityNpcInviteMaxInput ? qmCityNpcInviteMaxInput.value : 180,
+    }});
+    const renderQmCityNpcSettings = (settings = {{}}) => {{
+      const npc = normalizeQmCityNpcSettings(settings);
+      qmCityNpcEnabled = npc.enabled !== false;
+      qmCityNpcMode = npc.mode || (qmCityNpcEnabled ? "top" : "city");
+      renderQmCityNpcToggle();
+      const pairs = [
+        [qmCityNpcSpawnChanceInput, npc.spawn_chance_percent],
+        [qmCityNpcMinActiveInput, npc.min_active],
+        [qmCityNpcMaxActiveInput, npc.max_active],
+        [qmCityNpcOnlineMinInput, npc.online_min_minutes],
+        [qmCityNpcOnlineMaxInput, npc.online_max_minutes],
+        [qmCityNpcAnswerInput, npc.answer_correct_percent],
+        [qmCityNpcStealInput, npc.steal_correct_percent],
+        [qmCityNpcInviteInput, npc.invite_chance_percent],
+        [qmCityNpcInviteMinInput, npc.invite_cooldown_min_seconds],
+        [qmCityNpcInviteMaxInput, npc.invite_cooldown_max_seconds],
+      ];
+      pairs.forEach(([node, value]) => {{
+        if (node && document.activeElement !== node) node.value = String(value);
+      }});
+      if (qmCityNpcState) {{
+        const label = npc.mode === "mixed" ? "Mixed racers + residents" : npc.mode === "city" ? "City residents only" : "Top racers";
+        qmCityNpcState.textContent = `${{label}} | spawn ${{npc.spawn_chance_percent}}% | racers ${{npc.min_active}}-${{npc.max_active}} | answer ${{npc.answer_correct_percent}}% | steal ${{npc.steal_correct_percent}}%`;
+      }}
+      return npc;
+    }};
+    const defaultQmCitySkins = () => ([
+      {{ id: "slime", name: "Slime", price: 35, image: "", description: "A soft crystal slime form with elastic motion." }},
+      {{ id: "cloud", name: "Cloud", price: 45, image: "", description: "A floating cloud spirit form with vapor trails." }},
+      {{ id: "star-fox", name: "Star Fox", price: 60, image: "", description: "A quick cosmic fox form for bright movement." }},
+      {{ id: "crystal-golem", name: "Crystal Golem", price: 80, image: "", description: "A heavy prism golem form with strong crystal armor." }},
+      {{ id: "moon-cat", name: "Moon Cat", price: 55, image: "", description: "A quiet moon cat form with soft neon ears." }},
+      {{ id: "ember-dragon", name: "Ember Dragon", price: 95, image: "", description: "A small dragon form with ember wings." }},
+      {{ id: "aqua-sprite", name: "Aqua Sprite", price: 50, image: "", description: "A water sprite form with flowing blue light." }},
+      {{ id: "thunder-cub", name: "Thunder Cub", price: 70, image: "", description: "A storm cub form with electric sparks." }},
+      {{ id: "leaf-spirit", name: "Leaf Spirit", price: 42, image: "", description: "A forest spirit form with living leaf marks." }},
+      {{ id: "neon-orb", name: "Neon Orb", price: 65, image: "", description: "A clean neon orb form with a hologram core." }},
+    ]);
+    const normalizeQmCitySkins = (items = []) => {{
+      const source = Array.isArray(items) && items.length ? items : defaultQmCitySkins();
+      return source.map((item, index) => {{
+        const raw = item && typeof item === "object" ? item : {{}};
+        const name = String(raw.name || raw.title || `Skin ${{index + 1}}`).trim().slice(0, 80);
+        if (!name) return null;
+        const id = String(raw.id || name).toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) || `skin-${{index + 1}}`;
+        const price = Math.max(0, Math.min(999999, Math.round(Number(raw.price ?? raw.cost ?? 50) || 0)));
+        return {{
+          id,
+          name,
+          price,
+          image: String(raw.image || raw.image_url || raw.imageUrl || "").trim().slice(0, 600),
+          description: String(raw.description || raw.desc || "").trim().slice(0, 300),
+        }};
+      }}).filter(Boolean).slice(0, 24);
+    }};
+    const qmCitySkinsToText = (items = []) => normalizeQmCitySkins(items)
+      .map((item) => `${{item.name}}|${{item.price}}|${{item.image || ""}}|${{item.description || ""}}`)
+      .join("\\n");
+    const qmCitySkinsFromText = (text = "") => normalizeQmCitySkins(
+      String(text || "")
+        .split(/\\r?\\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line, index) => {{
+          const parts = line.split("|");
+          return {{
+            name: (parts.shift() || `Skin ${{index + 1}}`).trim(),
+            price: (parts.shift() || "50").trim(),
+            image: (parts.shift() || "").trim(),
+            description: parts.join("|").trim(),
+          }};
+        }})
+    );
+    const defaultQmCityLevels = () => ([
+      {{ level: 1, total_exp: 0 }},
+      {{ level: 2, total_exp: 25 }},
+      {{ level: 3, total_exp: 75 }},
+      {{ level: 4, total_exp: 150 }},
+      {{ level: 5, total_exp: 300 }},
+      {{ level: 6, total_exp: 500 }},
+      {{ level: 7, total_exp: 800 }},
+      {{ level: 8, total_exp: 1200 }},
+      {{ level: 9, total_exp: 1700 }},
+      {{ level: 10, total_exp: 2400 }},
+    ]);
+    const normalizeQmCityLevels = (items = []) => {{
+      const source = Array.isArray(items) && items.length ? items : defaultQmCityLevels();
+      const seen = new Set();
+      const rows = [];
+      source.forEach((item, index) => {{
+        const raw = item && typeof item === "object" ? item : {{}};
+        let level = Math.round(Number(raw.level ?? raw.lvl ?? (index + 1)) || (index + 1));
+        let totalExp = Math.round(Number(raw.total_exp ?? raw.totalExp ?? raw.exp ?? raw.xp ?? 0) || 0);
+        level = Math.max(1, Math.min(999, level));
+        totalExp = Math.max(0, Math.min(100000000, totalExp));
+        if (seen.has(level)) return;
+        seen.add(level);
+        rows.push({{ level, total_exp: totalExp }});
+      }});
+      if (!rows.some((row) => row.level === 1)) rows.push({{ level: 1, total_exp: 0 }});
+      rows.sort((a, b) => a.level - b.level);
+      let previous = 0;
+      return rows.slice(0, 100).map((row) => {{
+        const totalExp = row.level === 1 ? 0 : Math.max(previous, row.total_exp);
+        previous = totalExp;
+        return {{ level: row.level, total_exp: totalExp }};
+      }});
+    }};
+    const renderQmCityLevels = (items = []) => {{
+      if (!qmCityLevelList) return;
+      const rows = normalizeQmCityLevels(items);
+      qmCityLevelList.textContent = "";
+      const header = document.createElement("div");
+      header.className = "level-settings-row is-header";
+      header.innerHTML = "<span>Level</span><span>Total EXP</span><span>Action</span>";
+      qmCityLevelList.appendChild(header);
+      rows.forEach((item) => {{
+        const row = document.createElement("div");
+        row.className = "level-settings-row";
+        row.dataset.levelRow = "1";
+        const levelInput = document.createElement("input");
+        levelInput.className = "level-settings-input";
+        levelInput.type = "number";
+        levelInput.min = "1";
+        levelInput.max = "999";
+        levelInput.step = "1";
+        levelInput.value = String(item.level);
+        levelInput.dataset.levelField = "level";
+        const expInput = document.createElement("input");
+        expInput.className = "level-settings-input";
+        expInput.type = "number";
+        expInput.min = "0";
+        expInput.max = "100000000";
+        expInput.step = "1";
+        expInput.value = String(item.total_exp);
+        expInput.dataset.levelField = "total_exp";
+        const remove = document.createElement("button");
+        remove.className = "level-settings-remove";
+        remove.type = "button";
+        remove.textContent = item.level === 1 ? "Base" : "Remove";
+        remove.disabled = item.level === 1;
+        remove.addEventListener("click", () => {{
+          row.remove();
+          if (qmCityLevelState) qmCityLevelState.textContent = "Unsaved level curve.";
+        }});
+        [levelInput, expInput].forEach((input) => input.addEventListener("input", () => {{
+          if (qmCityLevelState) qmCityLevelState.textContent = "Unsaved level curve.";
+        }}));
+        row.append(levelInput, expInput, remove);
+        qmCityLevelList.appendChild(row);
+      }});
+    }};
+    const collectQmCityLevels = () => normalizeQmCityLevels(
+      Array.from(qmCityLevelList ? qmCityLevelList.querySelectorAll(".level-settings-row[data-level-row]") : [])
+        .map((row, index) => {{
+          const levelInput = row.querySelector('[data-level-field="level"]');
+          const expInput = row.querySelector('[data-level-field="total_exp"]');
+          return {{
+            level: levelInput ? levelInput.value : (index + 1),
+            total_exp: expInput ? expInput.value : 0,
+          }};
+        }})
+    );
+    const renderCpuGuardToggle = () => {{
+      if (!cpuGuardToggle) return;
+      cpuGuardToggle.textContent = cpuGuardEnabled ? "CPU Guard On" : "CPU Guard Off";
+      cpuGuardToggle.classList.toggle("is-on", cpuGuardEnabled);
+      cpuGuardToggle.classList.toggle("is-off", !cpuGuardEnabled);
+      cpuGuardToggle.setAttribute("aria-pressed", cpuGuardEnabled ? "true" : "false");
+    }};
+    const renderSpaceWAiCheckToggle = () => {{
+      if (!spaceWAiCheckToggle) return;
+      spaceWAiCheckToggle.textContent = spaceWAiCheckVoiceEnabled ? "Whisper On" : "Whisper Off";
+      spaceWAiCheckToggle.classList.toggle("is-on", spaceWAiCheckVoiceEnabled);
+      spaceWAiCheckToggle.classList.toggle("is-off", !spaceWAiCheckVoiceEnabled);
+      spaceWAiCheckToggle.setAttribute("aria-pressed", spaceWAiCheckVoiceEnabled ? "true" : "false");
+      spaceWAiCheckToggle.title = spaceWAiCheckVoiceEnabled
+        ? "Space_W users may choose server Whisper or browser check."
+        : "All Space_W users are forced to browser live voice check.";
+    }};
+    const normalizeCloudflareHostname = (value) => {{
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      try {{
+        const url = raw.includes("://") ? new URL(raw) : new URL("https://" + raw);
+        return String(url.hostname || "").replace(/^\.+|\.+$/g, "").toLowerCase();
+      }} catch (error) {{
+        return raw.split("/")[0].split("?")[0].split("#")[0].replace(/^\.+|\.+$/g, "").toLowerCase();
+      }}
+    }};
+    const normalizeCloudflareTunnelName = (value) => {{
+      return String(value || "future-whisper").trim().replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[.-]+|[.-]+$/g, "").slice(0, 80) || "future-whisper";
+    }};
+    const rewardScopes = [
+      {{ key: "day", label: "Daily" }},
+      {{ key: "week", label: "Weekly" }},
+      {{ key: "month", label: "Monthly" }},
+      {{ key: "total", label: "Hall" }},
+    ];
+    const defaultRewardSettings = () => ({{
+      day: {{ title: "Daily Champion", claim_window: "Claim during the next day only.", ranks: {{ 1: {{ badge: true, rare: 5, easy: 15, space_q: 3, space_q_silver: 3, space_p: 3, space_p_silver: 3, space_s: 3, space_s_silver: 3, space_w: 3, space_w_silver: 3, space_l: 3, space_l_silver: 3, space_v: 3 }}, 2: {{ badge: false, rare: 3, easy: 10, space_q: 2, space_q_silver: 2, space_p: 2, space_p_silver: 2, space_s: 2, space_s_silver: 2, space_w: 2, space_w_silver: 2, space_l: 2, space_l_silver: 2, space_v: 2 }}, 3: {{ badge: false, rare: 2, easy: 6, space_q: 1, space_q_silver: 1, space_p: 1, space_p_silver: 1, space_s: 1, space_s_silver: 1, space_w: 1, space_w_silver: 1, space_l: 1, space_l_silver: 1, space_v: 1 }} }} }},
+      week: {{ title: "Weekly Champion", claim_window: "Claim during the next week only.", ranks: {{ 1: {{ badge: true, rare: 18, easy: 54, space_q: 9, space_q_silver: 9, space_p: 9, space_p_silver: 9, space_s: 9, space_s_silver: 9, space_w: 9, space_w_silver: 9, space_l: 9, space_l_silver: 9, space_v: 9 }}, 2: {{ badge: false, rare: 12, easy: 36, space_q: 6, space_q_silver: 6, space_p: 6, space_p_silver: 6, space_s: 6, space_s_silver: 6, space_w: 6, space_w_silver: 6, space_l: 6, space_l_silver: 6, space_v: 6 }}, 3: {{ badge: false, rare: 8, easy: 24, space_q: 4, space_q_silver: 4, space_p: 4, space_p_silver: 4, space_s: 4, space_s_silver: 4, space_w: 4, space_w_silver: 4, space_l: 4, space_l_silver: 4, space_v: 4 }} }} }},
+      month: {{ title: "Monthly Champion", claim_window: "Claim during the next month only.", ranks: {{ 1: {{ badge: true, rare: 60, easy: 180, space_q: 30, space_q_silver: 30, space_p: 30, space_p_silver: 30, space_s: 30, space_s_silver: 30, space_w: 30, space_w_silver: 30, space_l: 30, space_l_silver: 30, space_v: 30 }}, 2: {{ badge: false, rare: 40, easy: 120, space_q: 20, space_q_silver: 20, space_p: 20, space_p_silver: 20, space_s: 20, space_s_silver: 20, space_w: 20, space_w_silver: 20, space_l: 20, space_l_silver: 20, space_v: 20 }}, 3: {{ badge: false, rare: 25, easy: 80, space_q: 12, space_q_silver: 12, space_p: 12, space_p_silver: 12, space_s: 12, space_s_silver: 12, space_w: 12, space_w_silver: 12, space_l: 12, space_l_silver: 12, space_v: 12 }} }} }},
+      total: {{ title: "Hall Champion", claim_window: "Honor reward preview for the all-time leaderboard.", ranks: {{ 1: {{ badge: true, rare: 12, easy: 36, space_q: 12, space_q_silver: 12, space_p: 12, space_p_silver: 12, space_s: 12, space_s_silver: 12, space_w: 12, space_w_silver: 12, space_l: 12, space_l_silver: 12, space_v: 12 }}, 2: {{ badge: false, rare: 8, easy: 24, space_q: 8, space_q_silver: 8, space_p: 8, space_p_silver: 8, space_s: 8, space_s_silver: 8, space_w: 8, space_w_silver: 8, space_l: 8, space_l_silver: 8, space_v: 8 }}, 3: {{ badge: false, rare: 5, easy: 16, space_q: 5, space_q_silver: 5, space_p: 5, space_p_silver: 5, space_s: 5, space_s_silver: 5, space_w: 5, space_w_silver: 5, space_l: 5, space_l_silver: 5, space_v: 5 }} }} }},
+    }});
+    const normalizeRewardSettings = (config = {{}}) => {{
+      const defaults = defaultRewardSettings();
+      const source = config && typeof config === "object" ? config : {{}};
+      const output = {{}};
+      rewardScopes.forEach((scope) => {{
+        const base = defaults[scope.key];
+        const data = source[scope.key] && typeof source[scope.key] === "object" ? source[scope.key] : {{}};
+        const ranks = {{}};
+        [1, 2, 3].forEach((rank) => {{
+          const rawRanks = data.ranks && typeof data.ranks === "object" ? data.ranks : {{}};
+          const raw = rawRanks[String(rank)] || rawRanks[rank] || {{}};
+          ranks[rank] = {{
+            badge: rank === 1 ? Boolean(raw.badge ?? base.ranks[rank].badge) : false,
+            rare: Math.max(0, Math.min(9999, Math.round(Number(raw.rare ?? base.ranks[rank].rare) || 0))),
+            easy: Math.max(0, Math.min(9999, Math.round(Number(raw.easy ?? base.ranks[rank].easy) || 0))),
+            space_q: Math.max(0, Math.min(9999, Math.round(Number(raw.space_q ?? raw.spaceQ ?? base.ranks[rank].space_q) || 0))),
+            space_q_silver: Math.max(0, Math.min(9999, Math.round(Number(raw.space_q_silver ?? raw.spaceQSilver ?? base.ranks[rank].space_q_silver) || 0))),
+            space_p: Math.max(0, Math.min(9999, Math.round(Number(raw.space_p ?? raw.spaceP ?? base.ranks[rank].space_p) || 0))),
+            space_p_silver: Math.max(0, Math.min(9999, Math.round(Number(raw.space_p_silver ?? raw.spacePSilver ?? base.ranks[rank].space_p_silver) || 0))),
+            space_s: Math.max(0, Math.min(9999, Math.round(Number(raw.space_s ?? raw.spaceS ?? base.ranks[rank].space_s) || 0))),
+            space_s_silver: Math.max(0, Math.min(9999, Math.round(Number(raw.space_s_silver ?? raw.spaceSSilver ?? base.ranks[rank].space_s_silver) || 0))),
+            space_w: Math.max(0, Math.min(9999, Math.round(Number(raw.space_w ?? raw.spaceW ?? base.ranks[rank].space_w) || 0))),
+            space_w_silver: Math.max(0, Math.min(9999, Math.round(Number(raw.space_w_silver ?? raw.spaceWSilver ?? base.ranks[rank].space_w_silver) || 0))),
+            space_l: Math.max(0, Math.min(9999, Math.round(Number(raw.space_l ?? raw.spaceL ?? base.ranks[rank].space_l) || 0))),
+            space_l_silver: Math.max(0, Math.min(9999, Math.round(Number(raw.space_l_silver ?? raw.spaceLSilver ?? base.ranks[rank].space_l_silver) || 0))),
+            space_v: Math.max(0, Math.min(9999, Math.round(Number(raw.space_v ?? raw.spaceV ?? base.ranks[rank].space_v) || 0))),
+          }};
+        }});
+        output[scope.key] = {{
+          title: String(data.title || base.title || scope.label).slice(0, 80),
+          claim_window: String(data.claim_window || data.claimWindow || base.claim_window || "").slice(0, 180),
+          ranks,
+        }};
+      }});
+      return output;
+    }};
+    const normalizeLeaderboardReactionSettings = (items = []) => {{
+      const source = Array.isArray(items) && items.length
+        ? items
+        : [
+          {{ key: "love", label: "Love", mark: "💕⃝" }},
+          {{ key: "burn", label: "Fire heart", mark: "❤️‍🔥" }},
+          {{ key: "devil", label: "Mischief", mark: "😈" }},
+          {{ key: "frost", label: "Cool", mark: "🥶" }},
+        ];
+      return source.map((item, index) => {{
+        const raw = item && typeof item === "object" ? item : {{ mark: String(item || "") }};
+        const mark = String(raw.mark || raw.emoji || "").trim();
+        const label = String(raw.label || mark || `Reaction ${{index + 1}}`).trim();
+        const keySeed = String(raw.key || label || `reaction-${{index + 1}}`).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+        return {{ key: keySeed || `reaction-${{index + 1}}`, label: label.slice(0, 48), mark: mark.slice(0, 16) }};
+      }}).filter((item) => item.mark).slice(0, 12);
+    }};
+    const reactionSettingsToText = (items = []) => normalizeLeaderboardReactionSettings(items)
+      .map((item) => `${{item.label}}|${{item.mark}}`)
+      .join("\\n");
+    const reactionSettingsFromText = (text = "") => normalizeLeaderboardReactionSettings(
+      String(text || "")
+        .split(/\\r?\\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line, index) => {{
+          const parts = line.split("|");
+          const label = (parts.length > 1 ? parts.shift() : `Reaction ${{index + 1}}`).trim();
+          const mark = parts.join("|").trim() || line;
+          return {{ label, mark }};
+        }})
+    );
+    const renderRewardSettings = (config = {{}}) => {{
+      if (!rewardSettingsGrid) return;
+      const rewards = normalizeRewardSettings(config);
+      rewardSettingsGrid.innerHTML = "";
+      rewardScopes.forEach((scope) => {{
+        const data = rewards[scope.key];
+        const card = document.createElement("section");
+        card.className = "reward-settings-card";
+        const title = document.createElement("div");
+        title.className = "reward-settings-title";
+        title.textContent = `${{scope.label}} rewards`;
+        card.appendChild(title);
+        const header = document.createElement("div");
+        header.className = "reward-settings-row is-header";
+        ["Rank", "Rare", "Review", "QG", "QS", "PG", "PS", "SG", "SS", "WG", "WS", "V", "Badge"].forEach((text) => {{
+          const cell = document.createElement("span");
+          cell.textContent = text;
+          header.appendChild(cell);
+        }});
+        card.appendChild(header);
+        const makeRewardInput = (rank, kind, value, label) => {{
+          const input = document.createElement("input");
+          input.className = "reward-settings-input";
+          input.type = "number";
+          input.min = "0";
+          input.max = "9999";
+          input.step = "1";
+          input.value = String(value || 0);
+          input.dataset.rewardScope = scope.key;
+          input.dataset.rewardRank = String(rank);
+          input.dataset.rewardKind = kind;
+          input.title = label;
+          input.setAttribute("aria-label", `${{scope.label}} top ${{rank}} ${{label}}`);
+          return input;
+        }};
+        [1, 2, 3].forEach((rank) => {{
+          const row = document.createElement("div");
+          row.className = "reward-settings-row";
+          const rankLabel = document.createElement("span");
+          rankLabel.className = "reward-rank-label";
+          rankLabel.textContent = `Top ${{rank}}`;
+          const rare = makeRewardInput(rank, "rare", data.ranks[rank].rare, "rare first-learn crystals");
+          const easy = makeRewardInput(rank, "easy", data.ranks[rank].easy, "review crystals");
+          const spaceQ = makeRewardInput(rank, "space_q", data.ranks[rank].space_q, "Space_Q magic books");
+          const spaceQSilver = makeRewardInput(rank, "space_q_silver", data.ranks[rank].space_q_silver, "Space_Q silver magic books");
+          const spaceP = makeRewardInput(rank, "space_p", data.ranks[rank].space_p, "Space_P magic bows");
+          const spacePSilver = makeRewardInput(rank, "space_p_silver", data.ranks[rank].space_p_silver, "Space_P silver magic bows");
+          const spaceS = makeRewardInput(rank, "space_s", data.ranks[rank].space_s, "Space_S golden devil wings");
+          const spaceSSilver = makeRewardInput(rank, "space_s_silver", data.ranks[rank].space_s_silver, "Space_S silver devil wings");
+          const spaceW = makeRewardInput(rank, "space_w", data.ranks[rank].space_w, "Space_W golden mastery cups");
+          const spaceWSilver = makeRewardInput(rank, "space_w_silver", data.ranks[rank].space_w_silver, "Space_W silver practice cups");
+          const spaceL = makeRewardInput(rank, "space_l", data.ranks[rank].space_l, "Space_L golden great swords");
+          const spaceLSilver = makeRewardInput(rank, "space_l_silver", data.ranks[rank].space_l_silver, "Space_L silver great swords");
+          const spaceV = makeRewardInput(rank, "space_v", data.ranks[rank].space_v, "Space_V common crystals");
+          const badge = document.createElement("span");
+          badge.className = "reward-badge-label";
+          badge.textContent = rank === 1 ? "Badge" : "No badge";
+          row.append(rankLabel, rare, easy, spaceQ, spaceQSilver, spaceP, spacePSilver, spaceS, spaceSSilver, spaceW, spaceWSilver, spaceL, spaceLSilver, spaceV, badge);
+          card.appendChild(row);
+        }});
+        rewardSettingsGrid.appendChild(card);
+      }});
+    }};
+    const collectRewardSettings = () => {{
+      const rewards = normalizeRewardSettings();
+      if (!rewardSettingsGrid) return rewards;
+      Array.from(rewardSettingsGrid.querySelectorAll("[data-reward-scope]")).forEach((input) => {{
+        const scope = input.dataset.rewardScope;
+        const rank = input.dataset.rewardRank;
+        const kind = input.dataset.rewardKind;
+        if (!rewards[scope] || !rewards[scope].ranks[rank]) return;
+        rewards[scope].ranks[rank][kind] = Math.max(0, Math.min(9999, Math.round(Number(input.value || 0) || 0)));
+      }});
+      rewardScopes.forEach((scope) => {{
+        if (rewards[scope.key] && rewards[scope.key].ranks) {{
+          rewards[scope.key].ranks[1].badge = true;
+          rewards[scope.key].ranks[2].badge = false;
+          rewards[scope.key].ranks[3].badge = false;
+        }}
+      }});
+      return rewards;
+    }};
+    let qmdictStatusTimer = 0;
+    const scheduleQmDictStatusPoll = () => {{
+      if (qmdictStatusTimer) {{
+        window.clearTimeout(qmdictStatusTimer);
+      }}
+      qmdictStatusTimer = window.setTimeout(() => {{
+        qmdictStatusTimer = 0;
+        void loadQmDictStatus();
+      }}, 2200);
+    }};
+    const renderQmDictStatus = (reload = {{}}, audio = {{}}, repair = {{}}, wordAudio = {{}}) => {{
+      if (!qmdictReloadState) return;
+      const entries = Number(reload.entries || 0);
+      const loadedAt = String(reload.loaded_at || "");
+      const running = Boolean(audio && audio.running);
+      const scheduled = Boolean(audio && audio.scheduled);
+      const wordAudioRunning = Boolean(wordAudio && wordAudio.running);
+      const wordAudioTotal = Number(wordAudio && wordAudio.total || 0) || 0;
+      const wordAudioDone = Number(wordAudio && wordAudio.done || 0) || 0;
+      const wordAudioRefreshed = Number(wordAudio && wordAudio.refreshed || 0) || 0;
+      const wordAudioFailed = Number(wordAudio && wordAudio.failed || 0) || 0;
+      const wordAudioWorkers = Number(wordAudio && wordAudio.workers || 0) || 0;
+      const wordAudioLast = String(wordAudio && wordAudio.last_word || "");
+      const wordAudioVoice = String(wordAudio && wordAudio.last_voice || "");
+      const repairRunning = Boolean(repair && repair.running);
+      const repairTotal = Number(repair && repair.total || 0) || 0;
+      const repairDone = Number(repair && repair.done || 0) || 0;
+      const repairChanged = Number(repair && repair.changed || 0) || 0;
+      const repairAudioChanged = Number(repair && repair.audio_changed || 0) || 0;
+      const repairFailed = Number(repair && repair.failed || 0) || 0;
+      const phase = String(audio && audio.phase || "");
+      const scanTotal = Number(audio && audio.scan_total || 0) || 0;
+      const scanDone = Number(audio && audio.scan_done || 0) || 0;
+      const workers = Number(audio && audio.workers || 0) || 0;
+      const cleanupTotal = Number(audio && audio.cleanup_total || 0) || 0;
+      const cleanupDone = Number(audio && audio.cleanup_done || 0) || 0;
+      const cleanupDeleted = Number(audio && audio.cleanup_deleted || 0) || 0;
+      const total = Number(audio && audio.total || 0) || 0;
+      const done = Number(audio && audio.done || 0) || 0;
+      const cached = Number(audio && audio.cached || 0) || 0;
+      const missing = Number(audio && audio.missing || 0) || 0;
+      const downloaded = Number(audio && audio.downloaded || 0) || 0;
+      const failed = Number(audio && audio.failed || 0) || 0;
+      const activeTotal = phase === "scanning" ? scanTotal : phase === "cleaning" ? cleanupTotal : total;
+      const activeDone = phase === "scanning" ? scanDone : phase === "cleaning" ? cleanupDone : done;
+      const audioPercent = activeTotal > 0 ? Math.max(0, Math.min(100, Math.round((activeDone / activeTotal) * 100))) : (running ? 1 : 0);
+      const repairPercent = repairTotal > 0 ? Math.max(0, Math.min(100, Math.round((repairDone / repairTotal) * 100))) : (repairRunning ? 1 : 0);
+      const wordAudioPercent = wordAudioTotal > 0 ? Math.max(0, Math.min(100, Math.round((wordAudioDone / wordAudioTotal) * 100))) : (wordAudioRunning ? 1 : 0);
+      const percent = wordAudioRunning ? wordAudioPercent : repairRunning ? repairPercent : audioPercent;
+      const runningCopy = scheduled
+        ? " | audio scan scheduled..."
+        : phase === "scanning"
+        ? " | checking local Vietnamese audio..."
+        : phase === "cleaning"
+          ? " | deleting orphan Vietnamese audio..."
+          : phase === "downloading"
+            ? " | downloading missing Vietnamese audio..."
+            : " | Vietnamese audio refreshing...";
+      const repairCopy = repairRunning
+        ? ` | repairing Space_V ${{repairDone}}/${{repairTotal || "..."}}`
+        : repairTotal
+          ? ` | Space_V repaired ${{repairDone}}/${{repairTotal}} | audio ${{repairAudioChanged}} | failed ${{repairFailed}}`
+          : "";
+      const wordAudioCopy = wordAudioRunning
+        ? ` | refreshing UK/US audio ${{wordAudioDone}}/${{wordAudioTotal || "..."}}`
+        : wordAudioTotal
+          ? ` | UK/US audio refreshed ${{wordAudioRefreshed}}/${{wordAudioTotal}} | failed ${{wordAudioFailed}}`
+          : "";
+      qmdictReloadState.textContent = `QmDict ${{entries || "unknown"}} entries${{loadedAt ? ` | loaded ${{loadedAt}}` : ""}}${{wordAudioCopy}}${{running || scheduled ? runningCopy : ""}}${{repairCopy}}`;
+      if (qmdictAudioProgress) {{
+        const shouldShow = wordAudioRunning || wordAudioTotal > 0 || String(wordAudio && wordAudio.completed_at || "") || repairRunning || running || scheduled || repairTotal > 0 || total > 0 || String(audio && audio.completed_at || "");
+        qmdictAudioProgress.hidden = !shouldShow;
+        qmdictAudioProgress.classList.toggle("is-running", wordAudioRunning || repairRunning || running || scheduled);
+        qmdictAudioProgress.style.setProperty("--qmdict-audio-progress", `${{percent}}%`);
+      }}
+      if (qmdictAudioProgressFill) {{
+        qmdictAudioProgressFill.style.width = `${{percent}}%`;
+      }}
+      if (qmdictAudioProgressCopy) {{
+        const last = String(audio && audio.last_meaning || "");
+        const wordLastCopy = wordAudioLast ? ` | ${{wordAudioLast}}${{wordAudioVoice ? ` (${{wordAudioVoice}})` : ""}}` : "";
+        const status = wordAudioRunning
+          ? `Refreshing QmDict UK/US audio: ${{wordAudioDone}}/${{wordAudioTotal || "..."}} (${{percent}}%) | workers ${{wordAudioWorkers || "..."}} | refreshed ${{wordAudioRefreshed}} | failed ${{wordAudioFailed}}${{wordLastCopy}}`
+          : wordAudioTotal > 0
+            ? `QmDict UK/US audio ready: refreshed ${{wordAudioRefreshed}}/${{wordAudioTotal}} | failed ${{wordAudioFailed}}${{wordLastCopy}}`
+            : scheduled
+          ? "QmDict reloaded. Audio scan will start in the background."
+          : repairRunning
+            ? `Repairing Space_V audio links: ${{repairDone}}/${{repairTotal || "..."}} | changed ${{repairChanged}} | audio ${{repairAudioChanged}} | failed ${{repairFailed}}`
+          : running
+          ? phase === "scanning"
+            ? `Checking local audio: ${{scanDone}}/${{scanTotal || "..."}} (${{percent}}%) | cached ${{cached}} | missing ${{missing}}${{last ? ` | ${{last}}` : ""}}`
+            : phase === "cleaning"
+              ? `Cleaning orphan Vietnamese audio: ${{cleanupDone}}/${{cleanupTotal || "..."}} (${{percent}}%) | deleted ${{cleanupDeleted}}`
+              : `Downloading missing audio: ${{done}}/${{total || "..."}} (${{percent}}%) | workers ${{workers || "..."}} | scanned ${{scanDone}} | cached ${{cached}} | missing ${{missing}} | downloaded ${{downloaded}} | failed ${{failed}}${{last ? ` | ${{last}}` : ""}}`
+          : scanTotal > 0
+            ? `Vietnamese audio ready: scanned ${{scanTotal}} | cached ${{cached}} | missing ${{missing}} | downloaded ${{downloaded}} | failed ${{failed}} | deleted orphan ${{cleanupDeleted}}`
+            : "Vietnamese audio refresh is idle.";
+        qmdictAudioProgressCopy.textContent = status;
+      }}
+      if (wordAudioRunning || running || scheduled || repairRunning) {{
+        scheduleQmDictStatusPoll();
+      }}
+    }};
+    const loadQmDictStatus = async () => {{
+      try {{
+        const response = await fetch("/qmdict/reload-status?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not load QmDict status.");
+        }}
+        renderQmDictStatus(payload.qmdict_reload || {{}}, payload.qmdict_audio_refresh || {{}}, payload.space_v_repair || {{}}, payload.qmdict_word_audio_refresh || {{}});
+      }} catch (error) {{
+        if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
+    const loadSettings = async () => {{
+      try {{
+        const response = await fetch("/settings?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Khong tai duoc settings.");
+        }}
+        const seconds = normalizeHintSeconds(payload.word_hint_cycle_seconds);
+        if (hintCycleInput && document.activeElement !== hintCycleInput) {{
+          hintCycleInput.value = String(seconds);
+        }}
+        const paragraphSeconds = normalizeParagraphHintSeconds(payload.paragraph_hint_seconds);
+        if (paragraphHintInput && document.activeElement !== paragraphHintInput) {{
+          paragraphHintInput.value = String(paragraphSeconds);
+        }}
+        if (questionHudInput && document.activeElement !== questionHudInput) {{
+          const lines = Array.isArray(payload.question_hud_lines) ? payload.question_hud_lines : [];
+          questionHudInput.value = lines.length ? lines.join("\\n") : String(payload.question_hud_text || "");
+        }}
+        const chatLimitMb = normalizeChatAttachmentLimitMb(payload.chat_attachment_limit_mb);
+        if (chatAttachmentLimitInput && document.activeElement !== chatAttachmentLimitInput) {{
+          chatAttachmentLimitInput.value = String(chatLimitMb);
+        }}
+        const heavyUserQuota = normalizeHeavyUserQuota(payload.heavy_user_quota_per_minute);
+        if (heavyUserQuotaInput && document.activeElement !== heavyUserQuotaInput) {{
+          heavyUserQuotaInput.value = String(heavyUserQuota);
+        }}
+        const heavyUserInterval = normalizeHeavyUserInterval(payload.heavy_user_min_interval_seconds);
+        if (heavyUserIntervalInput && document.activeElement !== heavyUserIntervalInput) {{
+          heavyUserIntervalInput.value = String(heavyUserInterval);
+        }}
+        if (aiAgentNoticeVoiceInput && document.activeElement !== aiAgentNoticeVoiceInput) {{
+          aiAgentNoticeVoiceInput.value = String(payload.ai_agent_notice_voice || "kokoro:am_michael");
+        }}
+        spaceWAiCheckVoiceEnabled = payload.space_w_ai_check_voice_enabled !== false;
+        renderSpaceWAiCheckToggle();
+        if (leaderboardReactionsInput && document.activeElement !== leaderboardReactionsInput) {{
+          leaderboardReactionsInput.value = reactionSettingsToText(payload.leaderboard_reactions || []);
+        }}
+        const cpuThreshold = normalizeCpuThreshold(payload.cpu_queue_threshold_percent);
+        cpuGuardEnabled = payload.cpu_guard_enabled !== false;
+        if (cpuThresholdInput && document.activeElement !== cpuThresholdInput) {{
+          cpuThresholdInput.value = String(cpuThreshold);
+        }}
+        renderCpuGuardToggle();
+        renderWorkerJobLimitInputs(payload.distributed_worker_job_limits || {{}});
+        renderWorkerMachineLimitInput(payload.distributed_worker_machine_limit);
+        const cfHostname = normalizeCloudflareHostname(payload.cloudflare_public_hostname || "");
+        if (cloudflareHostnameInput && document.activeElement !== cloudflareHostnameInput) {{
+          cloudflareHostnameInput.value = cfHostname;
+        }}
+        const cfTunnelName = normalizeCloudflareTunnelName(payload.cloudflare_tunnel_name || "future-whisper");
+        if (cloudflareTunnelNameInput && document.activeElement !== cloudflareTunnelNameInput) {{
+          cloudflareTunnelNameInput.value = cfTunnelName;
+        }}
+        if (hostedClientSecretInput && document.activeElement !== hostedClientSecretInput) {{
+          hostedClientSecretInput.value = "";
+          hostedClientSecretInput.placeholder = payload.hosted_client_secret_set
+            ? "Password key is set. Type a new one to rotate."
+            : "No password key set. Type one to enable.";
+        }}
+        renderQmDictStatus(payload.qmdict_reload || {{}}, payload.qmdict_audio_refresh || {{}}, payload.space_v_repair || {{}}, payload.qmdict_word_audio_refresh || {{}});
+        if (!rewardSettingsGrid || !rewardSettingsGrid.contains(document.activeElement)) {{
+          renderRewardSettings(payload.leaderboard_rewards || {{}});
+        }}
+        const qmCityPercent = normalizeQmCityPercent(payload.qm_city_chat_min_english_percent);
+        if (qmCityMinEnglishInput && document.activeElement !== qmCityMinEnglishInput) {{
+          qmCityMinEnglishInput.value = String(qmCityPercent);
+        }}
+        const qmCityRun = normalizeQmCityInvalidRun(payload.qm_city_chat_invalid_run_limit);
+        if (qmCityInvalidRunInput && document.activeElement !== qmCityInvalidRunInput) {{
+          qmCityInvalidRunInput.value = String(qmCityRun);
+        }}
+        const qmCitySkins = normalizeQmCitySkins(payload.qm_city_skins || []);
+        if (qmCitySkinsInput && document.activeElement !== qmCitySkinsInput) {{
+          qmCitySkinsInput.value = qmCitySkinsToText(qmCitySkins);
+        }}
+        renderQmCityNpcSettings(payload.qm_city_npc || {{}});
+        const qmCityLevels = normalizeQmCityLevels(payload.qm_city_levels || []);
+        if (qmCityLevelList && !qmCityLevelList.contains(document.activeElement)) {{
+          renderQmCityLevels(qmCityLevels);
+        }}
+        if (qmCityState) {{
+          qmCityState.textContent = payload.updated_at
+            ? `Loaded: ${{payload.updated_at}} | English ${{qmCityPercent}}% | invalid run ${{qmCityRun}} | skins ${{qmCitySkins.length}}`
+            : `Default: English ${{qmCityPercent}}% | invalid run ${{qmCityRun}} | skins ${{qmCitySkins.length}}`;
+        }}
+        if (qmCityLevelState) {{
+          qmCityLevelState.textContent = payload.updated_at
+            ? `Loaded: ${{payload.updated_at}} | levels ${{qmCityLevels.length}}`
+            : `Default level curve | levels ${{qmCityLevels.length}}`;
+        }}
+        if (rewardSettingsState) rewardSettingsState.textContent = payload.updated_at ? `Loaded: ${{payload.updated_at}}` : "Default rewards.";
+        const obfState = payload.hosted_client_secret_set ? "client key set" : "default client key";
+        const cfState = cfHostname ? `domain ${{cfHostname}} via ${{cfTunnelName}}` : "quick trycloudflare link";
+        const cpuState = `${{cpuGuardEnabled ? "CPU guard" : "CPU guard off"}} ${{cpuThreshold}}%`;
+        const speakState = spaceWAiCheckVoiceEnabled ? "Space_W Whisper on" : "Space_W browser check";
+        if (settingsState) {{
+          settingsState.textContent = payload.updated_at
+            ? `Saved: ${{payload.updated_at}} | W ${{seconds}}s | P ${{paragraphSeconds}}s | chat ${{chatLimitMb}} MB | AI ${{payload.ai_agent_notice_voice || "kokoro:am_michael"}} | ${{speakState}} | ${{cpuState}} | ${{cfState}} | ${{obfState}}`
+            : `Default: W ${{seconds}}s | P ${{paragraphSeconds}}s | chat ${{chatLimitMb}} MB | AI ${{payload.ai_agent_notice_voice || "kokoro:am_michael"}} | ${{speakState}} | ${{cpuState}} | ${{cfState}} | ${{obfState}}`;
+        }}
+      }} catch (error) {{
+        if (settingsState) {{
+          settingsState.textContent = String(error && error.message ? error.message : error);
+        }}
+      }}
+    }};
+    if (hintCycleInput) {{
+      hintCycleInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved.";
+      }});
+    }}
+    if (paragraphHintInput) {{
+      paragraphHintInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved.";
+      }});
+    }}
+    if (questionHudInput) {{
+      questionHudInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved.";
+      }});
+    }}
+    if (chatAttachmentLimitInput) {{
+      chatAttachmentLimitInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved.";
+      }});
+    }}
+    if (aiAgentNoticeVoiceInput) {{
+      aiAgentNoticeVoiceInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved AI Agent voice.";
+      }});
+    }}
+    if (spaceWAiCheckToggle) {{
+      spaceWAiCheckToggle.addEventListener("click", () => {{
+        spaceWAiCheckVoiceEnabled = !spaceWAiCheckVoiceEnabled;
+        renderSpaceWAiCheckToggle();
+        if (settingsState) settingsState.textContent = "Saving Space_W Speak scoring source...";
+        if (settingsSave && !settingsSave.disabled) {{
+          settingsSave.click();
+        }} else if (settingsState) {{
+          settingsState.textContent = "Unsaved Space_W Speak scoring source.";
+        }}
+      }});
+    }}
+    if (leaderboardReactionsInput) {{
+      leaderboardReactionsInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved leaderboard reactions.";
+      }});
+    }}
+    const applyCpuGuardLimit = async () => {{
+      if (cpuGuardApply) cpuGuardApply.disabled = true;
+      if (settingsState) settingsState.textContent = "Applying CPU guard...";
+      try {{
+        const cpuThreshold = normalizeCpuThreshold(cpuThresholdInput ? cpuThresholdInput.value : 90);
+        const response = await fetch("/settings", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{
+            cpu_guard_enabled: Boolean(cpuGuardEnabled),
+            cpu_queue_threshold_percent: cpuThreshold,
+          }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not apply CPU guard.");
+        }}
+        cpuGuardEnabled = payload.cpu_guard_enabled !== false;
+        const savedCpuThreshold = normalizeCpuThreshold(payload.cpu_queue_threshold_percent);
+        if (cpuThresholdInput) cpuThresholdInput.value = String(savedCpuThreshold);
+        renderCpuGuardToggle();
+        if (settingsState) {{
+          settingsState.textContent = `${{cpuGuardEnabled ? "CPU guard enabled" : "CPU guard disabled"}} at ${{savedCpuThreshold}}%.`;
+        }}
+      }} catch (error) {{
+        if (settingsState) settingsState.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        if (cpuGuardApply) cpuGuardApply.disabled = false;
+      }}
+    }};
+    if (cpuThresholdInput) {{
+      cpuThresholdInput.addEventListener("input", () => {{
+        if (settingsState) settingsState.textContent = "Unsaved CPU guard.";
+      }});
+      cpuThresholdInput.addEventListener("blur", () => {{
+        cpuThresholdInput.value = String(normalizeCpuThreshold(cpuThresholdInput.value));
+      }});
+    }}
+    if (cpuGuardToggle) {{
+      cpuGuardToggle.addEventListener("click", () => {{
+        cpuGuardEnabled = !cpuGuardEnabled;
+        renderCpuGuardToggle();
+        if (settingsState) settingsState.textContent = "Unsaved CPU guard.";
+      }});
+    }}
+    if (cpuGuardApply) {{
+      cpuGuardApply.addEventListener("click", () => void applyCpuGuardLimit());
+    }}
+    if (distributedWorkerLimitSave) {{
+      distributedWorkerLimitSave.addEventListener("click", async () => {{
+        distributedWorkerLimitSave.disabled = true;
+        if (distributedWorkerState) distributedWorkerState.textContent = "Saving worker limits...";
+        try {{
+          const limits = normalizeWorkerJobLimits({{
+            translate: distributedWorkerLimitTranslate ? distributedWorkerLimitTranslate.value : 8,
+            tts: distributedWorkerLimitTts ? distributedWorkerLimitTts.value : 4,
+            stt: distributedWorkerLimitStt ? distributedWorkerLimitStt.value : 4,
+            gemini: distributedWorkerLimitGemini ? distributedWorkerLimitGemini.value : 8,
+            phonemize: distributedWorkerLimitPhonemize ? distributedWorkerLimitPhonemize.value : 8,
+          }});
+          const machineLimit = normalizeWorkerMachineLimit(distributedWorkerMachineLimit ? distributedWorkerMachineLimit.value : 1);
+          const response = await fetch("/settings", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{
+              distributed_worker_job_limits: limits,
+              distributed_worker_machine_limit: machineLimit,
+            }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not save worker limits.");
+          }}
+          renderWorkerJobLimitInputs(payload.distributed_worker_job_limits || limits);
+          renderWorkerMachineLimitInput(payload.distributed_worker_machine_limit || machineLimit);
+          if (distributedWorkerState) distributedWorkerState.textContent = "Worker limits saved.";
+        }} catch (error) {{
+          if (distributedWorkerState) distributedWorkerState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          distributedWorkerLimitSave.disabled = false;
+        }}
+      }});
+    }}
+    const startQmDictWordAudioRefresh = async (mode = "all", button = null) => {{
+      if (button) button.disabled = true;
+      if (qmdictReloadState) {{
+        qmdictReloadState.textContent = mode === "failed"
+          ? "Retrying failed QmDict UK/US audio..."
+          : "Refreshing all QmDict UK/US audio...";
+      }}
+      try {{
+        const response = await fetch("/qmdict/word-audio-refresh", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ mode }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not start QmDict UK/US audio refresh.");
+        }}
+        renderQmDictStatus({{}}, {{}}, {{}}, payload.word_audio_refresh || {{}});
+        scheduleQmDictStatusPoll();
+      }} catch (error) {{
+        if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        if (button) button.disabled = false;
+      }}
+    }};
+    const startQmDictMeaningAudioRefresh = async (button = null) => {{
+      if (button) button.disabled = true;
+      if (qmdictReloadState) {{
+        qmdictReloadState.textContent = "Refreshing QmDict Vietnamese SOT audio...";
+      }}
+      try {{
+        const response = await fetch("/qmdict/meaning-audio-refresh", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ mode: "dashboard-vietnamese-sot-refresh" }}),
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not start Vietnamese SOT audio refresh.");
+        }}
+        renderQmDictStatus({{}}, payload.audio_refresh || {{}}, {{}}, payload.qmdict_word_audio_refresh || {{}});
+        scheduleQmDictStatusPoll();
+      }} catch (error) {{
+        if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        if (button) button.disabled = false;
+      }}
+    }};
+    if (qmdictReload) {{
+      qmdictReload.addEventListener("click", async () => {{
+        qmdictReload.disabled = true;
+        if (qmdictReloadState) qmdictReloadState.textContent = "Reloading QmDict...";
+        try {{
+          const response = await fetch("/qmdict/reload", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{}}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not reload QmDict.");
+          }}
+          renderQmDictStatus(payload.qmdict_reload || {{}}, payload.audio_refresh || {{}}, payload.space_v_repair || {{}}, payload.qmdict_word_audio_refresh || {{}});
+        }} catch (error) {{
+          if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          qmdictReload.disabled = false;
+        }}
+      }});
+    }}
+    if (spaceVRepair) {{
+      spaceVRepair.addEventListener("click", async () => {{
+        spaceVRepair.disabled = true;
+        if (qmdictReloadState) qmdictReloadState.textContent = "Repairing Space_V audio links...";
+        try {{
+          const response = await fetch("/space-v/repair-qmdict", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{}}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not repair Space_V files.");
+          }}
+          renderQmDictStatus({{}}, {{}}, payload.repair || {{}}, payload.qmdict_word_audio_refresh || {{}});
+        }} catch (error) {{
+          if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          spaceVRepair.disabled = false;
+        }}
+      }});
+    }}
+    if (qmdictMeaningAudioRefresh) {{
+      qmdictMeaningAudioRefresh.addEventListener("click", () => void startQmDictMeaningAudioRefresh(qmdictMeaningAudioRefresh));
+    }}
+    if (qmdictWordAudioRefresh) {{
+      qmdictWordAudioRefresh.addEventListener("click", () => void startQmDictWordAudioRefresh("all", qmdictWordAudioRefresh));
+    }}
+    if (qmdictWordAudioRetry) {{
+      qmdictWordAudioRetry.addEventListener("click", () => void startQmDictWordAudioRefresh("failed", qmdictWordAudioRetry));
+    }}
+    if (serverDataManifestRefresh) {{
+      serverDataManifestRefresh.addEventListener("click", async () => {{
+        serverDataManifestRefresh.disabled = true;
+        if (serverDataManifestState) serverDataManifestState.textContent = "Refreshing Lesson Vault manifest...";
+        try {{
+          const response = await fetch("/server-data/manifest-refresh", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{}}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not refresh manifest.");

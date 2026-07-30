@@ -1,0 +1,2340 @@
+<!doctype html>
+<html lang="vi" translate="no" class="notranslate">
+<head>
+  <meta charset="utf-8">
+  <meta name="google" content="notranslate">
+  <meta name="googlebot" content="notranslate">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>QM-Tech</title>
+  <link rel="icon" href="/favicon.ico?v=20260705" sizes="any">
+  <link rel="shortcut icon" href="/favicon.ico?v=20260705">
+  <link rel="stylesheet" href="/future-assets/future.css">
+
+</head>
+<body translate="no" class="notranslate">
+  <button class="ft-fullscreen" id="ft-fullscreen" type="button" aria-label="Fullscreen">
+    <svg class="ft-fullscreen-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M11 6H6v5M21 6h5v5M11 26H6v-5M21 26h5v-5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M13 13 7 7M19 13l6-6M13 19l-6 6M19 19l6 6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-ai-agent-button" id="ft-ai-agent-button" type="button" aria-label="Open AI agent" aria-expanded="false">
+    <svg class="ft-ai-agent-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 5.5c4.7 0 8.5 3.5 8.5 8.1 0 3-1.6 5.4-4.1 6.8l-.9 4.6-3.5-2.8-3.5 2.8-.9-4.6c-2.5-1.4-4.1-3.8-4.1-6.8 0-4.6 3.8-8.1 8.5-8.1Z" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linejoin="round"/>
+      <path d="M11.2 14.2h.1M20.7 14.2h.1M12.2 18c1.7 1.4 5.9 1.4 7.6 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M16 3.8V2.2M8.5 6.8 7.3 5.6M23.5 6.8l1.2-1.2M5.8 13.8H4.2M27.8 13.8h-1.6" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>
+      <path d="M13.2 11.2h5.6M13.2 11.2l-1.5-1.5M18.8 11.2l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <span class="ft-ai-agent-alert" aria-hidden="true">!</span>
+  </button>
+
+  <section class="ft-ai-agent-popup" id="ft-ai-agent-popup" aria-hidden="true" aria-labelledby="ft-ai-agent-title">
+    <div class="ft-ai-agent-head">
+      <div>
+        <p class="ft-ai-agent-kicker">Ghost AI link</p>
+        <h2 class="ft-ai-agent-title" id="ft-ai-agent-title">Ghost AI</h2>
+      </div>
+      <button class="ft-ai-agent-close" id="ft-ai-agent-close" type="button" aria-label="Close AI agent">x</button>
+    </div>
+    <div class="ft-ai-agent-body">
+      <div class="ft-ai-agent-mode" role="group" aria-label="AI answer mode">
+        <button class="ft-ai-agent-mode-button is-active" type="button" data-ai-agent-mode="spoken" aria-pressed="true">Talk</button>
+        <button class="ft-ai-agent-mode-button" type="button" data-ai-agent-mode="detailed" aria-pressed="false">Detailed</button>
+      </div>
+      <div class="ft-ai-agent-thinking" id="ft-ai-agent-thinking" aria-hidden="true">
+        <div class="ft-ai-agent-brain" aria-hidden="true">
+          <svg class="ft-ai-agent-brain-svg" viewBox="0 0 96 72">
+            <path class="ft-ai-agent-brain-lobe" d="M44 13c-8-7-22-3-23 9-9 3-12 15-5 22-2 10 8 18 17 13 5 6 18 3 19-7V18c0-2-3-4-8-5Z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="ft-ai-agent-brain-lobe is-right" d="M52 13c8-7 22-3 23 9 9 3 12 15 5 22 2 10-8 18-17 13-5 6-18 3-19-7V18c0-2 3-4 8-5Z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="ft-ai-agent-brain-link" d="M31 25h15m-18 12h18m-12 11h12m19-23H50m18 12H50m12 11H50" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <path class="ft-ai-agent-brain-core" d="M48 18v35" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <circle class="ft-ai-agent-brain-node" cx="31" cy="25" r="2.5"/>
+            <circle class="ft-ai-agent-brain-node is-b" cx="65" cy="25" r="2.5"/>
+            <circle class="ft-ai-agent-brain-node is-c" cx="28" cy="37" r="2.5"/>
+            <circle class="ft-ai-agent-brain-node is-d" cx="68" cy="37" r="2.5"/>
+            <circle class="ft-ai-agent-brain-node is-e" cx="36" cy="48" r="2.5"/>
+            <circle class="ft-ai-agent-brain-node is-f" cx="60" cy="48" r="2.5"/>
+          </svg>
+          <span class="ft-ai-agent-brain-halo"></span>
+        </div>
+        <div class="ft-ai-agent-thinking-copy">
+          <span class="ft-ai-agent-thinking-kicker">Neural reasoning</span>
+          <strong class="ft-ai-agent-thinking-title">Ghost AI is thinking</strong>
+          <span class="ft-ai-agent-thinking-stream"><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+        <div class="ft-ai-agent-thinking-time" aria-label="AI thinking elapsed time">
+          <span>Time</span>
+          <b id="ft-ai-agent-thinking-time">00:00</b>
+        </div>
+      </div>
+      <div class="ft-ai-agent-suggestion is-hidden" id="ft-ai-agent-suggestion" aria-hidden="true">
+        <div class="ft-ai-agent-suggestion-head">
+          <span>Space_P tutor</span>
+          <strong>Follow-up ready</strong>
+        </div>
+        <p class="ft-ai-agent-suggestion-text" id="ft-ai-agent-suggestion-text"></p>
+        <div class="ft-ai-agent-suggestion-actions">
+          <button class="ft-ai-agent-suggestion-use" id="ft-ai-agent-suggestion-use" type="button">Use question</button>
+          <button class="ft-ai-agent-suggestion-dismiss" id="ft-ai-agent-suggestion-dismiss" type="button">Dismiss</button>
+        </div>
+      </div>
+      <div class="ft-ai-agent-vocab-quick is-hidden" id="ft-ai-agent-vocab-quick" aria-hidden="true">
+        <div class="ft-ai-agent-vocab-quick-head">
+          <span>Space_V quick asks</span>
+          <strong>Vocabulary support</strong>
+        </div>
+        <div class="ft-ai-agent-vocab-quick-grid">
+          <button class="ft-ai-agent-vocab-quick-button" type="button" data-ai-vocab-quick="usage">How do I use this word?</button>
+          <button class="ft-ai-agent-vocab-quick-button" type="button" data-ai-vocab-quick="context">When can I use this word?</button>
+        </div>
+      </div>
+      <div class="ft-ai-agent-paragraph-quick is-hidden" id="ft-ai-agent-paragraph-quick" aria-hidden="true">
+        <div class="ft-ai-agent-vocab-quick-head">
+          <span>Space_P hinted words</span>
+          <strong>Tap to ask</strong>
+        </div>
+        <div class="ft-ai-agent-paragraph-quick-list" id="ft-ai-agent-paragraph-quick-list"></div>
+      </div>
+      <div class="ft-vietnamese-typing-shell ft-ai-agent-input-shell">
+        <textarea class="ft-ai-agent-input" id="ft-ai-agent-input" rows="4" maxlength="3600" placeholder="Ask Ghost AI in Vietnamese or English..."></textarea>
+        <button class="ft-vietnamese-typing-toggle" id="ft-ai-agent-vietnamese-toggle" type="button" aria-label="Toggle Vietnamese typing support" aria-pressed="false" title="Vietnamese typing support">VI</button>
+      </div>
+      <div class="ft-ai-agent-actions">
+        <div class="ft-ai-agent-speech-tools" role="group" aria-label="Ghost AI speech input">
+        <select class="ft-speech-mode-select ft-ai-agent-speech-mode" id="ft-ai-agent-speech-mode" aria-label="AI Agent speech input mode" title="Speech input mode">
+          <option value="browser">Browser VI+EN</option>
+          <option value="zipformer">Zipformer VI</option>
+        </select>
+        <button class="ft-vietnamese-typing-toggle ft-zipformer-vi-input-mic" id="ft-ai-agent-vi-stt" type="button" aria-label="Speech input" aria-pressed="false" title="Speech input">Mic</button>
+        </div>
+        <button class="ft-ai-agent-submit" id="ft-ai-agent-submit" type="button">Send</button>
+        <button class="ft-ai-agent-translate-en" id="ft-ai-agent-translate-en" type="button">Translate to En</button>
+        <p class="ft-ai-agent-status" id="ft-ai-agent-status" aria-live="polite">Ghost AI answer, bilingual panels, Michael voice.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ft-ai-ghost-en-popup" id="ft-ai-ghost-en-popup" aria-hidden="true" aria-labelledby="ft-ai-ghost-en-title" tabindex="-1">
+    <div class="ft-ai-ghost-en-head">
+      <div>
+        <p class="ft-ai-ghost-en-kicker">Ghost VI detail bridge</p>
+        <h2 class="ft-ai-ghost-en-title" id="ft-ai-ghost-en-title">Ghost EN</h2>
+      </div>
+      <div class="ft-ai-ghost-en-voice" role="group" aria-label="Ghost EN voice accent">
+        <button class="ft-ai-ghost-en-voice-button is-active" id="ft-ai-ghost-en-voice-uk" type="button" data-ghost-en-voice="uk" aria-pressed="true">UK</button>
+        <button class="ft-ai-ghost-en-voice-button" id="ft-ai-ghost-en-voice-us" type="button" data-ghost-en-voice="us" aria-pressed="false">US</button>
+        <button class="ft-ai-ghost-en-speed" id="ft-ai-ghost-en-speed" type="button" role="spinbutton" aria-label="Ghost EN reading speed" aria-valuemin="50" aria-valuemax="150" aria-valuenow="100">
+          <span class="ft-ai-ghost-en-speed-rail" aria-hidden="true"></span>
+          <span class="ft-ai-ghost-en-speed-value">100%</span>
+        </button>
+      </div>
+      <button class="ft-ai-ghost-en-close" id="ft-ai-ghost-en-close" type="button" aria-label="Close Ghost EN">x</button>
+    </div>
+    <div class="ft-ai-ghost-en-body">
+      <p class="ft-ai-ghost-en-source" id="ft-ai-ghost-en-source"></p>
+      <div class="ft-ai-ghost-en-tools" aria-label="Ghost EN voice tools">
+        <label class="ft-ai-ghost-en-select-wrap" for="ft-ai-ghost-en-voice-select">
+          <span>Voice</span>
+          <select class="ft-ai-ghost-en-voice-select" id="ft-ai-ghost-en-voice-select">
+            <option value="sot:en-GB">Sound of Text | Female UK</option>
+            <option value="sot:en-US">Sound of Text | Female US</option>
+            <option value="kokoro:am_adam">People | Male Adam</option>
+            <option value="kokoro:af_jessica">People | Female Jessica</option>
+            <option value="kokoro:am_michael">People | Male Michael</option>
+            <option value="kokoro:bf_maisie">People | Female Maisie</option>
+          </select>
+        </label>
+        <button class="ft-ai-ghost-en-action" id="ft-ai-ghost-en-read" type="button">Create voice</button>
+        <button class="ft-ai-ghost-en-replay" id="ft-ai-ghost-en-replay" type="button" disabled aria-disabled="true">Replay</button>
+        <button class="ft-ai-ghost-en-mic" id="ft-ai-ghost-en-mic" type="button" aria-pressed="false">Mic</button>
+      </div>
+      <div class="ft-ai-ghost-en-reading" id="ft-ai-ghost-en-reading" aria-hidden="true">
+        <span class="ft-ai-ghost-en-brain" aria-hidden="true"><i></i><i></i><b></b></span>
+        <span class="ft-ai-ghost-en-reading-label" id="ft-ai-ghost-en-reading-label">Ghost EN is reading</span>
+      </div>
+      <div class="ft-ai-ghost-en-text" id="ft-ai-ghost-en-text" aria-live="polite"></div>
+      <p class="ft-ai-ghost-en-status" id="ft-ai-ghost-en-status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <aside class="ft-ai-ghost-en-detail is-hidden" id="ft-ai-ghost-en-detail" aria-hidden="true"></aside>
+
+  <button class="ft-mobile-tools-toggle" id="ft-mobile-tools-toggle" type="button" aria-label="Toggle tools" aria-expanded="false">
+    <span class="ft-mobile-tools-toggle-core" aria-hidden="true"></span>
+  </button>
+
+  <button class="ft-chat-button" id="ft-chat-button" type="button" aria-label="Open chat">
+    <svg class="ft-chat-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M7 8.5C7 6.6 8.6 5 10.5 5h11C23.4 5 25 6.6 25 8.5v8.2c0 1.9-1.6 3.5-3.5 3.5h-7.1L9 25v-4.8H7.8C6.2 20.2 5 19 5 17.4V8.5Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M11 11h10M11 15h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+    <span class="ft-chat-dot" id="ft-chat-dot">0</span>
+  </button>
+
+  <button class="ft-stream-button" id="ft-stream-button" type="button" aria-label="Start voice stream">
+    <svg class="ft-stream-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 6a4 4 0 0 0-4 4v5a4 4 0 0 0 8 0v-5a4 4 0 0 0-4-4Z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="M8 14v1a8 8 0 0 0 16 0v-1M16 23v4M12 27h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-screen-button" id="ft-screen-button" type="button" aria-label="Share screen preview">
+    <svg class="ft-screen-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M6 8.5c0-1.4 1.1-2.5 2.5-2.5h15C24.9 6 26 7.1 26 8.5v10c0 1.4-1.1 2.5-2.5 2.5h-15A2.5 2.5 0 0 1 6 18.5v-10Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M12 26h8M16 21v5M10.5 11.5h11M10.5 15.5H18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-web-record-button" id="ft-web-record-button" type="button" aria-label="Record web screen">
+    <svg class="ft-web-record-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M6 8.5C6 7.1 7.1 6 8.5 6h15C24.9 6 26 7.1 26 8.5v10c0 1.4-1.1 2.5-2.5 2.5h-15A2.5 2.5 0 0 1 6 18.5v-10Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M12 25.5h8M16 21v4.5M10.5 11.5h6.5M10.5 15.5h4.5" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linecap="round"/>
+      <circle cx="22" cy="14" r="3.4" fill="currentColor"/>
+    </svg>
+  </button>
+
+  <button class="ft-admin-screen-button" id="ft-admin-screen-button" type="button" aria-label="Admin screen control">
+    <svg class="ft-admin-screen-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M5.5 8.5C5.5 7.1 6.6 6 8 6h16c1.4 0 2.5 1.1 2.5 2.5v10c0 1.4-1.1 2.5-2.5 2.5H8a2.5 2.5 0 0 1-2.5-2.5v-10Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M12 25.5h8M16 21v4.5M10 11h12M10 15h7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+      <path d="M22 16.4 26.5 19l-4.5 2.6v-5.2Z" fill="currentColor"/>
+    </svg>
+  </button>
+
+  <button class="ft-paint-button" id="ft-paint-button" type="button" aria-label="Open paint scratchpad">
+    <svg class="ft-paint-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M8 23.5c2.6 2.1 6.2 2.8 9.4 1.7 4.9-1.6 7.9-6.4 6.6-10.6C22.8 10.8 18.2 8.5 13.4 10 8.6 11.5 5.6 16.3 6.9 20.5c.3 1 .7 1.7 1.1 2.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M12 14.4h.1M16 12.8h.1M19.8 15.5h.1M14.8 19.8h.1" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <path d="M20.2 23.4 26 26M23.6 20.2l2.9 2.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-mobile-animation-button" id="ft-mobile-animation-button" type="button" aria-label="Toggle mobile animation" aria-pressed="false">
+    <svg class="ft-mobile-animation-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M7 17.5 15 5v9.5h10L17 27v-9.5H7Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M8 8.5h3.4M20.8 23.5H24M5.5 23.5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-speak-admin-button" id="ft-speak-admin-button" type="button" aria-label="Review Speak error requests">
+    <svg class="ft-speak-admin-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M8 7.5h10.5l5.5 5.5v11.5H8V7.5Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M18.5 7.8v5.5H24M11.5 17.5h8M11.5 21.5h5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m20.5 22.8 2 2.1 4-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-cursor-button" id="ft-cursor-button" type="button" aria-label="Toggle hologram cursor" aria-pressed="true">
+    <svg class="ft-cursor-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M8 5.5 23.5 16l-7.2 1.8 3.9 6.7-3.9 2.1-3.8-6.9-5 5.1V5.5Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M21.5 7.5h4M23.5 10.2l2.8-2.8M24.2 14.2h3.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-game-button" id="ft-game-button" type="button" aria-label="Open vocabulary battle room">
+    <svg class="ft-game-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M7 25V13l9-6 9 6v12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M11 25v-7h10v7M11 14h10M14 11h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M5 25h22M9 18l-3-2M23 18l3-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-portal-button" id="ft-portal-button" type="button" aria-label="Open QM-City">
+    <svg class="ft-portal-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="8.6" fill="none" stroke="currentColor" stroke-width="2.1"/>
+      <path d="M16 6.8c4.4 2.1 6.7 5.2 6.7 9.2s-2.3 7.1-6.7 9.2c-4.4-2.1-6.7-5.2-6.7-9.2S11.6 8.9 16 6.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M7.5 16h17M16 7.5v17M10.5 10.6c3.9 2.1 7.1 2.1 11 0M10.5 21.4c3.9-2.1 7.1-2.1 11 0" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-vault-button" id="ft-vault-button" type="button" aria-label="Exit" title="Exit">
+    <svg class="ft-vault-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M5.5 10.5c0-1.4 1.1-2.5 2.5-2.5h5.3l2.4 2.7H24c1.4 0 2.5 1.1 2.5 2.5v9.3c0 1.4-1.1 2.5-2.5 2.5H8c-1.4 0-2.5-1.1-2.5-2.5v-12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M14.5 15 11 18.5l3.5 3.5M11.3 18.5H21" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-cup-button" id="ft-cup-button" type="button" aria-label="Open vocabulary leaderboard">
+    <svg class="ft-cup-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M10 6.5h12v5.2c0 4.2-2.2 7.2-6 8.3-3.8-1.1-6-4.1-6-8.3V6.5Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M10 9H6.8c-.7 0-1.3.6-1.2 1.3.4 3.2 2.2 5.3 5 6M22 9h3.2c.7 0 1.3.6 1.2 1.3-.4 3.2-2.2 5.3-5 6M16 20v4M11.5 26h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M13 11.5h6M14 15h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <button class="ft-npc-switch-button" id="ft-npc-switch-button" type="button" aria-label="Switch admin NPC racer">
+    <svg class="ft-npc-switch-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M7 22.5c1.9-4.7 5-7.1 9-7.1s7.1 2.4 9 7.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M10.8 12.2c0-3.8 2.6-6.5 6.2-6.5s6.2 2.7 6.2 6.5-2.6 6.5-6.2 6.5-6.2-2.7-6.2-6.5Z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="M5.5 8.5 3.5 6.4M4.5 14H2.2M26.5 8.5l2-2.1M27.5 14h2.3M12.5 25.5h9" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+      <path d="m16 2.8 1.2 2.3L19.8 6l-2.1 1.6.1 2.6L16 8.8l-1.8 1.4.1-2.6L12.2 6l2.6-.9L16 2.8Z" fill="currentColor" opacity=".82"/>
+    </svg>
+  </button>
+
+  <button class="ft-user-button" id="ft-user-button" type="button" aria-haspopup="menu" aria-expanded="false">
+    <span class="ft-user-avatar" id="ft-user-avatar" aria-hidden="true">
+      <img id="ft-user-avatar-img" alt="">
+      <svg class="ft-user-avatar-default" viewBox="0 0 64 64" focusable="false">
+        <path class="avatar-hair" d="M17 31c0-11 6.4-19 15-19s15 8 15 19c0 9-3.3 17-15 17S17 40 17 31Z" fill="currentColor" opacity=".18"/>
+        <path d="M18.5 50c2.5-8.8 8.1-13 13.5-13s11 4.2 13.5 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <path d="M22 27c0-7.3 4.3-12.4 10-12.4S42 19.7 42 27s-4.3 12.4-10 12.4S22 34.3 22 27Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+        <path class="avatar-jaw" d="M22.5 25.5c5.7-2.7 13.3-2.7 19 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".62"/>
+      </svg>
+    </span>
+    <span class="ft-user-name" id="ft-user-name">User</span>
+  </button>
+  <div class="ft-pdf-compact-dock" id="ft-pdf-compact-dock" aria-label="Optimized PDF toolbar">
+    <button class="ft-pdf-compact-toggle" id="ft-pdf-compact-toggle" type="button" aria-label="Optimize PDF toolbar" aria-pressed="false">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M7 8.5h18M7 16h18M7 23.5h18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        <path d="M11 6 7 8.5l4 2.5M21 13.5l4 2.5-4 2.5M11 21l-4 2.5 4 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div class="ft-pdf-compact-controls" id="ft-pdf-compact-controls" aria-hidden="true">
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-prev" type="button" aria-label="Previous page">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M19.5 8.5 12 16l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <span class="ft-pdf-compact-pagebox">
+        <input class="ft-pdf-compact-goto" id="ft-pdf-compact-goto" type="number" min="1" value="1" aria-label="Press Enter to go to page">
+        <span class="ft-pdf-compact-pageghost" id="ft-pdf-compact-pageghost">1/1</span>
+      </span>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-next" type="button" aria-label="Next page">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M12.5 8.5 20 16l-7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action ft-pdf-compact-quality" id="ft-pdf-compact-quality" type="button" aria-label="PDF render quality level 1" aria-pressed="false">Q1</button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-zoom-out" type="button" aria-label="Zoom out">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="14" cy="14" r="7.2" fill="none" stroke="currentColor" stroke-width="2.3"/>
+          <path d="M19.5 19.5 25 25M10.5 14h7" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-zoom-in" type="button" aria-label="Zoom in">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="14" cy="14" r="7.2" fill="none" stroke="currentColor" stroke-width="2.3"/>
+          <path d="M19.5 19.5 25 25M10.5 14h7M14 10.5v7" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action ft-pdf-compact-ai-assist is-active" id="ft-pdf-compact-ai-assist" type="button" aria-label="Hide AI regions" aria-pressed="true" title="Hide AI notice and question regions">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M4.8 16s4.1-6.5 11.2-6.5S27.2 16 27.2 16 23.1 22.5 16 22.5 4.8 16 4.8 16Z" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linejoin="round"/>
+          <circle cx="16" cy="16" r="3.3" fill="none" stroke="currentColor" stroke-width="2.05"/>
+          <path d="M7.6 8.4 5.6 6.4M24.4 8.4l2-2M16 6.1V3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M20.8 20.2h4.8v4.8h-4.8zM6.4 20.2h4.8v4.8H6.4z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/>
+        </svg>
+        <span class="ft-pdf-compact-ai-dot" aria-hidden="true"></span>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-eye" type="button" aria-label="Toggle Ghost Eye selection">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M4.8 16s4.1-7 11.2-7 11.2 7 11.2 7-4.1 7-11.2 7S4.8 16 4.8 16Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+          <circle cx="16" cy="16" r="3.7" fill="none" stroke="currentColor" stroke-width="2.1"/>
+          <path d="M16 4.8v2.4M7.6 7.8l1.8 1.8M24.4 7.8l-1.8 1.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-scan" type="button" aria-label="Scan page">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M7 9.5V7h5M25 9.5V7h-5M7 22.5V25h5M25 22.5V25h-5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8.5 16h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M11 12h10M11 20h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity=".72"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-pen" type="button" aria-label="PDF pen" aria-pressed="false">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M20.8 5.8 26.2 11 12.4 24.8 6.8 26.2l1.4-5.6L22 6.8Z" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M18.4 8.4 23.6 13.6M8.8 20.8l2.4 2.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-audio" type="button" aria-label="Insert shared audio marker" aria-pressed="false" hidden>
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M8.4 12.4h5.2l5.6-4.6v16.4l-5.6-4.6H8.4a2.4 2.4 0 0 1-2.4-2.4v-2.4a2.4 2.4 0 0 1 2.4-2.4Z" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linejoin="round"/>
+          <path d="M22.6 11.2c1.6 1.2 2.6 3 2.6 4.8s-1 3.6-2.6 4.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M25.1 8.5h4.8M27.5 6.1v4.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-eraser" type="button" aria-label="PDF eraser" aria-pressed="false">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="m20.8 6.4 5 5a2.2 2.2 0 0 1 0 3.1L16.3 24H8.4l-2.2-2.2a2.2 2.2 0 0 1 0-3.1L17.7 6.4a2.2 2.2 0 0 1 3.1 0Z" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linejoin="round"/>
+          <path d="m13.6 24 8.8-8.8M11.2 13.6l7.2 7.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-text" type="button" aria-label="PDF text" aria-pressed="false">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M8 8h16M16 8v16M11.5 24h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-pin-page" type="button" aria-label="Pin current page for Alt E" aria-pressed="false">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M10 6.5h12a2 2 0 0 1 2 2v17l-8-4.5-8 4.5v-17a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linejoin="round"/>
+          <path d="M12.5 11h7M12.5 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M22.2 7.6 25.6 4.2M24.8 10.2l3.2-.4" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-pin-image" type="button" aria-label="Pin selected image region">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M8 7.5h16a2.5 2.5 0 0 1 2.5 2.5v12A2.5 2.5 0 0 1 24 24.5H8A2.5 2.5 0 0 1 5.5 22V10A2.5 2.5 0 0 1 8 7.5Z" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="m7.5 21 5.2-5.2 3.7 3.5 2.5-2.7 5.6 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M21.7 6.2v5.9M18.9 8.3l2.8-2.1 2.8 2.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-local-image" type="button" aria-label="Open local clipboard image slots">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M7.5 8.5h13a2.5 2.5 0 0 1 2.5 2.5v9.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 5 20.5V11a2.5 2.5 0 0 1 2.5-2.5Z" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="m6.9 20.2 4.2-4.1 3 2.8 2.1-2.2 4.9 4.6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M24.5 7.5v8M20.5 11.5h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="ft-pdf-compact-action" id="ft-pdf-compact-console" type="button" aria-label="Show Ghost Eye Console">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M6 9.5c0-1.4 1.1-2.5 2.5-2.5h15C24.9 7 26 8.1 26 9.5v13c0 1.4-1.1 2.5-2.5 2.5h-15A2.5 2.5 0 0 1 6 22.5v-13Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+          <path d="M10 12.5h12M10 17h7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <path d="M18 19.8s1.8-2.7 4.8-2.7 4.8 2.7 4.8 2.7-1.8 2.7-4.8 2.7-4.8-2.7-4.8-2.7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <circle cx="22.8" cy="19.8" r="1.2" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="ft-user-menu" id="ft-user-menu" role="menu">
+    <div class="ft-user-profile-card">
+      <span class="ft-user-menu-avatar" id="ft-user-menu-avatar" aria-hidden="true">
+        <img id="ft-user-menu-avatar-img" alt="">
+        <svg class="ft-user-avatar-default" viewBox="0 0 64 64" focusable="false">
+          <path class="avatar-hair" d="M17 31c0-11 6.4-19 15-19s15 8 15 19c0 9-3.3 17-15 17S17 40 17 31Z" fill="currentColor" opacity=".18"/>
+          <path d="M18.5 50c2.5-8.8 8.1-13 13.5-13s11 4.2 13.5 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+          <path d="M22 27c0-7.3 4.3-12.4 10-12.4S42 19.7 42 27s-4.3 12.4-10 12.4S22 34.3 22 27Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+          <path class="avatar-jaw" d="M22.5 25.5c5.7-2.7 13.3-2.7 19 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity=".62"/>
+        </svg>
+      </span>
+      <div>
+        <div class="ft-user-menu-name" id="ft-user-menu-name">Sign in</div>
+        <span class="ft-user-avatar-status" id="ft-user-avatar-status">Avatar ready</span>
+      </div>
+    </div>
+    <button class="ft-user-menu-action" id="ft-user-avatar-upload" type="button" role="menuitem">
+      <span>Update avatar</span>
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M9 23.5h14a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3H9a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+        <path d="m10.5 20 4-4.2 3 2.9 2.2-2.2 3.8 3.5M12 12.5h.1M16 14.5V7.5M12.8 10.5 16 7.3l3.2 3.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <input id="ft-user-avatar-file" type="file" accept="image/*" hidden>
+    <button class="ft-user-menu-action" id="ft-profile-edit-open" type="button" role="menuitem">
+      <span>Personal card</span>
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M8 9.5h16a2.5 2.5 0 0 1 2.5 2.5v10A2.5 2.5 0 0 1 24 24.5H8A2.5 2.5 0 0 1 5.5 22V12A2.5 2.5 0 0 1 8 9.5Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
+        <path d="M11 19.5c.9-2.2 2.5-3.3 4-3.3s3.1 1.1 4 3.3M12.4 13.3h5.2M21 14h2M21 18h2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button class="ft-user-menu-action" id="ft-inventory-open" type="button" role="menuitem">
+      <span>Inventory</span>
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M9 12.5 11.2 7h9.6l2.2 5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 12h18l-1.4 13H8.4L7 12Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+        <path d="M12 17h8M14 21h4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button class="ft-user-menu-action" id="ft-pdf-admin-user-open" type="button" role="menuitem" hidden>
+      <span>Switch PDF User</span>
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M7 23c1.9-4.2 5-6.3 9-6.3s7.1 2.1 9 6.3" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        <path d="M10.6 11.9c0-3.5 2.4-6 5.8-6s5.8 2.5 5.8 6-2.4 6-5.8 6-5.8-2.5-5.8-6Z" fill="none" stroke="currentColor" stroke-width="2.1"/>
+        <path d="M24 9.2h4m-2-2v4M4 16h8M4 16l2.2-2.2M4 16l2.2 2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div class="ft-user-admin-panel" id="ft-pdf-admin-user-panel" hidden>
+      <div class="ft-user-admin-head">
+        <strong>Space_PDF / Picture</strong>
+        <span id="ft-pdf-admin-user-status">Saving for your account.</span>
+      </div>
+      <select class="ft-user-admin-select" id="ft-pdf-admin-user-select" aria-label="Choose PDF monitor user"></select>
+      <div class="ft-user-admin-actions">
+        <button class="ft-user-admin-button" id="ft-pdf-admin-user-apply" type="button">Apply</button>
+        <button class="ft-user-admin-button is-secondary" id="ft-pdf-admin-user-clear" type="button">Back to admin</button>
+      </div>
+      <div class="ft-user-admin-note" id="ft-pdf-admin-user-note">Open Space_PDF or Space_Picture to switch the saved drawing owner.</div>
+    </div>
+    <button class="ft-logout" id="ft-logout" type="button" role="menuitem">Dang xuat</button>
+  </div>
+
+  <div class="ft-npc-switch-modal" id="ft-npc-switch-modal" aria-hidden="true">
+    <section class="ft-npc-switch-card" role="dialog" aria-modal="true" aria-labelledby="ft-npc-switch-title">
+      <div class="ft-npc-switch-head">
+        <div>
+          <p class="ft-npc-switch-kicker">Admin actor relay</p>
+          <h2 class="ft-npc-switch-title" id="ft-npc-switch-title">NPC Racer Switch</h2>
+        </div>
+        <button class="ft-npc-switch-close" id="ft-npc-switch-close" type="button" aria-label="Close NPC switch">x</button>
+      </div>
+      <div class="ft-npc-switch-status" id="ft-npc-switch-status">Choose an NPC identity for QM-City and world chat.</div>
+      <div class="ft-npc-switch-buff">
+        <input class="ft-npc-switch-buff-input" id="ft-npc-switch-buff-input" type="number" min="1" max="25" step="1" inputmode="numeric" placeholder="Buff selected NPC: 1-25 words">
+        <button class="ft-npc-switch-buff-add" id="ft-npc-switch-buff-add" type="button">Add</button>
+      </div>
+      <div class="ft-npc-switch-list" id="ft-npc-switch-list"></div>
+      <div class="ft-npc-switch-actions">
+        <button class="ft-npc-switch-reset" id="ft-npc-switch-reset" type="button">Return to admin</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-profile-modal" id="ft-profile-modal" aria-hidden="true">
+    <section class="ft-profile-card" role="dialog" aria-modal="true" aria-labelledby="ft-profile-title">
+      <div class="ft-profile-head">
+        <div>
+          <p class="ft-profile-kicker">Learner profile</p>
+          <h2 class="ft-profile-title" id="ft-profile-title">Personal Signal</h2>
+        </div>
+        <button class="ft-profile-close" id="ft-profile-close" type="button" aria-label="Close profile">x</button>
+      </div>
+      <div class="ft-profile-body">
+        <div class="ft-profile-identity">
+          <div class="ft-profile-avatar" id="ft-profile-avatar"></div>
+          <div>
+            <div class="ft-profile-name" id="ft-profile-name">Learner</div>
+            <div class="ft-profile-user" id="ft-profile-user">@user</div>
+          </div>
+        </div>
+        <div class="ft-profile-gallery" id="ft-profile-gallery"></div>
+        <div class="ft-profile-intro" id="ft-profile-intro">No introduction yet.</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-profile-edit-modal" id="ft-profile-edit-modal" aria-hidden="true">
+    <section class="ft-profile-edit-card" role="dialog" aria-modal="true" aria-labelledby="ft-profile-edit-title">
+      <div class="ft-profile-edit-head">
+        <div>
+          <p class="ft-profile-edit-kicker">Public personal card</p>
+          <h2 class="ft-profile-edit-title" id="ft-profile-edit-title">Profile Builder</h2>
+        </div>
+        <button class="ft-profile-edit-close" id="ft-profile-edit-close" type="button" aria-label="Close profile editor">x</button>
+      </div>
+      <div class="ft-profile-edit-body">
+        <label class="ft-profile-edit-field">
+          Gmail khoi phuc
+          <input id="ft-profile-edit-email" type="email" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="email" enterkeyhint="next" maxlength="254" spellcheck="false" translate="no" data-form-type="other">
+        </label>
+        <textarea class="ft-profile-edit-intro" id="ft-profile-edit-intro" maxlength="1200" placeholder="Write a short introduction that other learners can read."></textarea>
+        <div class="ft-profile-edit-gallery" id="ft-profile-edit-gallery"></div>
+        <div class="ft-profile-edit-actions">
+          <span class="ft-profile-edit-status" id="ft-profile-edit-status">Add up to 4 profile photos.</span>
+          <button class="ft-profile-edit-save" id="ft-profile-edit-save" type="button">Save card</button>
+        </div>
+        <input id="ft-profile-photo-file" type="file" accept="image/*" hidden>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-inventory-modal" id="ft-inventory-modal" aria-hidden="true">
+    <section class="ft-inventory-card" role="dialog" aria-modal="true" aria-labelledby="ft-inventory-title">
+      <div class="ft-inventory-head">
+        <h2 class="ft-inventory-title" id="ft-inventory-title">
+          Inventory
+          <small>Crystal archive</small>
+        </h2>
+        <button class="ft-inventory-close" id="ft-inventory-close" type="button" aria-label="Close inventory">x</button>
+      </div>
+      <div class="ft-inventory-body">
+        <div class="ft-inventory-grid" id="ft-inventory-grid" aria-label="Inventory slots"></div>
+        <aside class="ft-inventory-info" id="ft-inventory-info" aria-live="polite"></aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-cup-modal" id="ft-cup-modal" aria-hidden="true">
+    <section class="ft-cup-card" role="dialog" aria-modal="true" aria-labelledby="ft-cup-title">
+      <div class="ft-cup-head">
+        <div>
+          <p class="ft-cup-kicker">Lexicon ranking</p>
+          <div class="ft-cup-title-row">
+            <h2 class="ft-cup-title" id="ft-cup-title">Top Vocabulary Users</h2>
+            <div class="ft-cup-type-picker" id="ft-cup-type-picker">
+              <select id="ft-cup-type" aria-label="Choose leaderboard type">
+                <option value="space_v">Vocabulary</option>
+                <option value="space_w">Four-Skill Writing</option>
+                <option value="space_q">English Q&amp;A</option>
+                <option value="space_p">Paragraph Writing</option>
+                <option value="space_s">Paragraph Speaking</option>
+                <option value="space_l">Paragraph Listening</option>
+              </select>
+              <button class="ft-cup-type-button" id="ft-cup-type-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="ft-cup-type-menu">
+                <span class="ft-cup-type-kicker">Leaderboard</span>
+                <span class="ft-cup-type-current">
+                  <span class="ft-cup-type-icon is-space-v" aria-hidden="true"><span></span></span>
+                  <span class="ft-cup-type-current-label" id="ft-cup-type-current-label">Vocabulary</span>
+                </span>
+              </button>
+              <div class="ft-cup-type-menu" id="ft-cup-type-menu" role="listbox" aria-label="Choose leaderboard type" tabindex="-1" aria-hidden="true">
+                <button class="ft-cup-type-option is-selected" type="button" role="option" aria-selected="true" data-cup-type="space_v">
+                  <span class="ft-cup-type-icon is-space-v" aria-hidden="true"><span></span></span>
+                  <span><strong>Vocabulary</strong><small>Space_V word growth</small></span>
+                </button>
+                <button class="ft-cup-type-option" type="button" role="option" aria-selected="false" data-cup-type="space_w">
+                  <span class="ft-cup-type-icon is-space-w" aria-hidden="true"><span></span></span>
+                  <span><strong>Four-Skill Writing</strong><small>Space_W lesson nodes</small></span>
+                </button>
+                <button class="ft-cup-type-option" type="button" role="option" aria-selected="false" data-cup-type="space_q">
+                  <span class="ft-cup-type-icon is-space-q" aria-hidden="true"><span></span></span>
+                  <span><strong>English Q&amp;A</strong><small>Space_Q question practice</small></span>
+                </button>
+                <button class="ft-cup-type-option" type="button" role="option" aria-selected="false" data-cup-type="space_p">
+                  <span class="ft-cup-type-icon is-space-p" aria-hidden="true"><span></span></span>
+                  <span><strong>Paragraph Writing</strong><small>Space_P rewrite progress</small></span>
+                </button>
+                <button class="ft-cup-type-option" type="button" role="option" aria-selected="false" data-cup-type="space_s">
+                  <span class="ft-cup-type-icon is-space-s" aria-hidden="true"><span></span></span>
+                  <span><strong>Paragraph Speaking</strong><small>Space_S voice practice</small></span>
+                </button>
+                <button class="ft-cup-type-option" type="button" role="option" aria-selected="false" data-cup-type="space_l">
+                  <span class="ft-cup-type-icon is-space-l" aria-hidden="true"><span></span></span>
+                  <span><strong>Paragraph Listening</strong><small>Space_L listening runs</small></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="ft-cup-close" id="ft-cup-close" type="button" aria-label="Close leaderboard">x</button>
+      </div>
+      <div class="ft-cup-body">
+        <div class="ft-cup-tabs" role="tablist" aria-label="Vocabulary leaderboard range">
+          <button class="ft-cup-tab" type="button" data-cup-scope="total" role="tab" aria-selected="false">Total</button>
+          <button class="ft-cup-tab is-active" type="button" data-cup-scope="day" role="tab" aria-selected="true">Today</button>
+          <button class="ft-cup-tab" type="button" data-cup-scope="week" role="tab" aria-selected="false">This week</button>
+          <button class="ft-cup-tab" type="button" data-cup-scope="month" role="tab" aria-selected="false">This month</button>
+        </div>
+        <div class="ft-cup-status-composer" id="ft-cup-status-composer">
+          <span class="ft-cup-status-core" aria-hidden="true"></span>
+          <label class="ft-cup-status-label" for="ft-cup-status-input">Your status</label>
+          <input class="ft-cup-status-input" id="ft-cup-status-input" maxlength="280" autocomplete="off" placeholder="Write a short status for this top board, max 30 words">
+          <button class="ft-cup-status-save" id="ft-cup-status-save" type="button">Set</button>
+        </div>
+        <section class="ft-cup-world-chat" id="ft-cup-world-chat" aria-label="World chat">
+          <div class="ft-cup-world-chat-head">
+            <span class="ft-cup-world-chat-orb" aria-hidden="true"></span>
+            <div>
+              <strong>World Chat</strong>
+              <small>Top vocabulary signal room</small>
+            </div>
+          </div>
+          <div class="ft-cup-world-chat-log" id="ft-cup-world-chat-log"></div>
+          <div class="ft-cup-world-chat-compose">
+            <input class="ft-cup-world-chat-input" id="ft-cup-world-chat-input" maxlength="420" autocomplete="off" placeholder="Send a short message">
+            <button class="ft-cup-world-chat-send" id="ft-cup-world-chat-send" type="button">Send</button>
+          </div>
+        </section>
+        <div class="ft-cup-podium" id="ft-cup-podium" aria-label="Top three vocabulary users"></div>
+        <div class="ft-cup-viewers" id="ft-cup-viewers" aria-label="Learners who viewed this top board"></div>
+        <div class="ft-cup-list" id="ft-cup-list" aria-label="Vocabulary leaderboard roster"></div>
+        <p class="ft-cup-status" id="ft-cup-status" aria-live="polite"></p>
+      </div>
+    </section>
+  </div>
+  <div class="ft-cup-viewer-popover" id="ft-cup-viewer-popover" aria-hidden="true">
+    <div class="ft-cup-viewer-popover-head">
+      <strong>Viewed Top Vocabulary</strong>
+      <button class="ft-cup-viewer-close" id="ft-cup-viewer-close" type="button" aria-label="Close viewed users">x</button>
+    </div>
+    <div class="ft-cup-viewer-list" id="ft-cup-viewer-list"></div>
+  </div>
+
+  <div class="ft-cup-reward-modal" id="ft-cup-reward-modal" aria-hidden="true">
+    <section class="ft-cup-reward-card" role="dialog" aria-modal="true" aria-labelledby="ft-cup-reward-title">
+      <div class="ft-cup-reward-head">
+        <div>
+          <p class="ft-cup-kicker">Winner reward chamber</p>
+          <h2 class="ft-cup-reward-title" id="ft-cup-reward-title">Leaderboard Rewards</h2>
+        </div>
+        <button class="ft-cup-close" id="ft-cup-reward-close" type="button" aria-label="Close reward chamber">x</button>
+      </div>
+      <div class="ft-cup-reward-body" id="ft-cup-reward-body"></div>
+    </section>
+  </div>
+
+  <div class="ft-chat-modal" id="ft-chat-modal" aria-hidden="true">
+    <section class="ft-chat-card" role="dialog" aria-modal="true" aria-labelledby="ft-chat-title">
+      <div class="ft-chat-head">
+        <h2 class="ft-chat-title" id="ft-chat-title">Message server</h2>
+        <button class="ft-chat-close" id="ft-chat-close" type="button" aria-label="Close chat">x</button>
+      </div>
+      <div class="ft-chat-log" id="ft-chat-log" aria-live="polite"></div>
+      <div class="ft-chat-compose">
+        <div class="ft-chat-row ft-chat-row-vi">
+          <select class="ft-chat-voice ft-chat-voice-vi" id="ft-chat-vi-voice" aria-label="Vietnamese voice">
+            <option value="edge:vi-VN-NamMinhNeural">Edge | Vietnamese VN | Nam Minh</option>
+            <option value="edge:vi-VN-HoaiMyNeural">Edge | Vietnamese VN | Hoai My</option>
+          </select>
+          <textarea class="ft-chat-input ft-chat-input-vi" id="ft-chat-vi-input" rows="2" maxlength="1200" placeholder="Vietnamese message..."></textarea>
+          <select class="ft-speech-mode-select ft-chat-speech-mode" id="ft-chat-vi-speech-mode" aria-label="Chat speech input mode" title="Speech input mode">
+            <option value="browser">Browser VI+EN</option>
+            <option value="zipformer">Zipformer VI</option>
+          </select>
+          <button class="ft-chat-attach ft-zipformer-vi-input-mic" id="ft-chat-vi-stt" type="button" aria-pressed="false">VI Mic</button>
+          <button class="ft-chat-audio-toggle ft-chat-audio-toggle-vi" id="ft-chat-vi-audio-toggle" type="button" aria-pressed="false">VI audio off</button>
+          <button class="ft-chat-send ft-chat-send-vi" id="ft-chat-vi-send" type="button">Send VI</button>
+        </div>
+        <div class="ft-chat-row ft-chat-row-en">
+          <select class="ft-chat-voice ft-chat-voice-en" id="ft-chat-voice" aria-label="English voice"></select>
+          <textarea class="ft-chat-input ft-chat-input-en" id="ft-chat-input" rows="2" maxlength="1200" placeholder="English message..."></textarea>
+          <button class="ft-chat-audio-toggle ft-chat-audio-toggle-en" id="ft-chat-audio-toggle" type="button" aria-pressed="false">EN audio off</button>
+          <button class="ft-chat-send ft-chat-send-en" id="ft-chat-send" type="button">Send EN</button>
+        </div>
+        <div class="ft-chat-tools">
+          <button class="ft-chat-attach" id="ft-chat-attach" type="button">Attach file</button>
+          <button class="ft-chat-attach" id="ft-chat-mic" type="button">Mic</button>
+          <button class="ft-chat-attach" id="ft-chat-voice-send" type="button" hidden>Send voice</button>
+          <button class="ft-chat-attach" id="ft-chat-voice-cancel" type="button" hidden>Cancel</button>
+          <input id="ft-chat-file" type="file" multiple hidden>
+        </div>
+      </div>
+      <div class="ft-chat-status" id="ft-chat-status"></div>
+    </section>
+  </div>
+
+  <div class="ft-speak-admin-modal" id="ft-speak-admin-modal" aria-hidden="true">
+    <section class="ft-speak-admin-card" role="dialog" aria-modal="true" aria-labelledby="ft-speak-admin-title">
+      <div class="ft-speak-admin-head">
+        <div>
+          <p class="ft-speak-admin-kicker">Speech check command</p>
+          <h2 class="ft-speak-admin-title" id="ft-speak-admin-title">Speak Skip Requests</h2>
+        </div>
+        <button class="ft-speak-admin-close" id="ft-speak-admin-close" type="button" aria-label="Close Speak requests">x</button>
+      </div>
+      <div class="ft-speak-admin-actions">
+        <button class="ft-speak-admin-action" id="ft-speak-admin-refresh" type="button">Refresh</button>
+        <button class="ft-speak-admin-action is-primary" id="ft-speak-admin-accept-all" type="button">Accept all</button>
+      </div>
+      <div class="ft-speak-admin-list" id="ft-speak-admin-list" aria-live="polite"></div>
+      <div class="ft-speak-admin-status" id="ft-speak-admin-status">Ready</div>
+    </section>
+  </div>
+
+  <div class="ft-admin-screen-modal" id="ft-admin-screen-modal" aria-hidden="true">
+    <section class="ft-admin-screen-card" role="dialog" aria-modal="true" aria-labelledby="ft-admin-screen-title">
+      <aside class="ft-admin-screen-side">
+        <div class="ft-admin-screen-head">
+          <div>
+            <p class="ft-admin-screen-kicker">Admin remote screen</p>
+            <h2 class="ft-admin-screen-title" id="ft-admin-screen-title">Online Users</h2>
+          </div>
+          <button class="ft-admin-screen-close" id="ft-admin-screen-close" type="button" aria-label="Close admin screen">x</button>
+        </div>
+        <div class="ft-admin-screen-actions">
+          <button class="ft-admin-screen-action is-primary" id="ft-admin-screen-refresh" type="button">Refresh</button>
+          <button class="ft-admin-screen-action" id="ft-admin-screen-mode" type="button">Mode: Auto</button>
+          <button class="ft-admin-screen-action" id="ft-admin-screen-mic" type="button">Mic Off</button>
+          <button class="ft-admin-screen-action" id="ft-admin-screen-check-path" type="button">Check path</button>
+          <button class="ft-admin-screen-action" id="ft-admin-screen-stop" type="button">Stop</button>
+        </div>
+        <div class="ft-admin-screen-list" id="ft-admin-screen-list" aria-live="polite"></div>
+        <p class="ft-admin-screen-status" id="ft-admin-screen-status">Ready</p>
+        <div class="ft-admin-screen-log" id="ft-admin-screen-log" aria-live="polite"></div>
+      </aside>
+      <main class="ft-admin-screen-stage">
+        <div class="ft-admin-screen-view" id="ft-admin-screen-view" tabindex="0" aria-label="Remote user screen control surface">
+          <video id="ft-admin-screen-video" autoplay playsinline muted></video>
+          <img id="ft-admin-screen-img" alt="">
+          <div class="ft-admin-screen-placeholder" id="ft-admin-screen-placeholder">Choose an online user, then press Screen.</div>
+        </div>
+        <div class="ft-admin-screen-float">
+          <button class="ft-admin-screen-action" id="ft-admin-screen-fullscreen" type="button">Full</button>
+          <button class="ft-admin-screen-action" id="ft-admin-screen-reconnect" type="button">Reconnect</button>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <div class="ft-image-viewer" id="ft-image-viewer" aria-hidden="true">
+    <div class="ft-image-viewer-tools" aria-label="Image viewer tools">
+      <button class="ft-image-viewer-zoom" id="ft-image-viewer-zoom-out" type="button">Zoom -</button>
+      <button class="ft-image-viewer-zoom" id="ft-image-viewer-zoom-reset" type="button">100%</button>
+      <button class="ft-image-viewer-zoom" id="ft-image-viewer-zoom-in" type="button">Zoom +</button>
+      <a class="ft-image-viewer-download" id="ft-image-viewer-download" href="#" download>Download</a>
+      <button class="ft-image-viewer-close" id="ft-image-viewer-close" type="button">Close</button>
+    </div>
+    <img id="ft-image-viewer-img" alt="">
+  </div>
+
+  <div class="ft-paint-modal" id="ft-paint-modal" aria-hidden="true">
+    <section class="ft-paint-card" id="ft-paint-card" role="dialog" aria-modal="true" aria-labelledby="ft-paint-title">
+      <div class="ft-paint-head">
+        <h2 class="ft-paint-title" id="ft-paint-title">Scratch paint</h2>
+        <span class="ft-paint-sync" id="ft-paint-sync">Paint sync ready</span>
+        <button class="ft-paint-close" id="ft-paint-close" type="button" aria-label="Close paint">x</button>
+      </div>
+      <div class="ft-paint-tools" aria-label="Paint tools">
+        <button class="ft-paint-tool" type="button" data-paint-mode="select" aria-label="Select object" title="Select object" aria-pressed="false">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M8 6h6M6 8v6M18 6h6M26 8v6M8 26h6M6 24v-6M18 26h6M26 24v-6"/>
+            <path class="paint-core" d="M16 10v12M10 16h12"/>
+            <circle class="paint-node" cx="16" cy="16" r="3.5"/>
+          </svg>
+          <span class="ft-paint-tool-label">Select</span>
+        </button>
+        <button class="ft-paint-tool is-active" type="button" data-paint-mode="pen" aria-label="Pen" title="Pen" aria-pressed="true">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M8 23l3.5-8.5L21 5l6 6-9.5 9.5L8 23Z"/>
+            <path d="M18.5 7.5l6 6M11.5 14.5l6 6M7 25l6-1.7"/>
+            <path class="paint-spark" d="M23 4l1.8-2M28 9l2.2-.5M21 2.8l-.5-2"/>
+          </svg>
+          <span class="ft-paint-tool-label">Pen</span>
+        </button>
+        <button class="ft-paint-tool" type="button" data-paint-mode="eraser" aria-label="Eraser" title="Eraser" aria-pressed="false">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M7 20l9-11 9 7-7 9H9l-2-5Z"/>
+            <path d="M14 12l9 7M9 25h16M6 17l4 3"/>
+            <path class="paint-spark" d="M5 8h7M4 12h4M22 7h5"/>
+          </svg>
+          <span class="ft-paint-tool-label">Eraser</span>
+        </button>
+        <button class="ft-paint-tool" type="button" data-paint-mode="text" aria-label="Text" title="Text" aria-pressed="false">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M7 8h18M16 8v17M11 25h10"/>
+            <path class="paint-core" d="M5 5h22v22H5z"/>
+            <path class="paint-spark" d="M22 14h4M22 18h4"/>
+          </svg>
+          <span class="ft-paint-tool-label">Text</span>
+        </button>
+        <input class="ft-paint-color" id="ft-paint-color" type="color" value="#0f172a" aria-label="Pen color" title="Pen color">
+        <input class="ft-paint-size" id="ft-paint-size" type="range" min="2" max="30" value="6" aria-label="Paint size">
+        <input class="ft-paint-text-input" id="ft-paint-text-input" type="text" maxlength="160" value="Note" aria-label="Paint text">
+        <button class="ft-paint-clear" id="ft-paint-image" type="button" aria-label="Insert picture" title="Insert picture">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M6 8h20v16H6z"/>
+            <path d="M9 21l5-6 4 4 3-3 4 5M11 12.5h.1"/>
+            <path class="paint-spark" d="M4 6h5M23 26h5M27 10v5"/>
+          </svg>
+          <span class="ft-paint-tool-label">Picture</span>
+        </button>
+        <button class="ft-paint-clear" id="ft-paint-paste" type="button" aria-label="Paste picture" title="Paste picture">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M8 10h12v14H8z"/>
+            <path class="paint-core" d="M13 6h12v14H13z"/>
+            <path class="paint-spark" d="M19 11v5M16.5 13.5H21.5"/>
+          </svg>
+          <span class="ft-paint-tool-label">Paste</span>
+        </button>
+        <button class="ft-paint-clear" id="ft-paint-delete" type="button" aria-label="Delete selected object" title="Delete selected object">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M10 11h12l-1 15H11L10 11Z"/>
+            <path d="M8 11h16M13 8h6M14 15l4 6M18 15l-4 6"/>
+            <path class="paint-spark" d="M7 6l2 2M25 6l-2 2"/>
+          </svg>
+          <span class="ft-paint-tool-label">Delete</span>
+        </button>
+        <button class="ft-paint-clear" id="ft-paint-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <circle class="paint-core" cx="14" cy="14" r="7"/>
+            <path d="M19.5 19.5L26 26M10.5 14h7"/>
+            <path class="paint-spark" d="M14 4v3M4 14h3"/>
+          </svg>
+          <span class="ft-paint-tool-label">Zoom out</span>
+        </button>
+        <span class="ft-paint-zoom-label" id="ft-paint-zoom-label">100%</span>
+        <button class="ft-paint-clear" id="ft-paint-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <circle class="paint-core" cx="14" cy="14" r="7"/>
+            <path d="M19.5 19.5L26 26M10.5 14h7M14 10.5v7"/>
+            <path class="paint-spark" d="M14 4v3M4 14h3"/>
+          </svg>
+          <span class="ft-paint-tool-label">Zoom in</span>
+        </button>
+        <button class="ft-paint-clear" id="ft-paint-fullscreen" type="button" aria-label="Fullscreen" title="Fullscreen">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M6 13V6h7M19 6h7v7M26 19v7h-7M13 26H6v-7"/>
+            <path d="M12 12L7 7M20 12l5-5M20 20l5 5M12 20l-5 5"/>
+          </svg>
+          <span class="ft-paint-tool-label">Fullscreen</span>
+        </button>
+        <button class="ft-paint-clear" id="ft-paint-tab" type="button" aria-label="Open paint in new tab" title="Open paint in new tab">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M6 10h15v16H6z"/>
+            <path d="M17 6h9v9M26 6L15 17"/>
+            <path class="paint-spark" d="M10 15h5M10 20h7"/>
+          </svg>
+          <span class="ft-paint-tool-label">New tab</span>
+        </button>
+        <button class="ft-paint-clear" id="ft-paint-clear" type="button" aria-label="Clear all" title="Clear all">
+          <svg class="ft-paint-tool-icon" viewBox="0 0 32 32" aria-hidden="true">
+            <path class="paint-core" d="M16 6c4.5 0 8.5 3.2 9.4 7.6M16 26c-4.5 0-8.5-3.2-9.4-7.6"/>
+            <path d="M23 8l2.4 5.6-5.8-1.2M9 24l-2.4-5.6 5.8 1.2M12 12l8 8M20 12l-8 8"/>
+          </svg>
+          <span class="ft-paint-tool-label">Clear all</span>
+        </button>
+        <input id="ft-paint-image-file" type="file" accept="image/*" hidden>
+      </div>
+      <div class="ft-paint-stage">
+        <canvas class="ft-paint-canvas" id="ft-paint-canvas" aria-label="Scratch paint board"></canvas>
+        <div class="ft-paint-clear-sweep" id="ft-paint-clear-sweep" aria-hidden="true">
+          <span class="ft-paint-clear-sweep-core"></span>
+          <span class="ft-paint-clear-sweep-grid"></span>
+        </div>
+        <div class="ft-paint-tool-cursor" id="ft-paint-tool-cursor" data-mode="pen" aria-hidden="true">
+          <span class="ft-paint-cursor-mark"></span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-game-modal" id="ft-game-modal" aria-hidden="true">
+    <section class="ft-game-card" role="dialog" aria-modal="true" aria-labelledby="ft-game-title">
+      <div class="ft-game-head">
+        <h2 class="ft-game-title" id="ft-game-title">Vocabulary battle<small>Room lobby and word draft</small></h2>
+        <button class="ft-game-close" id="ft-game-close" type="button" aria-label="Close game lobby">x</button>
+      </div>
+      <div class="ft-game-toolbar">
+        <label class="ft-game-field">Seats<input id="ft-game-seats" type="number" min="1" max="6" value="1"></label>
+        <label class="ft-game-field">Words<input id="ft-game-word-limit" type="number" min="1" max="50" value="50"></label>
+        <label class="ft-game-field">Room code<input id="ft-game-room-code" type="text" maxlength="12" placeholder="ABC123"></label>
+        <button class="ft-game-action" id="ft-game-create" type="button">Create room</button>
+        <button class="ft-game-action" id="ft-game-join" type="button">Join</button>
+        <button class="ft-game-action" id="ft-game-ready" type="button">Ready</button>
+        <button class="ft-game-action" id="ft-game-cancel" type="button">Cancel room</button>
+      </div>
+      <div class="ft-game-body">
+        <aside class="ft-game-room-list" id="ft-game-room-list" aria-label="Open game rooms"></aside>
+        <main class="ft-game-arena">
+          <div class="ft-game-seats" id="ft-game-seats-list"></div>
+          <div class="ft-game-vocab-grid" id="ft-game-vocab-grid"></div>
+        </main>
+      </div>
+      <div class="ft-game-status" id="ft-game-status">Create or join a room to start drafting vocabulary.</div>
+    </section>
+  </div>
+
+  <div class="ft-world-modal" id="ft-world-modal" aria-hidden="true">
+    <section class="ft-world-card" role="dialog" aria-modal="true" aria-labelledby="ft-world-title">
+      <header class="ft-world-head" id="ft-world-menu-trigger" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" aria-controls="ft-world-close-menu">
+        <div>
+          <p class="ft-world-kicker">Shared portal</p>
+          <h2 class="ft-world-title" id="ft-world-title">QM-City</h2>
+        </div>
+      </header>
+      <div class="ft-world-close-menu" id="ft-world-close-menu" aria-hidden="true">
+        <button class="ft-world-menu-action" id="ft-world-inventory-button" type="button">Inventory</button>
+        <button class="ft-world-menu-action" id="ft-world-exit-button" type="button">Exit to Lesson Vault</button>
+      </div>
+      <div class="ft-world-stage" id="ft-world-stage" aria-label="Shared world. Use commands to move your fireball.">
+        <div class="ft-world-arena" id="ft-world-arena">
+          <div class="ft-world-grid" aria-hidden="true"></div>
+          <div class="ft-world-stars" aria-hidden="true"></div>
+          <div class="ft-world-roads" aria-hidden="true">
+            <svg class="ft-world-road-map" viewBox="0 0 1000 640" preserveAspectRatio="none" focusable="false">
+              <path class="ft-world-road-shadow" d="M86 490 H220 Q262 490 262 448 V362 Q262 322 302 322 H454 Q494 322 494 282 V168 Q494 132 532 132 H914" />
+              <path class="ft-world-road-shadow" d="M124 326 H318 Q350 326 350 358 V458 Q350 492 386 492 H680 Q718 492 718 454 V260 Q718 226 752 226 H902" />
+              <path class="ft-world-road-shadow" d="M168 180 H296 Q336 180 356 214 L438 334 Q456 360 488 360 H622 Q652 360 674 338 L788 226" />
+              <path class="ft-world-road-shadow" d="M326 526 C430 584 628 584 734 510 C812 456 824 354 760 292 C704 238 604 226 520 274 C438 322 394 416 326 526" />
+              <path class="ft-world-road-shadow" d="M590 90 V214 Q590 250 626 250 H772 Q812 250 812 290 V396" />
+              <path class="ft-world-road-shadow" d="M230 430 H142 Q104 430 104 392 V270" />
+              <path class="ft-world-road-core" d="M86 490 H220 Q262 490 262 448 V362 Q262 322 302 322 H454 Q494 322 494 282 V168 Q494 132 532 132 H914" />
+              <path class="ft-world-road-core" d="M124 326 H318 Q350 326 350 358 V458 Q350 492 386 492 H680 Q718 492 718 454 V260 Q718 226 752 226 H902" />
+              <path class="ft-world-road-core" d="M168 180 H296 Q336 180 356 214 L438 334 Q456 360 488 360 H622 Q652 360 674 338 L788 226" />
+              <path class="ft-world-road-core" d="M326 526 C430 584 628 584 734 510 C812 456 824 354 760 292 C704 238 604 226 520 274 C438 322 394 416 326 526" />
+              <path class="ft-world-road-core" d="M590 90 V214 Q590 250 626 250 H772 Q812 250 812 290 V396" />
+              <path class="ft-world-road-core" d="M230 430 H142 Q104 430 104 392 V270" />
+              <path class="ft-world-road-dash" d="M86 490 H220 Q262 490 262 448 V362 Q262 322 302 322 H454 Q494 322 494 282 V168 Q494 132 532 132 H914" />
+              <path class="ft-world-road-dash" d="M124 326 H318 Q350 326 350 358 V458 Q350 492 386 492 H680 Q718 492 718 454 V260 Q718 226 752 226 H902" />
+              <path class="ft-world-road-dash" d="M168 180 H296 Q336 180 356 214 L438 334 Q456 360 488 360 H622 Q652 360 674 338 L788 226" />
+              <path class="ft-world-road-dash" d="M326 526 C430 584 628 584 734 510 C812 456 824 354 760 292 C704 238 604 226 520 274 C438 322 394 416 326 526" />
+              <path class="ft-world-road-spine" d="M86 490 H220 Q262 490 262 448 V362 Q262 322 302 322 H454 Q494 322 494 282 V168 Q494 132 532 132 H914" />
+              <path class="ft-world-road-spine" d="M124 326 H318 Q350 326 350 358 V458 Q350 492 386 492 H680 Q718 492 718 454 V260 Q718 226 752 226 H902" />
+            </svg>
+          </div>
+          <div class="ft-world-point-marker" id="ft-world-point-marker" aria-hidden="true"></div>
+          <div class="ft-world-move-marker" id="ft-world-move-marker" aria-hidden="true"><span></span><i></i><b></b><em></em></div>
+          <div class="ft-world-npc ft-world-witch" id="ft-world-witch" data-username="witch" data-display-name="Mystic Witch" style="--world-x:74%;--world-y:34%;">
+            <span class="ft-world-target-arrow" aria-hidden="true"></span>
+            <div class="ft-world-witch-bubble" id="ft-world-witch-bubble"></div>
+            <div class="ft-world-witch-body" aria-hidden="true"></div>
+          <div class="ft-world-witch-name">Mystic Witch</div>
+          </div>
+          <button class="ft-world-training-portal" id="ft-world-training-portal" type="button" aria-label="Open private slime practice gate">
+            <span class="ft-world-training-gate" aria-hidden="true"><i></i><i></i><i></i></span>
+            <b>Practice Gate</b>
+            <small>Private slime arena</small>
+          </button>
+          <div class="ft-world-training-field" id="ft-world-training-field" aria-hidden="true">
+            <div class="ft-world-training-meadow" aria-hidden="true">
+              <span class="is-tree is-tree-1"></span>
+              <span class="is-tree is-tree-2"></span>
+              <span class="is-tree is-tree-3"></span>
+              <span class="is-tree is-tree-4"></span>
+              <span class="is-tree is-tree-5"></span>
+              <span class="is-tree is-tree-6"></span>
+              <span class="is-tree is-tree-7"></span>
+              <span class="is-tree is-tree-8"></span>
+              <span class="is-grass is-grass-1"></span>
+              <span class="is-grass is-grass-2"></span>
+              <span class="is-grass is-grass-3"></span>
+              <span class="is-grass is-grass-4"></span>
+              <span class="is-grass is-grass-5"></span>
+              <span class="is-grass is-grass-6"></span>
+              <span class="is-grass is-grass-7"></span>
+              <span class="is-grass is-grass-8"></span>
+              <span class="is-grass is-grass-9"></span>
+              <span class="is-grass is-grass-10"></span>
+            </div>
+            <div class="ft-world-training-exit-gate" id="ft-world-training-exit-gate" aria-label="Return to QM-City"></div>
+            <div class="ft-world-training-slime-map" id="ft-world-training-slime-map" aria-label="Training slime field"></div>
+          </div>
+          <div class="ft-world-battle-links" id="ft-world-battle-links" aria-hidden="true"></div>
+          <div class="ft-world-players" id="ft-world-players"></div>
+        </div>
+      </div>
+      <div class="ft-world-training-skill-dock" id="ft-world-training-skill-dock" aria-label="Training skills">
+        <button class="ft-world-training-quick-skill" id="ft-world-training-quick-skill" type="button" data-world-training-skill-cast="earthquake" aria-label="Cast Earthquake" title="Earthquake">
+          <span class="ft-world-training-quick-skill-orb" aria-hidden="true"></span>
+          <span class="ft-world-training-quick-skill-copy">
+            <b>Earthquake</b>
+            <small id="ft-world-training-quick-skill-meta">Ready</small>
+          </span>
+          <span class="ft-world-training-quick-skill-cooldown" id="ft-world-training-quick-skill-cooldown" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="ft-world-camera-tools" id="ft-world-camera-tools" aria-label="QM-City camera tools">
+        <button class="ft-world-camera-button" id="ft-world-locate-button" type="button" title="Center on my character">Locate</button>
+        <button class="ft-world-camera-button" id="ft-world-follow-button" type="button" aria-pressed="false" title="Keep my character centered">Follow</button>
+      </div>
+      <button class="ft-world-keypass-button" id="ft-world-keypass-button" type="button" aria-label="Buy arrow-key movement pass">
+        <span class="ft-world-keypad-icon" aria-hidden="true">
+          <span class="is-up">↑</span>
+          <span>←</span>
+          <span>↓</span>
+          <span>→</span>
+        </span>
+        <span class="ft-world-keypass-copy">
+          <strong id="ft-world-keypass-title">Arrow Move</strong>
+          <span id="ft-world-keypass-status">10 random crystals / 1 hour</span>
+        </span>
+      </button>
+      <form class="ft-world-chat" id="ft-world-chat-form">
+        <div class="ft-world-chat-lane">
+          <span class="ft-world-chat-label">English chat</span>
+          <input class="ft-world-chat-input" id="ft-world-chat-input" maxlength="160" autocomplete="off" placeholder="English chat only...">
+          <button class="ft-world-chat-send" id="ft-world-chat-send" type="submit">Send</button>
+        </div>
+        <div class="ft-world-command-lane">
+          <div class="ft-world-command-top">
+            <button class="ft-world-command-help" id="ft-world-command-help" type="button" aria-expanded="false">Interact</button>
+            <div class="ft-world-game-tools">
+              <button class="ft-world-game-button" id="ft-world-game-button" type="button" aria-expanded="false">Game</button>
+              <div class="ft-world-game-list" id="ft-world-game-list" hidden>
+                <button type="button" data-world-game="fireball_vocab">Fireball Vocabulary Battle</button>
+              </div>
+            </div>
+            <div class="ft-world-npc-tools">
+              <button class="ft-world-npc-button" id="ft-world-npc-button" type="button" aria-expanded="false">NPC</button>
+              <div class="ft-world-npc-list" id="ft-world-npc-list" hidden>
+                <button type="button" data-world-npc="witch">Mystic Witch</button>
+              </div>
+            </div>
+            <button class="ft-world-target-chip" id="ft-world-target-chip" type="button" hidden title="Insert selected player into command"></button>
+            <button class="ft-world-point-button" id="ft-world-point-button" type="button">Point</button>
+            <button class="ft-world-position-chip" id="ft-world-position-chip" type="button" hidden title="Insert selected position into command"></button>
+          </div>
+          <input class="ft-world-chat-input ft-world-command-input" id="ft-world-command-input" maxlength="120" autocomplete="off" placeholder="Command: move to Name, move to 50 40, jump...">
+          <button class="ft-world-chat-send ft-world-command-send" id="ft-world-command-send" type="button">Run</button>
+          <div class="ft-world-command-list" id="ft-world-command-list" hidden>
+            <div><b>1</b><span>Move up</span><code>move up</code></div>
+            <div><b>2</b><span>Move down</span><code>move down</code></div>
+            <div><b>3</b><span>Move left</span><code>move left</code></div>
+            <div><b>4</b><span>Move right</span><code>move right</code></div>
+            <div><b>5</b><span>Move to percent</span><code>move to 50 40</code></div>
+            <div><b>6</b><span>Move to player</span><code>move to Name</code></div>
+            <div><b>7</b><span>Pick point</span><code>Point button</code></div>
+            <div><b>8</b><span>Move to witch</span><code>go to Mystic Witch</code></div>
+            <div><b>9</b><span>Shape shop</span><code>Mystic Witch, I want to build something</code></div>
+            <div><b>10</b><span>Ask price</span><code>how much is Slime?</code></div>
+            <div><b>11</b><span>Jump</span><code>jump</code></div>
+            <div><b>12</b><span>Spin</span><code>spin</code></div>
+            <div><b>13</b><span>Wave</span><code>wave</code></div>
+            <div><b>14</b><span>Dance</span><code>dance</code></div>
+            <div><b>15</b><span>Stop action</span><code>stop</code></div>
+            <div><b>16</b><span>Invite battle</span><code>Would you like to play Fireball Vocabulary Battle with me?</code></div>
+          </div>
+        </div>
+        <section class="ft-world-training-history" id="ft-world-training-history" aria-hidden="true">
+          <header>
+            <span>Training memory</span>
+            <strong id="ft-world-training-history-title">No training hit yet</strong>
+          </header>
+          <div class="ft-world-training-history-list" id="ft-world-training-history-list">
+            <article class="is-empty">Hit or defeat a slime to review the question, correct answer, and your answer here.</article>
+          </div>
+        </section>
+      </form>
+      <div class="ft-world-status ft-top-loading is-visible" id="ft-world-status" aria-live="polite" aria-hidden="false">
+        <span class="ft-top-loading-core" aria-hidden="true"></span>
+        <span class="ft-top-loading-text" id="ft-world-status-text">Use command input to move your fireball. Click another player to select a target.</span>
+      </div>
+      <aside class="ft-world-invite-panel" id="ft-world-invite-panel" hidden>
+        <div>
+          <span class="ft-world-invite-kicker">Battle invite</span>
+          <strong id="ft-world-invite-title">Fireball Vocabulary Battle</strong>
+          <p id="ft-world-invite-copy">A learner invited you to play.</p>
+        </div>
+        <div class="ft-world-invite-actions">
+          <button id="ft-world-invite-accept" type="button">Accept</button>
+          <button id="ft-world-invite-decline" type="button">Decline</button>
+        </div>
+      </aside>
+      <aside class="ft-world-training-modal" id="ft-world-training-modal" aria-hidden="true">
+        <section class="ft-world-training-card" aria-labelledby="ft-world-training-title">
+          <header class="ft-world-training-head">
+            <div>
+              <p>Private practice gate</p>
+              <h3 id="ft-world-training-title">Slime Vocabulary Field</h3>
+            </div>
+            <button class="ft-world-training-close" id="ft-world-training-close" type="button" aria-label="Close practice gate">x</button>
+          </header>
+          <div class="ft-world-training-body">
+            <aside class="ft-world-training-stats" id="ft-world-training-stats"></aside>
+            <main class="ft-world-training-main">
+              <div class="ft-world-training-slimes" id="ft-world-training-slimes" aria-label="Training slimes"></div>
+              <section class="ft-world-training-question">
+                <div class="ft-world-training-question-top">
+                  <span id="ft-world-training-target">Choose a slime</span>
+              </div>
+                <p id="ft-world-training-question">The practice gate is loading your question.</p>
+                <form class="ft-world-training-answer" id="ft-world-training-answer-form">
+                  <input id="ft-world-training-answer" autocomplete="off" placeholder="Type the English answer...">
+                  <select class="ft-speech-mode-select ft-world-training-speech-mode" id="ft-world-training-speech-mode" aria-label="Training speech input mode" title="Speech input mode">
+                    <option value="browser">Browser VI+EN</option>
+                    <option value="zipformer">Zipformer VI</option>
+                  </select>
+                  <button class="ft-vietnamese-typing-toggle ft-world-training-speech-mic" id="ft-world-training-speech-mic" type="button" aria-label="Speech answer input" aria-pressed="false" title="Speech answer input">Mic</button>
+                  <button class="ft-vietnamese-typing-toggle ft-world-training-vi-toggle" id="ft-world-training-vi-toggle" type="button" aria-label="Vietnamese typing support" aria-pressed="false" title="Vietnamese typing support">VI</button>
+                  <button id="ft-world-training-submit" type="submit">Strike</button>
+                </form>
+              </section>
+            </main>
+            <aside class="ft-world-training-log" id="ft-world-training-log"></aside>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </div>
+
+  <div class="ft-world-battle-modal" id="ft-world-battle-modal" aria-hidden="true">
+    <section class="ft-world-battle-card" role="dialog" aria-modal="true" aria-labelledby="ft-world-battle-title">
+      <header class="ft-world-battle-head">
+        <div>
+          <p>QM-City Arena</p>
+          <h2 id="ft-world-battle-title">Fireball Vocabulary Battle</h2>
+        </div>
+        <button class="ft-world-battle-forfeit" id="ft-world-battle-forfeit" type="button">Forfeit</button>
+      </header>
+      <div class="ft-world-battle-arena">
+        <section class="ft-world-battle-player is-left" id="ft-world-battle-left"></section>
+        <section class="ft-world-battle-referee">
+          <div class="ft-world-referee-core" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="ft-world-battle-timer" id="ft-world-battle-timer">30</div>
+          <p class="ft-world-battle-phase" id="ft-world-battle-phase">Waiting</p>
+          <p class="ft-world-battle-question" id="ft-world-battle-question">The referee is preparing a word.</p>
+          <form class="ft-world-battle-answer" id="ft-world-battle-answer-form">
+            <input id="ft-world-battle-answer" autocomplete="off" placeholder="Type your answer...">
+            <button class="ft-world-battle-speech-mic" id="ft-world-battle-speech-mic" type="button" aria-label="Battle speech answer input" aria-pressed="false" title="Battle speech answer input" hidden>Mic</button>
+            <button id="ft-world-battle-submit" type="submit">Cast</button>
+          </form>
+          <div class="ft-world-battle-skills" id="ft-world-battle-skills">
+            <button type="button" data-world-skill="inferno">Inferno x3</button>
+            <button type="button" data-world-skill="meteor">Meteor 25</button>
+            <button type="button" data-world-skill="shield">Guard 50%</button>
+            <button type="button" data-world-skill="drain">Drain MP</button>
+            <button type="button" data-world-skill="phoenix">Phoenix +45</button>
+          </div>
+          <div class="ft-world-battle-log" id="ft-world-battle-log"></div>
+        </section>
+        <section class="ft-world-battle-player is-right" id="ft-world-battle-right"></section>
+      </div>
+      <div class="ft-world-battle-result" id="ft-world-battle-result" aria-hidden="true">
+        <section class="ft-world-battle-result-card" aria-labelledby="ft-world-battle-result-title">
+          <p class="ft-world-battle-result-kicker" id="ft-world-battle-result-kicker">Battle result</p>
+          <h3 id="ft-world-battle-result-title">Victory</h3>
+          <p class="ft-world-battle-result-copy" id="ft-world-battle-result-copy">The arena has settled.</p>
+          <div class="ft-world-battle-result-reward" id="ft-world-battle-result-reward"></div>
+          <button class="ft-world-battle-result-close" id="ft-world-battle-result-close" type="button">Return to QM-City</button>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-world-skin-shop" id="ft-world-skin-shop" aria-hidden="true">
+    <header class="ft-world-shop-head">
+      <div>
+        <p class="ft-world-shop-kicker">Mystic transformation chamber</p>
+        <h2 class="ft-world-shop-title">Shape Shop</h2>
+      </div>
+      <button class="ft-world-shop-close" id="ft-world-shop-close" type="button" aria-label="Close shape shop">x</button>
+    </header>
+    <div class="ft-world-shop-body">
+      <div class="ft-world-skin-list" id="ft-world-skin-list"></div>
+      <aside class="ft-world-inventory-panel ft-world-inventory-archive">
+        <div>
+          <div class="ft-world-inventory-title">Inventory</div>
+          <div class="ft-world-inventory-copy" id="ft-world-crystal-count">Currency: Space_V vocabulary crystals.</div>
+        </div>
+        <div class="ft-inventory-grid ft-world-inventory-grid" id="ft-world-inventory-grid" aria-label="QM-City inventory slots"></div>
+        <aside class="ft-inventory-info ft-world-inventory-info" id="ft-world-inventory-info" aria-live="polite"></aside>
+        <div class="ft-world-inventory-copy" id="ft-world-shop-reply">The witch is waiting for your question.</div>
+      </aside>
+    </div>
+    <div class="ft-world-shop-chat">
+      <input class="ft-world-shop-input" id="ft-world-shop-input" maxlength="160" autocomplete="off" placeholder="Ask in English: how much is Slime?">
+      <button class="ft-world-chat-send" id="ft-world-shop-send" type="button">Ask</button>
+    </div>
+  </div>
+
+  <div class="ft-world-inventory-modal" id="ft-world-inventory-modal" aria-hidden="true">
+    <section class="ft-world-inventory-card" role="dialog" aria-modal="true" aria-labelledby="ft-world-inventory-title">
+      <header class="ft-world-inventory-head">
+        <div>
+          <p>QM-City loadout</p>
+          <h2 id="ft-world-inventory-title">Inventory</h2>
+        </div>
+        <button class="ft-world-inventory-close" id="ft-world-inventory-close" type="button" aria-label="Close QM-City inventory">x</button>
+      </header>
+      <div class="ft-world-inventory-body">
+        <section class="ft-world-loadout" aria-label="Character equipment">
+          <div class="ft-world-loadout-character">
+            <div class="ft-world-fireball" aria-hidden="true">
+              <span class="ft-world-eye is-left"></span>
+              <span class="ft-world-eye is-right"></span>
+              <span class="ft-world-cheek is-left"></span>
+              <span class="ft-world-cheek is-right"></span>
+              <span class="ft-world-smile"></span>
+            </div>
+            <div class="ft-world-loadout-name">
+              <span id="ft-world-loadout-name">Character</span>
+              <span>8 slots</span>
+            </div>
+          </div>
+          <div class="ft-world-equipment-grid" id="ft-world-equipment-grid" aria-label="Equipment slots">
+            <span class="ft-world-equipment-slot">Head</span>
+            <span class="ft-world-equipment-slot">Core</span>
+            <span class="ft-world-equipment-slot">Wing</span>
+            <span class="ft-world-equipment-slot">Aura</span>
+            <span class="ft-world-equipment-slot">Hand</span>
+            <span class="ft-world-equipment-slot">Boot</span>
+            <span class="ft-world-equipment-slot">Charm</span>
+            <span class="ft-world-equipment-slot">Relic</span>
+          </div>
+        </section>
+        <aside class="ft-world-pocket ft-world-inventory-archive" aria-label="Crystal inventory">
+          <div>
+            <div class="ft-world-inventory-title">Crystal Bank</div>
+            <div class="ft-world-inventory-copy" id="ft-world-pocket-count">Currency from learning rewards.</div>
+          </div>
+          <div class="ft-inventory-grid ft-world-pocket-grid" id="ft-world-pocket-grid" aria-label="QM-City crystal slots"></div>
+          <aside class="ft-inventory-info ft-world-inventory-info" id="ft-world-pocket-info" aria-live="polite"></aside>
+          <section class="ft-world-training-loadout-panel" id="ft-world-training-loadout-panel" aria-live="polite"></section>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-start-fullscreen is-hidden" id="ft-start-fullscreen">
+    <section class="ft-start-card" aria-labelledby="ft-start-title">
+      <h2 class="ft-start-title" id="ft-start-title">Bat dau toan man hinh</h2>
+      <p class="ft-start-text">Cham mot lan de mo bai hoc full screen, sau do nap goi bai hoc.</p>
+      <div class="ft-start-actions">
+        <button class="ft-start-main" id="ft-start-fullscreen-main" type="button" onclick="event.preventDefault();event.stopImmediatePropagation();(async()=>{try{if(!document.fullscreenElement&&document.documentElement.requestFullscreen){await document.documentElement.requestFullscreen({navigationUI:'hide'});}}catch(e){}var g=document.getElementById('ft-start-fullscreen');if(g)g.classList.add('is-hidden');})()">Full screen</button>
+        <button class="ft-start-skip" id="ft-start-fullscreen-skip" type="button">Bo qua</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="ft-login-vault-preview notranslate" id="ft-login-vault-preview" aria-hidden="true" translate="no">
+    <div class="ft-login-vault-shell">
+      <div class="ft-login-vault-tabs">
+        <span class="is-active">Lesson vault</span>
+        <span>Task board</span>
+        <span>Task notice</span>
+      </div>
+      <div class="ft-login-vault-grid">
+        <section class="ft-login-vault-panel is-vault">
+          <div class="ft-login-vault-head">
+            <span>Lesson vault</span>
+            <small>hung workspace</small>
+          </div>
+          <div class="ft-login-vault-path"><span>QM-Home</span><span>hung</span><span>Immediate Mission</span></div>
+          <div class="ft-login-vault-toolbar">
+            <b>Last accessed</b>
+            <span>How tennis rackets have changed</span>
+          </div>
+          <div class="ft-login-vault-list">
+            <div class="ft-login-vault-item"><span class="ft-login-vault-orb">V</span><span><b class="ft-login-vault-title">Immediate Mission Vocabulary</b><i class="ft-login-vault-meta">25 words | Space V pack | in progress</i></span><span class="ft-login-vault-progress" style="--p: 62%"></span></div>
+            <div class="ft-login-vault-item"><span class="ft-login-vault-orb">P</span><span><b class="ft-login-vault-title">How tennis rackets have changed</b><i class="ft-login-vault-meta">Reading rewrite | paragraph training</i></span><span class="ft-login-vault-progress" style="--p: 38%"></span></div>
+            <div class="ft-login-vault-item"><span class="ft-login-vault-orb">Q</span><span><b class="ft-login-vault-title">Present Simple Practice</b><i class="ft-login-vault-meta">Question pack | grammar checkpoint</i></span><span class="ft-login-vault-progress" style="--p: 74%"></span></div>
+            <div class="ft-login-vault-item"><span class="ft-login-vault-orb">PDF</span><span><b class="ft-login-vault-title">Class 11 Reading Book</b><i class="ft-login-vault-meta">Ghost Eye ready | page memory saved</i></span><span class="ft-login-vault-progress" style="--p: 18%"></span></div>
+          </div>
+        </section>
+        <section class="ft-login-vault-panel is-task">
+          <div class="ft-login-vault-head">
+            <span>Task board</span>
+            <small>assigned to hung</small>
+          </div>
+          <div class="ft-login-vault-stats">
+            <span><b>572</b> words</span>
+            <span><b>18</b> Space V</span>
+            <span><b>9</b> Space Q</span>
+          </div>
+          <div class="ft-login-task-stack">
+            <div class="ft-login-task-item is-critical"><span><b class="ft-login-vault-title">Complete Unit 1 missing words</b><i class="ft-login-vault-meta">Due today | earn top words</i></span><span class="ft-login-task-severity">Critical</span></div>
+            <div class="ft-login-task-item is-high"><span><b class="ft-login-vault-title">Reading analysis: tennis rackets</b><i class="ft-login-vault-meta">Space P | grammar and meaning</i></span><span class="ft-login-task-severity">High</span></div>
+            <div class="ft-login-task-item"><span><b class="ft-login-vault-title">Simple present checkpoint</b><i class="ft-login-vault-meta">Space Q | mixed questions</i></span><span class="ft-login-task-severity">Normal</span></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="ft-auth-gate notranslate" id="ft-auth-gate" translate="no" autocomplete="one-time-code" data-form-type="other">
+    <svg class="ft-auth-connectors" id="ft-auth-connectors" aria-hidden="true">
+      <defs>
+        <linearGradient id="ft-auth-connector-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#6cf0a4"></stop>
+          <stop offset="48%" stop-color="#46f0d7"></stop>
+          <stop offset="100%" stop-color="#ff8e48"></stop>
+        </linearGradient>
+        <linearGradient id="ft-auth-rung-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ff8e48" stop-opacity="0.28"></stop>
+          <stop offset="45%" stop-color="#f7fff9" stop-opacity="0.82"></stop>
+          <stop offset="100%" stop-color="#46f0d7" stop-opacity="0.34"></stop>
+        </linearGradient>
+        <filter id="ft-auth-connector-glow-filter" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="5" result="blur"></feGaussianBlur>
+          <feMerge>
+            <feMergeNode in="blur"></feMergeNode>
+            <feMergeNode in="SourceGraphic"></feMergeNode>
+          </feMerge>
+        </filter>
+      </defs>
+      <g id="ft-auth-connector-lines"></g>
+      <g id="ft-auth-connector-nodes"></g>
+    </svg>
+    <aside class="ft-auth-hud" id="ft-auth-hud" aria-live="polite">
+      <div class="ft-auth-hud-head">
+        <p class="ft-auth-hud-title">AI SYSTEM</p>
+        <span class="ft-auth-hud-stamp" id="ft-auth-hud-stamp">LIVE FEED</span>
+      </div>
+      <div class="ft-auth-hud-effect" aria-hidden="true"><span class="ft-auth-hud-scan"></span></div>
+      <div class="ft-auth-hud-list" id="ft-auth-hud-list">
+        <div class="ft-auth-hud-message">Đang kết nối bảng thông báo từ server.</div>
+      </div>
+      <div class="ft-auth-hud-status"><span class="ft-auth-hud-pulse"></span><span id="ft-auth-hud-status-text">identity scan ready</span></div>
+    </aside>
+    <aside class="ft-auth-clock" aria-hidden="true">
+      <span class="ft-auth-clock-hand"></span>
+      <span class="ft-auth-clock-core">SYNC</span>
+    </aside>
+    <section class="ft-auth-panel" aria-labelledby="ft-auth-title">
+      <button class="ft-panel-fullscreen" id="ft-auth-fullscreen" type="button" aria-label="Fullscreen">FULL</button>
+      <div class="ft-auth-orb" aria-hidden="true">AI</div>
+      <p class="ft-kicker" id="ft-auth-mode">ACCOUNT GATE</p>
+      <h2 class="ft-auth-title" id="ft-auth-title">Student Login</h2>
+      <div class="ft-auth-tabs">
+        <button class="ft-auth-tab is-active" id="ft-auth-login-tab" type="button">Access</button>
+        <button class="ft-auth-tab" id="ft-auth-register-tab" type="button">New account</button>
+      </div>
+      <div class="ft-auth-session" id="ft-auth-session">
+        <div>Active account</div>
+        <div class="ft-auth-user-chip" id="ft-auth-session-user">...</div>
+        <div>The page will continue automatically if this session is still valid.</div>
+        <button class="ft-auth-switch" id="ft-auth-switch" type="button">Switch account</button>
+      </div>
+      <div class="ft-auth-fields" autocomplete="one-time-code" data-form-type="other">
+        <label class="ft-auth-field">
+          User
+          <input id="ft-auth-user" type="text" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="text" enterkeyhint="next" spellcheck="false" translate="no" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off">
+        </label>
+        <label class="ft-auth-field ft-auth-password">
+          Password
+          <span class="ft-auth-secret-row">
+            <input class="ft-secret-input" id="ft-auth-pass" type="text" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="text" enterkeyhint="go" spellcheck="false" translate="no" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off">
+            <button class="ft-auth-secret-toggle" id="ft-auth-pass-toggle" type="button" aria-label="Show password" title="Show password"><span class="ft-auth-eye-icon" aria-hidden="true"></span></button>
+          </span>
+        </label>
+        <label class="ft-auth-field ft-auth-confirm">
+          Confirm password
+          <input class="ft-secret-input" id="ft-auth-confirm" type="text" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="text" enterkeyhint="next" spellcheck="false" translate="no" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off">
+        </label>
+        <div class="ft-auth-profile">
+          <label class="ft-auth-field">
+            Full name
+            <input id="ft-auth-full-name" type="text" autocomplete="one-time-code" autocapitalize="words" autocorrect="off" inputmode="text" enterkeyhint="next" spellcheck="false" translate="no" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off">
+          </label>
+          <label class="ft-auth-field">
+            Gender
+            <select id="ft-auth-gender" autocomplete="one-time-code" translate="no" data-form-type="other">
+              <option value="">Choose gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="ft-auth-field">
+            Date of birth
+            <input id="ft-auth-birth" type="date" autocomplete="one-time-code" translate="no" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off">
+          </label>
+          <label class="ft-auth-field">
+            Recovery Gmail
+            <input id="ft-auth-email" type="email" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="email" enterkeyhint="next" spellcheck="false" translate="no" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off">
+          </label>
+        </div>
+        <div class="ft-auth-reset" id="ft-auth-reset-panel">
+          <input id="ft-auth-reset-code" type="hidden" autocomplete="one-time-code" data-form-type="other">
+          <div class="ft-auth-reset-card">
+            <strong>Admin approval</strong>
+            <span>Send a request to Server 2. After admin approval, press this button again to open the new password form.</span>
+          </div>
+          <button class="ft-auth-reset-send" id="ft-auth-reset-send" type="button">Send / check approval</button>
+        </div>
+        <div class="ft-auth-action-row">
+          <button class="ft-auth-forgot" id="ft-auth-forgot" type="button">Forgot / change password</button>
+          <button class="ft-auth-submit" id="ft-auth-submit" type="button">Verify & Enter</button>
+        </div>
+      </div>
+      <div class="ft-auth-status" id="ft-auth-status" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <div class="ft-load-gate notranslate" id="ft-load-gate" translate="no" autocomplete="one-time-code" data-form-type="other">
+    <section class="ft-load-panel" aria-labelledby="ft-load-title">
+      <button class="ft-panel-fullscreen" id="ft-load-fullscreen" type="button" aria-label="Fullscreen">FULL</button>
+      <p class="ft-kicker">Future lesson vault</p>
+      <h2 class="ft-load-title" id="ft-load-title">Nạp bài học</h2>
+      <p class="ft-load-text">Chọn bài trong thư mục common hoặc thư mục tài khoản của bạn trên server.</p>
+      <div class="ft-load-row">
+        <label class="ft-file-label">
+          Chọn gói bài học
+          <input id="ft-file-input" type="file" accept=".Space_W,.space_w,.Space_V,.space_v,.Space_B,.space_b,.Space_Q,.space_q,.Space_P,.space_p,.Space_S,.space_s,.Space_L,.space_l,.pdf,application/pdf,.txt,text/plain,.png,.jpg,.jpeg,.webp,.bmp,.gif,.tif,.tiff,image/*" translate="no" data-form-type="other">
+        </label>
+        <button class="ft-server-open" id="ft-server-open" type="button">Mở thư mục bài học</button>
+        <button class="ft-server-open ft-worker-open" id="ft-worker-open" type="button" aria-label="Download worker package" title="Download worker package">WORKER</button>
+        <div class="ft-voice-shell ft-load-voice-shell" id="ft-load-voice-shell">
+          <button class="ft-voice-proxy ft-load-voice-proxy" id="ft-load-voice-proxy" type="button" aria-haspopup="dialog" aria-expanded="false">
+            <span class="ft-voice-proxy-text" id="ft-load-voice-proxy-text">Browser English voice</span>
+          </button>
+        </div>
+        <button class="ft-load-start" id="ft-load-start" type="button" hidden>New Study</button>
+        <button class="ft-load-review" id="ft-load-review" type="button" hidden>Review Saved</button>
+        <button class="ft-load-review-train" id="ft-load-review-train" type="button" hidden>Review Train</button>
+        <button class="ft-load-enter-now" id="ft-load-enter-now" type="button" hidden>Enter Now</button>
+      </div>
+      <div class="ft-load-status" id="ft-load-status" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <div class="ft-top-loading" id="ft-top-loading" aria-live="polite" aria-hidden="true">
+    <span class="ft-top-loading-core" aria-hidden="true"></span>
+    <span class="ft-top-loading-text" id="ft-top-loading-text">Loading...</span>
+  </div>
+
+  <div class="ft-vocab-preflight-gate notranslate" id="ft-vocab-preflight-gate" hidden translate="no">
+    <section class="ft-vocab-preflight-panel" aria-labelledby="ft-vocab-preflight-title">
+      <div class="ft-vocab-preflight-grid">
+        <div class="ft-vocab-preflight-clock" aria-hidden="true">
+          <span class="ft-vocab-preflight-count" id="ft-vocab-preflight-count">0</span>
+        </div>
+        <div>
+          <p class="ft-kicker">Vocabulary preflight</p>
+          <h2 class="ft-vocab-preflight-title" id="ft-vocab-preflight-title">New words detected</h2>
+          <p class="ft-vocab-preflight-text" id="ft-vocab-preflight-text">The server found new vocabulary in this Future mission.</p>
+          <div class="ft-vocab-preflight-stats">
+            <span class="ft-vocab-preflight-chip" id="ft-vocab-preflight-files">0 packs</span>
+            <span class="ft-vocab-preflight-chip" id="ft-vocab-preflight-remaining">Ready</span>
+          </div>
+        </div>
+      </div>
+      <div class="ft-vocab-preflight-actions">
+        <button class="ft-vocab-preflight-action" id="ft-vocab-preflight-learn" type="button">Learn vocabulary first</button>
+        <button class="ft-vocab-preflight-action is-secondary" id="ft-vocab-preflight-skip" type="button">Skip vocabulary and continue</button>
+      </div>
+      <div class="ft-vocab-preflight-status" id="ft-vocab-preflight-status" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <div class="ft-server-browser notranslate" id="ft-server-browser" hidden translate="no" autocomplete="one-time-code" data-form-type="other">
+    <div class="ft-server-browser-layout is-panel-vault" id="ft-server-browser-layout" data-active-panel="vault">
+      <nav class="ft-server-browser-tabs" id="ft-server-browser-tabs" aria-label="Lesson workspace sections">
+        <button class="ft-server-browser-tab is-active" id="ft-server-browser-tab-vault" type="button" data-server-panel="vault" aria-pressed="true">Lesson vault</button>
+        <button class="ft-server-browser-tab" id="ft-server-browser-tab-task" type="button" data-server-panel="task" aria-pressed="false">Task board</button>
+        <button class="ft-server-browser-tab" id="ft-server-browser-tab-notice" type="button" data-server-panel="notice" aria-pressed="false" hidden>Task notice</button>
+      </nav>
+      <section class="ft-server-browser-panel" aria-labelledby="ft-server-title">
+        <div class="ft-server-browser-head">
+          <div>
+            <h2 class="ft-server-browser-title" id="ft-server-title">Lesson vault</h2>
+            <div class="ft-server-browser-path" id="ft-server-path">QM-Home</div>
+          </div>
+          <div class="ft-server-browser-actions">
+            <button class="ft-panel-fullscreen ft-server-worker-register" id="ft-server-worker-register" type="button" aria-label="Download worker package" title="Download worker package">WORKER</button>
+            <button class="ft-panel-fullscreen" id="ft-server-fullscreen" type="button" aria-label="Fullscreen">FULL</button>
+            <button class="ft-server-close" id="ft-server-close" type="button" aria-label="Close" hidden>X</button>
+          </div>
+        </div>
+        <div class="ft-server-browser-body">
+          <div class="ft-server-nav" id="ft-server-nav" hidden>
+            <button class="ft-server-back" id="ft-server-back" type="button">
+              <span class="ft-server-back-icon" aria-hidden="true"></span>
+              <span class="ft-server-back-main">
+                <span class="ft-server-back-label">Home</span>
+              </span>
+            </button>
+            <button class="ft-server-recent-file" id="ft-server-recent-file" type="button" hidden>
+              <span class="ft-server-recent-orb" aria-hidden="true"></span>
+              <span class="ft-server-recent-main">
+                <span class="ft-server-recent-label">Last file</span>
+                <span class="ft-server-recent-name" id="ft-server-recent-name">No recent lesson</span>
+              </span>
+            </button>
+            <aside class="ft-server-recent-popover" id="ft-server-recent-popover" aria-hidden="true"></aside>
+          </div>
+          <div class="ft-server-list" id="ft-server-list" role="list"></div>
+        </div>
+      </section>
+      <aside class="ft-task-modal notranslate" id="ft-task-modal" translate="no">
+        <section class="ft-task-shell" aria-labelledby="ft-task-title">
+          <div class="ft-task-head">
+            <div class="ft-task-head-main">
+              <p class="ft-task-kicker" id="ft-server-task-owner">Space Task channel</p>
+              <h2 class="ft-task-title" id="ft-task-title">Space Task</h2>
+            </div>
+            <div class="ft-task-effect-actions">
+              <button class="ft-task-effect-test" id="ft-task-mode-switch" type="button" hidden>Space Task</button>
+              <button class="ft-task-effect-test" id="ft-task-space-folders" type="button" hidden>Folder task</button>
+              <button class="ft-task-effect-test" id="ft-task-notice-toggle" type="button" hidden aria-expanded="false">Task notice</button>
+              <button class="ft-task-effect-test ft-task-stats-refresh" id="ft-task-stats-refresh" type="button" hidden>Refresh stats</button>
+              <button class="ft-task-effect-test" id="ft-task-effect-test-pending" type="button" hidden>Test &lt;24h</button>
+              <button class="ft-task-effect-test" id="ft-task-effect-test-overdue" type="button" hidden>Test &gt;24h</button>
+            </div>
+          </div>
+          <div class="ft-learning-summary ft-learning-summary-task" id="ft-task-learning-summary" hidden></div>
+          <div class="ft-task-summary" id="ft-task-summary">
+            <div class="ft-task-meter"><b id="ft-task-total">0</b><span>Total tasks</span></div>
+            <div class="ft-task-meter"><b id="ft-task-critical">0</b><span>Critical</span></div>
+            <div class="ft-task-meter"><b id="ft-task-complete">0</b><span>Completed</span></div>
+          </div>
+          <div class="ft-task-list" id="ft-server-task-list"></div>
+        </section>
+      </aside>
+      <aside class="ft-task-notice-admin notranslate" id="ft-task-notice-admin" translate="no" hidden>
+        <section class="ft-task-notice-shell" aria-labelledby="ft-task-notice-title">
+          <div class="ft-task-notice-head">
+            <div>
+              <p class="ft-task-kicker">Learner notice uplink</p>
+              <h2 class="ft-task-title" id="ft-task-notice-title">Task notice</h2>
+            </div>
+            <span class="ft-task-notice-head-actions">
+              <button class="ft-task-effect-test" id="ft-task-notice-reset" type="button">New</button>
+              <button class="ft-task-effect-test" id="ft-task-notice-close" type="button">Hide</button>
+            </span>
+          </div>
+          <div class="ft-task-notice-form">
+            <div class="ft-task-notice-dual" id="ft-task-notice-dual">
+              <section class="ft-task-notice-pane is-english" id="ft-task-notice-pane-en" data-lang="en">
+                <div class="ft-task-notice-pane-head">
+                  <span>English message</span>
+                  <button class="ft-task-notice-mini" id="ft-task-notice-translate-en" type="button">Translate from Vietnamese</button>
+                </div>
+                <textarea class="ft-task-notice-input" id="ft-task-notice-text-en" rows="5" maxlength="4400" placeholder="English notice for the learner..."></textarea>
+                <label class="ft-task-notice-voice-line"><span>English voice</span><select id="ft-task-notice-voice-en"></select></label>
+              </section>
+              <section class="ft-task-notice-pane is-vietnamese" id="ft-task-notice-pane-vi" data-lang="vi">
+                <div class="ft-task-notice-pane-head">
+                  <span>Vietnamese message</span>
+                  <button class="ft-task-notice-mini" id="ft-task-notice-translate-vi" type="button">Translate from English</button>
+                </div>
+                <textarea class="ft-task-notice-input" id="ft-task-notice-text-vi" rows="5" maxlength="4400" placeholder="Thông báo tiếng Việt cho học viên..."></textarea>
+                <label class="ft-task-notice-voice-line"><span>Vietnamese voice</span><select id="ft-task-notice-voice-vi"></select></label>
+              </section>
+            </div>
+            <textarea class="ft-task-notice-input" id="ft-task-notice-text" rows="1" maxlength="4400" hidden></textarea>
+            <select id="ft-task-notice-voice" hidden></select>
+            <div class="ft-task-notice-grid">
+              <label><span>Send/audio side</span><select id="ft-task-notice-language"><option value="vi">Vietnamese</option><option value="en">English</option></select></label>
+              <label><span>Notice style</span><select id="ft-task-notice-style"><option value="hologram">Hologram</option><option value="face">AI face 2</option><option value="face1">AI face 1</option></select></label>
+              <label><span>Display name</span><input id="ft-task-notice-name" maxlength="120" placeholder="Teacher"></label>
+              <label class="ft-task-notice-avatar-field"><span>Avatar URL/path</span><span class="ft-task-notice-avatar-picker"><input id="ft-task-notice-avatar" maxlength="600" placeholder="Picture/teacher.png"><button id="ft-task-notice-avatar-upload" type="button">Upload</button><input id="ft-task-notice-avatar-file" type="file" accept="image/*" hidden></span></label>
+              <label><span>Show count</span><input id="ft-task-notice-repeat-count" type="number" min="0" max="999" step="1" value="0" placeholder="0 = no cap"></label>
+              <label><span>Back gap</span><input id="ft-task-notice-back-gap" type="number" min="1" max="99" step="1" value="1"></label>
+            </div>
+            <div class="ft-task-notice-options">
+              <label><input type="radio" name="ft-task-notice-mode" id="ft-task-notice-once" value="once" checked> Show once</label>
+              <label><input type="radio" name="ft-task-notice-mode" id="ft-task-notice-day" value="day"> 1 day</label>
+              <label><input type="radio" name="ft-task-notice-mode" id="ft-task-notice-always" value="always"> Every login</label>
+              <label><input type="checkbox" id="ft-task-notice-until-complete"> Until tasks complete</label>
+              <label><input type="checkbox" id="ft-task-notice-audio" checked> Voice</label>
+              <label><input type="checkbox" id="ft-task-notice-ack"> Require read</label>
+            </div>
+            <div class="ft-task-notice-actions">
+              <button class="ft-task-notice-add" id="ft-task-notice-add" type="button">Add notice</button>
+              <button class="ft-task-notice-add is-send-now" id="ft-task-notice-send-now" type="button">Send now</button>
+              <button class="ft-task-notice-add is-preview" id="ft-task-notice-preview" type="button">Test style</button>
+              <span class="ft-task-notice-state" id="ft-task-notice-state">Ready</span>
+            </div>
+          </div>
+          <div class="ft-task-notice-list" id="ft-task-notice-list"></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <aside class="ft-q-root-notice ft-task-user-notice" id="ft-task-user-notice" aria-live="polite">
+    <div class="ft-q-root-notice-panel" aria-hidden="true"></div>
+    <div class="ft-task-user-notice-face" id="ft-task-user-notice-face" aria-hidden="true"></div>
+    <div class="ft-q-root-notice-avatar" id="ft-task-user-notice-avatar" aria-hidden="true"><img alt=""></div>
+    <div class="ft-q-root-notice-orbit is-top" aria-hidden="true">
+      <span>Task signal</span><span>Teacher uplink</span><span>Notice lock</span><span>Reader state</span><span class="ft-q-root-notice-voice" id="ft-task-user-notice-voice">Notice</span>
+    </div>
+    <div class="ft-q-root-notice-orbit is-side" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="ft-q-root-notice-rail" aria-hidden="true"></div>
+    <div class="ft-q-root-notice-grid" aria-hidden="true"></div>
+    <div class="ft-q-root-notice-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="ft-q-root-notice-energy" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="ft-q-root-notice-circuit" aria-hidden="true"></div>
+    <div class="ft-q-root-notice-sparks" aria-hidden="true"></div>
+    <div class="ft-q-root-notice-head">
+      <span class="ft-q-root-notice-kicker" id="ft-task-user-notice-name">Teacher notice</span>
+    </div>
+    <section class="ft-q-root-notice-en" id="ft-task-user-notice-text">
+      <span class="ft-task-user-notice-copy" id="ft-task-user-notice-text-copy"></span>
+      <div class="ft-ai-notice-scroll-controls" aria-label="Scroll English answer">
+        <button class="ft-ai-notice-scroll-button" type="button" data-task-notice-scroll="-1" aria-label="Scroll English answer up"></button>
+        <button class="ft-ai-notice-scroll-button" type="button" data-task-notice-scroll="1" aria-label="Scroll English answer down"></button>
+      </div>
+      <div class="ft-ai-card-meter" data-ai-meter="en" aria-hidden="true" hidden>
+        <div class="ft-ai-notice-ring is-output"><b data-ai-output-tokens>0</b><span>Output</span></div>
+        <div class="ft-ai-notice-ring is-input"><b data-ai-input-tokens>0</b><span>Learner</span></div>
+        <div class="ft-ai-notice-time"><b data-ai-request-time>0.0s</b><span>Request</span></div>
+        <div class="ft-ai-notice-audio" aria-hidden="true"><span>Voice</span><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="ft-ai-notice-save" id="ft-ai-notice-save" hidden>
+        <input id="ft-ai-notice-save-title" type="text" maxlength="120" placeholder="Edit topic title to save this AI answer" aria-label="AI answer topic title">
+        <button id="ft-ai-notice-save-button" type="button">Save</button>
+        <span id="ft-ai-notice-save-status" aria-live="polite"></span>
+      </div>
+    </section>
+    <p class="ft-q-root-notice-vi" id="ft-task-user-notice-sub"></p>
+    <aside class="ft-task-user-notice-translation" id="ft-task-user-notice-translation" aria-hidden="true">
+      <span>Vietnamese mirror</span>
+      <button class="ft-ai-notice-history-button" id="ft-ai-notice-history-button" type="button">History</button>
+      <p id="ft-task-user-notice-translation-text"><span class="ft-task-user-notice-copy" id="ft-task-user-notice-translation-copy"></span></p>
+      <div class="ft-ai-card-meter is-vi" data-ai-meter="vi" aria-hidden="true" hidden>
+        <div class="ft-ai-notice-ring is-output"><b data-ai-output-tokens>0</b><span>Output</span></div>
+        <div class="ft-ai-notice-ring is-input"><b data-ai-input-tokens>0</b><span>Learner</span></div>
+        <div class="ft-ai-notice-time"><b data-ai-request-time>0.0s</b><span>Request</span></div>
+        <div class="ft-ai-notice-audio" aria-hidden="true"><span>Voice</span><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+    </aside>
+    <section class="ft-ai-history-panel is-hidden" id="ft-ai-history-panel" aria-hidden="true">
+      <div class="ft-ai-history-head">
+        <span>AI memory</span>
+        <button id="ft-ai-history-close" type="button" aria-label="Close AI history">x</button>
+      </div>
+      <div class="ft-ai-history-body">
+        <div class="ft-ai-history-list" id="ft-ai-history-list"></div>
+        <article class="ft-ai-history-detail" id="ft-ai-history-detail">
+          <h3 id="ft-ai-history-detail-title">Saved AI answers</h3>
+          <div class="ft-ai-history-detail-grid">
+            <section>
+              <span>English</span>
+              <p id="ft-ai-history-detail-en"></p>
+            </section>
+            <section>
+              <span>Vietnamese</span>
+              <p id="ft-ai-history-detail-vi"></p>
+            </section>
+          </div>
+        </article>
+      </div>
+    </section>
+    <button class="ft-task-user-notice-read" id="ft-task-user-notice-read" type="button" hidden>I have read</button>
+  </aside>
+
+  <div class="ft-complete-gate notranslate" id="ft-complete-gate" hidden translate="no">
+    <section class="ft-complete-panel" aria-labelledby="ft-complete-title">
+      <p class="ft-complete-kicker">AI LEARNING REPORT</p>
+      <h2 class="ft-complete-title" id="ft-complete-title">Mission complete</h2>
+      <p class="ft-complete-message" id="ft-complete-message">Bạn đã hoàn thành bài học. Server đang đồng bộ trạng thái học tập.</p>
+      <div class="ft-complete-metrics">
+        <div class="ft-complete-metric">
+          <span class="ft-complete-metric-label">Lesson</span>
+          <span class="ft-complete-metric-value" id="ft-complete-lesson">Future</span>
+        </div>
+        <div class="ft-complete-metric">
+          <span class="ft-complete-metric-label">Nodes</span>
+          <span class="ft-complete-metric-value" id="ft-complete-nodes">0</span>
+        </div>
+        <div class="ft-complete-metric">
+          <span class="ft-complete-metric-label">Your Runs</span>
+          <span class="ft-complete-metric-value" id="ft-complete-runs">Sync</span>
+        </div>
+      </div>
+      <div class="ft-complete-crystals" id="ft-complete-crystals" aria-live="polite">
+        <div class="ft-complete-crystal-head">
+          <span class="ft-complete-crystal-kicker">Crystals earned in this file</span>
+          <span class="ft-complete-crystal-total"><strong id="ft-complete-crystal-total">0</strong> total</span>
+        </div>
+        <div class="ft-complete-crystal-grid" id="ft-complete-crystal-grid"></div>
+      </div>
+      <div class="ft-complete-actions">
+        <button class="ft-complete-action" id="ft-complete-review" type="button">Review</button>
+        <button class="ft-complete-action is-secondary" id="ft-complete-select" type="button">Select other file</button>
+      </div>
+    </section>
+  </div>
+
+  <main class="ft-stage">
+    <div class="ft-grid" aria-hidden="true"></div>
+    <div class="ft-shell">
+      <div class="ft-beam" aria-hidden="true"></div>
+
+      <section class="ft-card" aria-labelledby="ft-question-title">
+        <div class="ft-card-content">
+          <p class="ft-kicker">Translation node</p>
+          <h1 class="ft-vietnamese" id="ft-question-title">Tôi muốn một ly nước.</h1>
+          <p class="ft-progress" id="ft-progress"></p>
+          <div class="ft-answer-row">
+            <div class="ft-input-wrap" id="ft-input-wrap">
+              <div class="ft-input-highlight" id="ft-input-highlight" aria-hidden="true"></div>
+              <textarea class="ft-input" id="ft-answer" name="ft_learning_answer" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="text" enterkeyhint="done" spellcheck="false" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off" placeholder="English answer" rows="1"></textarea>
+            </div>
+          </div>
+          <div class="ft-feedback" id="ft-feedback">Type the English answer. IPA opens automatically when it is correct.</div>
+          <div class="ft-mobile-action-row">
+            <div class="ft-mobile-tabs" id="ft-mobile-tabs" aria-label="Mobile lesson cards">
+              <button class="ft-mobile-tab" type="button" data-panel="score" disabled>Score</button>
+              <button class="ft-mobile-tab" type="button" data-panel="hint" disabled>Hint</button>
+              <button class="ft-mobile-tab" type="button" data-panel="ipa" disabled>IPA</button>
+              <button class="ft-mobile-tab" type="button" data-panel="speak" disabled>Speak</button>
+              <button class="ft-mobile-tab" type="button" data-panel="grammar" disabled>Grammar</button>
+            </div>
+            <div class="ft-next-row">
+              <button class="ft-next is-hidden" id="ft-next" type="button">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <nav class="ft-q-mobile-tabs" id="ft-q-mobile-tabs" aria-label="Question workspace sections">
+        <button class="ft-q-mobile-tab is-active" id="ft-q-mobile-tab-root" type="button" data-q-panel="root" aria-pressed="true">Root</button>
+        <button class="ft-q-mobile-tab" id="ft-q-mobile-tab-audio" type="button" data-q-panel="audio" aria-pressed="false" hidden>Audio</button>
+        <button class="ft-q-mobile-tab" id="ft-q-mobile-tab-picture" type="button" data-q-panel="picture" aria-pressed="false" hidden>Picture</button>
+        <button class="ft-q-mobile-tab" id="ft-q-mobile-tab-question" type="button" data-q-panel="question" aria-pressed="false" hidden>Question</button>
+        <button class="ft-q-mobile-tab" id="ft-q-mobile-tab-info" type="button" data-q-panel="info" aria-pressed="false" hidden>Info</button>
+      </nav>
+
+      <section class="ft-q-root-card is-hidden" id="ft-q-root-card" aria-labelledby="ft-q-root-text">
+        <div class="ft-q-root-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="ft-q-root-content">
+          <p class="ft-kicker">Question root</p>
+          <h1 class="ft-q-root-text" id="ft-q-root-text"></h1>
+          <aside class="ft-q-root-hud" id="ft-q-root-hud">
+            <div class="ft-q-root-globe" aria-hidden="true">
+              <span class="ft-q-globe-ring"></span>
+              <span class="ft-q-globe-ring"></span>
+              <span class="ft-q-globe-satellite is-one"></span>
+              <span class="ft-q-globe-satellite is-two"></span>
+              <span class="ft-q-globe-link is-a"></span>
+              <span class="ft-q-globe-link is-b"></span>
+            </div>
+            <div class="ft-q-root-hud-lines" id="ft-q-root-hud-lines" aria-hidden="true">
+              <span class="ft-q-root-hud-line">MISSION NODE ONLINE</span>
+              <span class="ft-q-root-hud-line">ORBITAL MEMORY LINK</span>
+              <span class="ft-q-root-hud-line">QUESTION SIGNAL READY</span>
+            </div>
+            <div class="ft-q-root-hud-bars" aria-hidden="true">
+              <div class="ft-q-root-hud-bar"><span style="--bar: 72%"></span></div>
+              <div class="ft-q-root-hud-bar"><span style="--bar: 54%"></span></div>
+              <div class="ft-q-root-hud-bar"><span style="--bar: 88%"></span></div>
+            </div>
+            <div class="ft-q-root-choice-signal" id="ft-q-root-choice-signal" aria-live="polite" aria-label="Choice signal">
+              <div class="ft-q-root-choice-signal-head">
+                <span class="ft-q-root-choice-signal-title">Choice Signal</span>
+                <span class="ft-q-root-choice-signal-state" id="ft-q-root-choice-signal-state"></span>
+              </div>
+              <p class="ft-q-root-choice-signal-text" id="ft-q-root-choice-signal-text"></p>
+            </div>
+            <div class="ft-q-root-control-row">
+              <div class="ft-q-root-primary-actions">
+                <button class="ft-q-notice-replay" id="ft-q-notice-replay" type="button" disabled aria-label="Replay root notice" title="No notice for this question">
+                  <span class="ft-q-notice-fingerprint" aria-hidden="true">
+                    <svg viewBox="0 0 48 64" focusable="false">
+                      <path d="M24 7c-9.4 0-17 7.4-17 16.6 0 4.3 1.4 7.5 3 10.4"/>
+                      <path d="M14 43c-1.8-4.4-3.7-8.7-3.7-14.3 0-7.7 6.1-14 13.7-14s13.7 6.3 13.7 14"/>
+                      <path d="M20 56c-1.1-5.7-5.8-12.5-5.8-21.5 0-5.7 4.4-10.4 9.8-10.4s9.8 4.7 9.8 10.4c0 3.4-.7 6.7-1.9 9.8"/>
+                      <path d="M25.8 58c-.5-5-2.8-10.6-4.1-15.3-.6-2.1-1-4.3-1-6.7 0-2.2 1.4-4 3.3-4s3.3 1.8 3.3 4c0 6.7-1.1 10.1-2.9 14.9"/>
+                      <path d="M31 54c2.8-6.2 6.7-12.5 6.7-21.5"/>
+                      <path d="M40.4 42c2.1-5 3.6-11.1 2.1-17.4C40.3 15.5 32.8 9 24 9"/>
+                    </svg>
+                  </span>
+                  <span class="ft-q-notice-replay-text">Notice</span>
+                </button>
+                <button class="ft-q-select-submit ft-q-show-answer-hidden" id="ft-q-select-submit" type="button" disabled aria-label="Confirm selected answer targets" title="Select answer targets first">
+                  <span class="ft-q-select-submit-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" focusable="false">
+                      <circle cx="24" cy="24" r="15"/>
+                      <path d="M24 8v7M24 33v7M8 24h7M33 24h7"/>
+                      <path d="M17 24l5 5 10-12"/>
+                    </svg>
+                  </span>
+                  <span class="ft-q-select-submit-text">Lock</span>
+                </button>
+              </div>
+              <div class="ft-q-root-switches">
+                <div class="ft-q-animation-control-stack">
+                  <button class="ft-q-animation-toggle" id="ft-q-animation-toggle" type="button" aria-pressed="false"><span class="ft-q-animation-label">Anim on</span></button>
+                  <button class="ft-q-side-card-toggle" id="ft-q-side-card-toggle" type="button" aria-pressed="false">FX on</button>
+                </div>
+                <div class="ft-q-animation-energy" id="ft-q-animation-energy" aria-hidden="true">
+                  <span style="--seg: 0;--energy-rgb: 255, 86, 108"></span>
+                  <span style="--seg: 1;--energy-rgb: 255, 86, 108"></span>
+                  <span style="--seg: 2;--energy-rgb: 255, 86, 108"></span>
+                  <span style="--seg: 3;--energy-rgb: 255, 86, 108"></span>
+                  <span style="--seg: 4;--energy-rgb: 255, 210, 90"></span>
+                  <span style="--seg: 5;--energy-rgb: 255, 210, 90"></span>
+                  <span style="--seg: 6;--energy-rgb: 255, 210, 90"></span>
+                  <span style="--seg: 7;--energy-rgb: 255, 210, 90"></span>
+                  <span style="--seg: 8;--energy-rgb: 108, 240, 164"></span>
+                  <span style="--seg: 9;--energy-rgb: 108, 240, 164"></span>
+                  <span style="--seg: 10;--energy-rgb: 108, 240, 164"></span>
+                  <span style="--seg: 11;--energy-rgb: 108, 240, 164"></span>
+                  <span style="--seg: 12;--energy-rgb: 108, 240, 164"></span>
+                  <span style="--seg: 13;--energy-rgb: 108, 240, 164"></span>
+                </div>
+              </div>
+            </div>
+          </aside>
+          <div class="ft-q-root-status-panel" aria-label="Question root status">
+            <p class="ft-progress" id="ft-q-progress"></p>
+            <div class="ft-q-root-actions">
+              <button class="ft-q-action" id="ft-q-skip-type" type="button">Skip typing</button>
+            </div>
+            <div class="ft-q-feedback" id="ft-q-feedback">Root signal is loading.</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="ft-q-connector ft-q-connector-picture" id="ft-q-connector-picture" aria-hidden="true"></div>
+      <div class="ft-q-connector ft-q-connector-audio" id="ft-q-connector-audio" aria-hidden="true"></div>
+      <div class="ft-q-connector ft-q-connector-question" id="ft-q-connector-question" aria-hidden="true"></div>
+      <div class="ft-q-connector ft-q-connector-info" id="ft-q-connector-info" aria-hidden="true"></div>
+
+      <aside class="ft-q-picture-card" id="ft-q-picture-card" aria-live="polite">
+        <div class="ft-q-picture-teleporter" aria-hidden="true">
+          <span class="ft-q-picture-portal-shell is-top is-outer"></span>
+          <span class="ft-q-picture-portal-shell is-top is-mid"></span>
+          <span class="ft-q-picture-portal-shell is-top"></span>
+          <span class="ft-q-picture-portal-ring is-top"></span>
+          <span class="ft-q-picture-portal-core"></span>
+          <span class="ft-q-picture-portal-shaft is-a"></span>
+          <span class="ft-q-picture-portal-shaft is-b"></span>
+          <span class="ft-q-picture-portal-shaft is-c"></span>
+          <span class="ft-q-picture-portal-shaft is-d"></span>
+          <span class="ft-q-picture-portal-shaft is-e"></span>
+          <span class="ft-q-picture-portal-shaft is-f"></span>
+          <span class="ft-q-picture-portal-shaft is-g"></span>
+          <span class="ft-q-picture-portal-tick is-a"></span>
+          <span class="ft-q-picture-portal-tick is-b"></span>
+          <span class="ft-q-picture-portal-tick is-c"></span>
+          <span class="ft-q-picture-portal-tick is-d"></span>
+          <span class="ft-q-picture-portal-ring is-bottom"></span>
+          <span class="ft-q-picture-portal-shell is-bottom"></span>
+          <span class="ft-q-picture-portal-shell is-bottom is-mid"></span>
+          <span class="ft-q-picture-portal-shell is-bottom is-outer"></span>
+        </div>
+        <p class="ft-q-card-title">Picture card</p>
+        <div class="ft-q-ship-console" aria-label="Picture ship selector">
+          <button class="ft-q-ship-step" id="ft-q-ship-prev" type="button" title="Previous ship">&#8249;</button>
+          <span class="ft-q-motion-switch ft-q-motion-switch-picture" id="ft-q-picture-motion" aria-hidden="true">Portal motion</span>
+          <button class="ft-q-ship-step" id="ft-q-ship-next" type="button" title="Next ship">&#8250;</button>
+        </div>
+        <div class="ft-q-picture-toolbar" aria-label="Picture zoom controls">
+          <button class="ft-q-picture-zoom" id="ft-q-picture-zoom-out" type="button" title="Zoom out">-</button>
+          <button class="ft-q-picture-zoom is-default" id="ft-q-picture-zoom-reset" type="button" title="Default size">Default</button>
+          <button class="ft-q-picture-zoom" id="ft-q-picture-zoom-in" type="button" title="Zoom in">+</button>
+        </div>
+        <div class="ft-q-picture-frame">
+          <img class="ft-q-picture-img" id="ft-q-picture-img" alt="" loading="lazy" draggable="false">
+        </div>
+        <div class="ft-q-picture-projector" aria-hidden="true">
+          <span class="ft-q-picture-projection-field"></span>
+          <span class="ft-q-picture-beam is-a"></span>
+          <span class="ft-q-picture-beam is-b"></span>
+          <span class="ft-q-picture-beam is-c"></span>
+          <span class="ft-q-picture-beam is-d"></span>
+          <span class="ft-q-picture-beam is-e"></span>
+          <div class="ft-q-picture-ship">
+            <span class="ft-q-picture-ship-dish"></span>
+            <span class="ft-q-picture-ship-wing is-left"></span>
+            <span class="ft-q-picture-ship-wing is-right"></span>
+            <span class="ft-q-picture-ship-core"></span>
+            <span class="ft-q-picture-ship-engine is-left"></span>
+            <span class="ft-q-picture-ship-engine is-right"></span>
+            <span class="ft-q-picture-ship-node is-a"></span>
+            <span class="ft-q-picture-ship-node is-b"></span>
+            <span class="ft-q-picture-ship-node is-c"></span>
+          </div>
+          <span class="ft-q-picture-projector-readout">Image uplink</span>
+        </div>
+        <p class="ft-q-picture-caption" id="ft-q-picture-caption"></p>
+      </aside>
+
+      <aside class="ft-q-audio-card" id="ft-q-audio-card" aria-live="polite">
+        <p class="ft-q-card-title">Audio card</p>
+        <p class="ft-q-audio-text" id="ft-q-audio-text"></p>
+        <span class="ft-q-motion-switch ft-q-motion-switch-audio" id="ft-q-audio-motion" aria-hidden="true">Aural orbit</span>
+        <div class="ft-q-audio-meta ft-q-audio-meta-left" aria-hidden="true">
+          <span class="ft-q-audio-meta-kicker">WAVE LINK</span>
+          <span class="ft-q-audio-meta-value">AURAL CORE</span>
+          <span class="ft-q-audio-meta-track"><i></i><i></i><i></i></span>
+        </div>
+        <div class="ft-q-audio-meta ft-q-audio-meta-right" aria-hidden="true">
+          <span class="ft-q-audio-meta-kicker">SPECTRUM</span>
+          <span class="ft-q-audio-meta-value">NODE 07</span>
+          <span class="ft-q-audio-meta-track"><i></i><i></i><i></i></span>
+        </div>
+        <div class="ft-q-audio-glyph ft-q-audio-glyph-left" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="ft-q-audio-glyph ft-q-audio-glyph-right" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="ft-q-audio-reactor">
+          <div class="ft-q-audio-note-belt is-back is-a" aria-hidden="true">
+            <span class="ft-q-audio-note-runner" style="--q-note-delay: 0ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -240ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -420ms;"><span class="ft-q-audio-note-glyph">&#9836;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -620ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -820ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+          </div>
+          <div class="ft-q-audio-note-belt is-back is-b" aria-hidden="true">
+            <span class="ft-q-audio-note-runner" style="--q-note-delay: -120ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -300ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -470ms;"><span class="ft-q-audio-note-glyph">&#9836;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -650ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -830ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+          </div>
+          <button class="ft-q-play ft-q-audio-core" id="ft-q-play" type="button" aria-label="Play audio card">
+            <span class="ft-q-audio-core-halo"></span>
+            <span class="ft-q-audio-core-grid"></span>
+            <span class="ft-q-audio-core-orbit is-one"></span>
+            <span class="ft-q-audio-core-orbit is-two"></span>
+            <span class="ft-q-audio-core-meridian is-a"></span>
+            <span class="ft-q-audio-core-meridian is-b"></span>
+            <span class="ft-q-audio-core-node is-a"></span>
+            <span class="ft-q-audio-core-node is-b"></span>
+            <span class="ft-q-audio-core-node is-c"></span>
+            <span class="ft-q-audio-core-bolt is-a"></span>
+            <span class="ft-q-audio-core-bolt is-b"></span>
+            <span class="ft-q-audio-core-bolt is-c"></span>
+            <span class="ft-q-audio-core-bolt is-d"></span>
+          </button>
+          <div class="ft-q-audio-note-belt is-front is-a" aria-hidden="true">
+            <span class="ft-q-audio-note-runner" style="--q-note-delay: 0ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -240ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -420ms;"><span class="ft-q-audio-note-glyph">&#9836;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -620ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -820ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+          </div>
+          <div class="ft-q-audio-note-belt is-front is-b" aria-hidden="true">
+            <span class="ft-q-audio-note-runner" style="--q-note-delay: -120ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -300ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -470ms;"><span class="ft-q-audio-note-glyph">&#9836;</span></span>
+            <span class="ft-q-audio-note-runner is-small" style="--q-note-delay: -650ms;"><span class="ft-q-audio-note-glyph">&#9834;</span></span>
+            <span class="ft-q-audio-note-runner is-tiny" style="--q-note-delay: -830ms;"><span class="ft-q-audio-note-glyph">&#9835;</span></span>
+          </div>
+          <div class="ft-q-audio-wave" aria-hidden="true"><span></span><span></span><span></span></div>
+        </div>
+        <div class="ft-q-audio-meta ft-q-audio-meta-bottom" aria-hidden="true">
+          <span class="ft-q-audio-meta-kicker">PHASE STREAM</span>
+          <span class="ft-q-audio-meta-dots"><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+        <p class="ft-q-audio-voice" id="ft-q-audio-voice"></p>
+      </aside>
+
+      <aside class="ft-q-question-card" id="ft-q-question-card" aria-live="polite">
+        <div class="ft-q-question-frame" aria-hidden="true"></div>
+        <div class="ft-q-question-sidepanel" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="ft-q-question-corner-cut" aria-hidden="true"></div>
+        <div class="ft-q-question-corner-stripes" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ft-q-question-edge-glow" aria-hidden="true"></div>
+        <div class="ft-q-question-hexmark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ft-q-question-hud" aria-hidden="true">
+          <div class="ft-q-question-hud-dial"><span></span><span></span><span></span></div>
+          <div class="ft-q-question-hud-percent">78%</div>
+          <div class="ft-q-question-hud-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="ft-q-question-hud-battery"><i></i></div>
+        </div>
+        <div class="ft-q-input-length-radar ft-q-show-answer-hidden" id="ft-q-input-length-radar" aria-hidden="true">
+          <span class="ft-q-input-length-ring"><i></i><i></i><i></i></span>
+          <span class="ft-q-input-length-copy"><b id="ft-q-input-length-count">0</b><small id="ft-q-input-length-label">Từ</small></span>
+        </div>
+        <div class="ft-q-question-head">
+          <p class="ft-q-card-title">Question card</p>
+          <button class="ft-q-mini-play ft-q-show-answer-hidden" id="ft-q-question-audio" type="button">Play prompt</button>
+          <span class="ft-q-question-count" id="ft-q-question-count">0/0</span>
+        </div>
+        <h2 class="ft-q-question-text" id="ft-q-question-text"></h2>
+        <div class="ft-q-choice-list" id="ft-q-choice-list"></div>
+        <div class="ft-q-input-row" id="ft-q-input-row">
+          <textarea class="ft-q-input" id="ft-q-answer" rows="1" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" spellcheck="false" data-form-type="other" placeholder="Nhập đáp án"></textarea>
+        </div>
+        <p class="ft-q-answer-feedback" id="ft-q-answer-feedback"></p>
+        <div class="ft-q-question-actions">
+          <button class="ft-q-action is-secondary" id="ft-q-show-answer" type="button">Hiện đáp án</button>
+          <button class="ft-q-action" id="ft-q-next" type="button">Next</button>
+        </div>
+      </aside>
+
+      <aside class="ft-q-info-card" id="ft-q-info-card" aria-live="polite">
+        <p class="ft-q-card-title">Choice signal</p>
+        <p class="ft-q-info-text" id="ft-q-info-text"></p>
+        <div class="ft-q-info-actions">
+          <button class="ft-q-mini-play ft-q-show-answer-hidden" id="ft-q-info-play" type="button">Play info</button>
+        </div>
+      </aside>
+
+      <aside class="ft-q-root-notice" id="ft-q-root-notice" aria-live="polite">
+        <div class="ft-q-root-notice-panel" aria-hidden="true"></div>
+        <div class="ft-q-root-notice-avatar" id="ft-q-root-notice-avatar" aria-hidden="true"><img alt=""></div>
+        <div class="ft-q-root-notice-orbit is-top" aria-hidden="true">
+          <span>Aural orbit</span><span>Signal lock</span><span>Voice uplink</span><span>Core notice</span><span class="ft-q-root-notice-voice" id="ft-q-root-notice-voice">Typing only</span>
+        </div>
+        <div class="ft-q-root-notice-orbit is-side" aria-hidden="true">
+          <span>Pulse rail</span><span>Data beam</span><span>Alert vector</span>
+        </div>
+        <div class="ft-q-root-notice-rail" aria-hidden="true"></div>
+        <div class="ft-q-root-notice-grid" aria-hidden="true"></div>
+        <div class="ft-q-root-notice-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="ft-q-root-notice-energy" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ft-q-root-notice-circuit" aria-hidden="true"></div>
+        <div class="ft-q-root-notice-sparks" aria-hidden="true"></div>
+        <div class="ft-q-root-notice-head">
+          <span class="ft-q-root-notice-kicker">Ship alert</span>
+        </div>
+        <p class="ft-q-root-notice-en" id="ft-q-root-notice-en"></p>
+        <p class="ft-q-root-notice-vi" id="ft-q-root-notice-vi"></p>
+      </aside>
+
+      <section class="ft-vocab-card is-hidden" id="ft-vocab-card" aria-labelledby="ft-vocab-title">
+        <div class="ft-vocab-wave" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="ft-vocab-card-signal is-new" id="ft-vocab-card-signal" aria-hidden="true">NEW SIGNAL</div>
+        <div class="ft-vocab-content">
+          <p class="ft-kicker">Vocabulary card</p>
+          <h1 class="ft-vocab-meaning" id="ft-vocab-title">Meaning</h1>
+          <p class="ft-progress" id="ft-vocab-progress"></p>
+          <div class="ft-vocab-meta" id="ft-vocab-meta"></div>
+          <div class="ft-vocab-timer is-hidden" id="ft-vocab-timer" aria-live="polite">
+            <span class="ft-vocab-timer-orbit" aria-hidden="true"><i></i><i></i><span class="ft-vocab-timer-mark m1"></span><span class="ft-vocab-timer-mark m2"></span><span class="ft-vocab-timer-mark m3"></span></span>
+            <span class="ft-vocab-timer-text" id="ft-vocab-timer-text">Signal armed</span>
+          </div>
+          <div class="ft-vocab-answer-row">
+            <input class="ft-vocab-input" id="ft-vocab-answer" name="ft_vocab_answer" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="text" enterkeyhint="done" spellcheck="false" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off" placeholder="English word">
+          </div>
+          <div class="ft-vocab-audio">
+            <div class="ft-vocab-voice-switch" id="ft-vocab-voice-switch" role="group" aria-label="Vocabulary reading accent">
+              <button class="ft-vocab-voice-option is-active" type="button" data-voice="sot:en-GB" aria-pressed="true">UK</button>
+              <button class="ft-vocab-voice-option" type="button" data-voice="sot:en-US" aria-pressed="false">US</button>
+            </div>
+          </div>
+          <div class="ft-vocab-feedback" id="ft-vocab-feedback">Answer with the English word.</div>
+          <div class="ft-vocab-strip" id="ft-vocab-strip"></div>
+        </div>
+      </section>
+
+      <div class="ft-vocab-mode-popup is-hidden" id="ft-vocab-mode-popup" aria-live="polite">
+        <div class="ft-vocab-mode-popup-content">
+          <div class="ft-vocab-mode-gear" aria-hidden="true"></div>
+          <div>
+            <h2 class="ft-vocab-mode-title" id="ft-vocab-mode-title">Mode shift</h2>
+            <p class="ft-vocab-mode-text" id="ft-vocab-mode-text">Preparing vocabulary training.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ft-vocab-learned-connector is-hidden" id="ft-vocab-learned-connector" aria-hidden="true">
+        <svg>
+          <defs>
+            <linearGradient id="ft-vocab-learned-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#d86cff"></stop>
+              <stop offset="48%" stop-color="#46f0d7"></stop>
+              <stop offset="100%" stop-color="#6cf0a4"></stop>
+            </linearGradient>
+          </defs>
+          <path id="ft-vocab-learned-path" d="M 0 0 C 60 20 100 20 160 42"></path>
+        </svg>
+      </div>
+
+      <aside class="ft-vocab-learned-panel is-hidden" id="ft-vocab-learned-panel" aria-live="polite">
+        <div class="ft-vocab-learned-content">
+          <p class="ft-vocab-learned-title">Lexicon Memory</p>
+          <div class="ft-vocab-learned-count" id="ft-vocab-learned-count">0 learned words</div>
+          <div class="ft-vocab-current-status is-new" id="ft-vocab-current-status">Current word: NEW SIGNAL</div>
+          <input class="ft-vocab-learned-filter" id="ft-vocab-learned-filter" name="ft_vocab_memory_filter" autocomplete="one-time-code" autocapitalize="none" autocorrect="off" inputmode="search" enterkeyhint="search" spellcheck="false" aria-autocomplete="none" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-bitwarden-watching="0" data-protonpass-ignore="true" data-keeper-ignore="true" data-dashlane-ignore="true" data-roboform="off" placeholder="Filter learned word">
+          <div class="ft-vocab-learned-list" id="ft-vocab-learned-list"></div>
+        </div>
+      </aside>
+
+      <div class="ft-vocab-weak-connector is-hidden" id="ft-vocab-weak-connector" aria-hidden="true">
+        <svg>
+          <defs>
+            <linearGradient id="ft-vocab-weak-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6cf0a4"></stop>
+              <stop offset="58%" stop-color="#46f0d7"></stop>
+              <stop offset="100%" stop-color="#d86cff"></stop>
+            </linearGradient>
+          </defs>
+          <path id="ft-vocab-weak-path" d="M 0 0 C 70 0 120 30 180 44"></path>
+        </svg>
+      </div>
+
+      <aside class="ft-vocab-unlearned-panel is-hidden" id="ft-vocab-unlearned-panel" aria-live="polite">
+        <div class="ft-vocab-unlearned-content">
+          <p class="ft-vocab-unlearned-title">Unlearned Words</p>
+          <span class="ft-vocab-unlearned-count" id="ft-vocab-unlearned-count">0 / 5</span>
+          <div class="ft-vocab-unlearned-list" id="ft-vocab-unlearned-list"></div>
+        </div>
+      </aside>
+
+      <div class="ft-vocab-side-connector is-hidden" id="ft-vocab-side-connector" aria-hidden="true">
+        <svg>
+          <defs>
+            <linearGradient id="ft-vocab-side-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#d86cff"></stop>
+              <stop offset="52%" stop-color="#46f0d7"></stop>
+              <stop offset="100%" stop-color="#6cf0a4"></stop>
+            </linearGradient>
+            <linearGradient id="ft-vocab-side-picture-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6cf0a4"></stop>
+              <stop offset="50%" stop-color="#46f0d7"></stop>
+              <stop offset="100%" stop-color="#ff8e48"></stop>
+            </linearGradient>
+          </defs>
+          <path id="ft-vocab-detail-path" d="M 0 0 C 40 20 90 20 120 40"></path>
+          <path class="is-picture" id="ft-vocab-picture-path" d="M 0 0 C 40 20 90 20 120 40"></path>
+        </svg>
+      </div>
+
+      <aside class="ft-vocab-detail-panel is-hidden" id="ft-vocab-detail-panel" aria-live="polite">
+        <div class="ft-vocab-side-content">
+          <p class="ft-vocab-side-title">Lexical Detail</p>
+          <h2 class="ft-vocab-detail-word" id="ft-vocab-detail-word">word</h2>
+          <div class="ft-vocab-detail-list" id="ft-vocab-detail-list"></div>
+        </div>
+      </aside>
+
+      <aside class="ft-vocab-picture-panel is-hidden" id="ft-vocab-picture-panel" aria-live="polite">
+        <div class="ft-vocab-side-content">
+          <p class="ft-vocab-side-title">Visual Signal</p>
+          <div class="ft-vocab-picture-frame">
+            <img class="ft-vocab-picture-img" id="ft-vocab-picture-img" alt="" loading="lazy">
+          </div>
+          <div class="ft-vocab-picture-caption" id="ft-vocab-picture-caption"></div>
+        </div>
+      </aside>
+
+      <div class="ft-connector" id="ft-connector" aria-hidden="true">
+        <svg class="ft-connector-svg" id="ft-connector-svg" viewBox="0 0 150 80" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="ft-connector-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6cf0a4"></stop>
+              <stop offset="56%" stop-color="#46f0d7"></stop>
+              <stop offset="100%" stop-color="#d86cff"></stop>
+            </linearGradient>
+          </defs>
+          <path class="ft-connector-glow" id="ft-connector-glow" d="M 0 40 C 52 40 98 40 150 40"></path>
+          <path class="ft-connector-path" id="ft-connector-path" d="M 0 40 C 52 40 98 40 150 40"></path>
+        </svg>
+        <span class="ft-connector-dot ft-connector-start"></span>
+        <span class="ft-connector-dot ft-connector-end"></span>
+      </div>
+
+      <aside class="ft-speak-panel" id="ft-speak-panel" aria-live="polite">
+        <div class="ft-speak-head">
+          <div class="ft-speak-title-stack">
+            <p class="ft-speak-title">Speak scoring</p>
+            <div class="ft-score-stars ft-speak-stars" id="ft-speak-stars" aria-label="Speak scoring stars">
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+            </div>
+          </div>
+          <div class="ft-speak-score" id="ft-speak-score">0%</div>
+        </div>
+        <p class="ft-speak-message" id="ft-speak-message">Record the English sentence. Speech analysis will score each word.</p>
+        <div class="ft-speak-mode-row">
+          <button class="ft-speak-mode-toggle" id="ft-speak-mode-toggle" type="button" aria-pressed="true">
+            <span class="ft-speak-mode-led" aria-hidden="true"></span>
+            <span class="ft-speak-mode-copy">
+              <strong>AI check voice</strong>
+              <small id="ft-speak-mode-label">ON - server analysis</small>
+            </span>
+          </button>
+        </div>
+        <div class="ft-speak-controls">
+          <button class="ft-speak-record" id="ft-speak-record" type="button">Record</button>
+          <button class="ft-speak-replay" id="ft-speak-replay" type="button" disabled>Replay</button>
+          <button class="ft-speak-clear" id="ft-speak-clear" type="button">Clear</button>
+          <button class="ft-speak-report" id="ft-speak-report" type="button">Report error</button>
+        </div>
+        <div class="ft-speak-wave-shell" aria-hidden="true">
+          <canvas class="ft-speak-wave-canvas" id="ft-speak-wave"></canvas>
+          <span class="ft-speak-wave-label" id="ft-speak-wave-label">Signal idle</span>
+        </div>
+        <p class="ft-speak-transcript" id="ft-speak-transcript">Your transcript will appear here.</p>
+        <div class="ft-speak-words" id="ft-speak-words"></div>
+        <p class="ft-speak-status" id="ft-speak-status"></p>
+      </aside>
+
+      <aside class="ft-score-panel" id="ft-score-panel" aria-live="polite">
+        <div class="ft-score-head">
+          <div class="ft-score-title-stack">
+            <p class="ft-score-title">Word scoring</p>
+            <div class="ft-score-stars" id="ft-score-stars" aria-label="Word score stars">
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+            </div>
+          </div>
+          <div class="ft-score-value" id="ft-score-value">0%</div>
+        </div>
+        <p class="ft-score-message" id="ft-score-message">Nhập từng từ để nhận điểm và gợi ý.</p>
+        <div class="ft-score-countdown is-hidden" id="ft-score-countdown">
+          <span class="ft-score-clock" aria-hidden="true">
+            <i class="ft-score-clock-hand" id="ft-score-clock-hand"></i>
+            <i class="ft-score-clock-core"></i>
+          </span>
+          <span class="ft-score-countdown-text">
+            <span>Hint orbit</span>
+            <small>Auto reveal on full cycle</small>
+          </span>
+        </div>
+        <div class="ft-score-words" id="ft-score-words"></div>
+        <div class="ft-score-hint" id="ft-score-hint"></div>
+      </aside>
+
+      <aside class="ft-hint-panel" id="ft-hint-panel" aria-live="polite">
+        <div class="ft-hint-head">
+          <div class="ft-hint-title-stack">
+            <p class="ft-hint-title">Signal hint</p>
+            <span class="ft-hint-subtitle">Guidance uplink</span>
+          </div>
+          <div class="ft-hint-tools">
+            <button class="ft-hint-switch" id="ft-hint-about-toggle" type="button" hidden>About</button>
+            <div class="ft-hint-signal" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+        <p class="ft-hint-body" id="ft-hint-text"></p>
+      </aside>
+
+      <aside class="ft-about-panel" id="ft-about-panel" aria-live="polite">
+        <div class="ft-about-head">
+          <div>
+            <p class="ft-about-title">About this sentence</p>
+            <span class="ft-about-subtitle">Expert explanation uplink</span>
+          </div>
+          <div class="ft-about-tools">
+            <button class="ft-about-switch" id="ft-about-hint-toggle" type="button" hidden>Hint</button>
+            <span class="ft-about-count" id="ft-about-count">0 / 0</span>
+          </div>
+        </div>
+        <div class="ft-about-body">
+          <p class="ft-about-question" id="ft-about-question"></p>
+          <p class="ft-about-answer" id="ft-about-answer"></p>
+        </div>
+        <div class="ft-about-actions">
+          <button class="ft-about-action ft-about-train" id="ft-about-train" type="button" hidden>Train mode</button>
+          <button class="ft-about-action" id="ft-about-preview" type="button">Previous</button>
+          <button class="ft-about-action" id="ft-about-next" type="button">Next</button>
+        </div>
+      </aside>
+
+      <aside class="ft-grammar-panel" id="ft-grammar-panel" aria-live="polite">
+        <div class="ft-grammar-head">
+          <div class="ft-grammar-title-stack">
+            <p class="ft-grammar-title">Grammar Checkpoint</p>
+            <div class="ft-score-stars ft-grammar-stars" id="ft-grammar-stars" aria-label="Grammar checkpoint stars">
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+            </div>
+          </div>
+          <div class="ft-grammar-progress" id="ft-grammar-progress">0/0</div>
+        </div>
+        <p class="ft-grammar-prompt" id="ft-grammar-prompt">Trả lời câu hỏi ngữ pháp để hoàn thành node.</p>
+        <div class="ft-grammar-start-gate is-hidden" id="ft-grammar-start-gate">
+          <div class="ft-grammar-start-copy">
+            <span class="ft-grammar-start-kicker">Checkpoint unlocked</span>
+            <strong>Start the grammar analysis when you are ready.</strong>
+          </div>
+          <button class="ft-grammar-start-button" id="ft-grammar-start" type="button">Start</button>
+        </div>
+        <p class="ft-grammar-target" id="ft-grammar-target" hidden aria-hidden="true"></p>
+        <div class="ft-grammar-options" id="ft-grammar-options"></div>
+        <div class="ft-grammar-actions">
+          <button class="ft-grammar-skip" id="ft-grammar-skip" type="button">Skip</button>
+          <button class="ft-grammar-silent" id="ft-grammar-silent" type="button" aria-pressed="false">Keep silent</button>
+        </div>
+        <p class="ft-grammar-feedback" id="ft-grammar-feedback"></p>
+      </aside>
+
+      <aside class="ft-ipa-panel" id="ft-ipa-panel" aria-live="polite">
+        <div class="ft-ipa-head">
+          <div class="ft-ipa-title-stack">
+            <p class="ft-ipa-title">Listen to IPA</p>
+            <div class="ft-score-stars ft-ipa-stars" id="ft-ipa-stars" aria-label="IPA listen stars">
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+              <span class="ft-score-star">★</span>
+            </div>
+          </div>
+        </div>
+        <p class="ft-ipa" id="ft-ipa">/aɪ wʊd laɪk ə ɡlæs əv ˈwɔːtər/</p>
+        <p class="ft-english" id="ft-english">I would like a glass of water.</p>
+        <div class="ft-ipa-controls">
+          <div class="ft-voice-shell" id="ft-voice-shell">
+            <button class="ft-voice-proxy" id="ft-voice-proxy" type="button" aria-haspopup="dialog" aria-expanded="false">
+              <span class="ft-voice-proxy-text" id="ft-voice-proxy-text">Browser English voice</span>
+            </button>
+            <select class="ft-voice" id="ft-voice" aria-label="English voice">
+              <option class="ft-browser-option" value="">Browser English voice</option>
+            </select>
+          </div>
+          <button class="ft-play" id="ft-play" type="button">Play future</button>
+        </div>
+        <div class="ft-tts-status" id="ft-tts-status" aria-live="polite"></div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="ft-voice-picker" id="ft-voice-picker" aria-hidden="true">
+    <section class="ft-voice-picker-panel" role="dialog" aria-modal="true" aria-labelledby="ft-voice-picker-title">
+      <div class="ft-voice-picker-head">
+        <p class="ft-voice-picker-title" id="ft-voice-picker-title">Choose voice</p>
+        <button class="ft-voice-picker-close" id="ft-voice-picker-close" type="button" aria-label="Close voice picker">×</button>
+      </div>
+      <div class="ft-voice-picker-list" id="ft-voice-picker-list" role="listbox" aria-label="English voices"></div>
+    </section>
+  </div>
+
+<script src="/future-assets/future.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,687 @@
+    if path == "/vocab/scan-space-w":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(urlparse(self.path).query)
+            compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
+            payload = self.read_json_body()
+            result = scan_space_w_vocabulary(payload.get("path", ""), session.get("username", ""), include_words=not compact_response)
+            self.send_json(200, {
+                "ok": True,
+                "response_schema": "vocab-scan-compact-v1" if compact_response else "vocab-scan-full-v1",
+                **result,
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/build-mission":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            if bool(payload.get("async")) or bool(payload.get("background")):
+                result = start_space_w_vocab_build_job(payload.get("path", ""), session.get("username", ""))
+                self.send_json(202, {"ok": True, **result})
+                return
+            result = build_space_w_vocab_mission(payload.get("path", ""), session.get("username", ""))
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-w/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(urlparse(self.path).query)
+            compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            if clean(payload.get("action")).lower() == "clear":
+                result = clear_space_w_progress(username, payload)
+                mark_user_activity(username, {"status": "Cleared Space_W progress", "space": "Space_W", "path": payload.get("path", "")})
+                self.send_json(200, {"ok": True, "username": username, **result})
+                return
+            progress = save_space_w_progress(username, payload)
+            completion_sync = progress.pop("_completionSync", None) if isinstance(progress, dict) else None
+            completion_result = {}
+            completion_error = ""
+            if isinstance(completion_sync, dict) and clean(completion_sync.get("path", "")):
+                try:
+                    completion_result = record_lesson_completion(
+                        completion_sync.get("path", ""),
+                        username,
+                        completion_sync,
+                    )
+                except Exception as completion_exc:
+                    completion_error = str(completion_exc)
+                    stt_debug_log(
+                        "space_w_progress_completion_sync_failed",
+                        user=username,
+                        path=completion_sync.get("path", ""),
+                        error=completion_error,
+                    )
+            mark_user_activity(username, {
+                "status": "Completed lesson" if completion_result else "Studying Space_W",
+                "space": "Space_W",
+                "title": progress.get("title", ""),
+                "path": progress.get("path", ""),
+                "nodeIndex": progress.get("nodeIndex", 0),
+                "nodeCount": progress.get("nodeCount", 0),
+            })
+            payload_state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+            request_operation_id = clean(payload.get("syncOperationId") or payload.get("sync_operation_id") or payload_state.get("syncOperationId"))
+            progress_operation_id = clean(progress.get("syncOperationId") or progress.get("sync_operation_id"))
+            use_compact = bool(compact_response and request_operation_id and request_operation_id == progress_operation_id)
+            self.send_json(200, {
+                "ok": True,
+                "username": username,
+                "progress": space_w_progress_compact_response(progress) if use_compact else progress,
+                "response_schema": "space-w-progress-compact-v1" if use_compact else "space-w-progress-full-v1",
+                "completion": completion_result,
+                "completion_pending": bool(completion_error),
+                "completion_error": completion_error,
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-q/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(urlparse(self.path).query)
+            compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            if clean(payload.get("action")).lower() == "clear":
+                started = time.perf_counter()
+                result = clear_space_q_progress(username, payload)
+                mark_user_activity(username, {"status": "Cleared Space_Q progress", "space": "Space_Q", "path": payload.get("path", "")})
+                self.send_json(200, {"ok": True, "username": username, "progress_save_ms": int((time.perf_counter() - started) * 1000), **result})
+                return
+            started = time.perf_counter()
+            progress = save_space_q_progress(username, payload)
+            mark_user_activity(username, {
+                "status": "Studying Space_Q",
+                "space": "Space_Q",
+                "title": progress.get("title", ""),
+                "path": progress.get("path", ""),
+                "nodeIndex": progress.get("nodeIndex", 0),
+                "nodeCount": progress.get("nodeCount", 0),
+            })
+            payload_state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+            request_operation_id = clean(payload.get("syncOperationId") or payload.get("sync_operation_id") or payload_state.get("syncOperationId"))
+            progress_operation_id = clean(progress.get("syncOperationId") or progress.get("sync_operation_id"))
+            use_compact = bool(compact_response and request_operation_id and request_operation_id == progress_operation_id)
+            self.send_json(200, {
+                "ok": True,
+                "username": username,
+                "progress": space_w_progress_compact_response(progress) if use_compact else progress,
+                "progress_save_ms": int((time.perf_counter() - started) * 1000),
+                "response_schema": "space-q-progress-compact-v1" if use_compact else "space-q-progress-full-v1",
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-v/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(urlparse(self.path).query)
+            compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
+            payload = self.read_json_body()
+            if not getattr(self, "_future_completion_trace", None) and clean(payload.get("completion_trace_id") or ""):
+                self.completion_trace_begin(path, clean(payload.get("completion_trace_id") or ""))
+            username = session.get("username", "")
+            chat_mark_online(username)
+            action = clean(payload.get("action", "")).lower()
+            if action == "clear":
+                result = clear_space_v_progress(username, payload)
+                self.send_json(200, {"ok": True, "username": username, **result})
+                return
+            progress = save_space_v_progress(username, payload)
+            registry_sync = {}
+            if space_v_registry_sync_has_completion_marker(progress):
+                registry_sync = start_space_v_registry_sync_job(
+                    username,
+                    progress,
+                    reason=clean(action) or "space-v-progress-complete",
+                    delay_seconds=0.05,
+                )
+            mark_user_activity(username, {
+                "status": "Studying Space_V",
+                "space": "Space_V",
+                "title": progress.get("title", ""),
+                "path": progress.get("path", ""),
+                "nodeIndex": progress.get("nodeIndex", 0),
+                "nodeCount": progress.get("nodeCount", 0),
+            })
+            self.send_json(200, {
+                "ok": True,
+                "username": username,
+                "progress": space_v_progress_compact_response(progress) if compact_response else progress,
+                "response_schema": "space-v-progress-compact-v1" if compact_response else "space-v-progress-full-v1",
+                "summary": space_v_progress_summary_from_record(progress),
+                "registry_sync": registry_sync,
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-p/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(urlparse(self.path).query)
+            compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
+            payload = self.read_json_body()
+            username = session.get("username", "")
+            chat_mark_online(username)
+            if clean(payload.get("action")).lower() == "clear":
+                clear_state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+                clear_space = normalize_paragraph_progress_space(payload.get("space") or clear_state.get("spaceMode"))
+                result = clear_space_p_progress(username, payload)
+                mark_user_activity(username, {"status": f"Cleared {clear_space} progress", "space": clear_space, "path": payload.get("path", "")})
+                self.send_json(200, {"ok": True, "username": username, **result})
+                return
+            progress = save_space_p_progress(username, payload)
+            payload_state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+            progress_space = normalize_paragraph_progress_space(progress.get("space") or payload.get("space") or payload_state.get("spaceMode"))
+            mark_user_activity(username, {
+                "status": f"Studying {progress_space}",
+                "space": progress_space,
+                "title": progress.get("title", ""),
+                "path": progress.get("path", ""),
+                "nodeIndex": progress.get("nodeIndex", 0),
+                "nodeCount": progress.get("nodeCount", 0),
+            })
+            request_operation_id = clean(payload.get("syncOperationId") or payload.get("sync_operation_id") or payload_state.get("syncOperationId"))
+            progress_operation_id = clean(progress.get("syncOperationId") or progress.get("sync_operation_id"))
+            use_compact = bool(compact_response and request_operation_id and request_operation_id == progress_operation_id)
+            self.send_json(200, {
+                "ok": True,
+                "username": username,
+                "progress": space_p_progress_compact_response(progress) if use_compact else progress,
+                "response_schema": "space-p-progress-compact-v1" if use_compact else "space-p-progress-full-v1",
+            })
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body() or {}
+            viewer = normalize_username(session.get("username", ""))
+            target_user = normalize_username(payload.get("user", "") or payload.get("target_user", "") or viewer)
+            admin_view = target_user != viewer
+            query = parse_qs(urlparse(self.path).query)
+            client_source = clean((query.get("client_source") or [""])[0]).lower()
+            pin_only = bool(payload.get("pinOnly") or client_source == "pdf_pin_save")
+            SERVER_STATE["last_space_pdf_progress_post"] = {
+                "at": utc_timestamp(),
+                "viewer": viewer,
+                "target_user": target_user,
+                "source": client_source,
+                "pin_only": pin_only,
+                "received_pins": payload.get("pinnedPages", []),
+                "ok": False,
+            }
+            if admin_view and not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can update another user's Space_PDF progress."})
+                return
+            if not pin_only:
+                chat_mark_online(viewer)
+            if clean(payload.get("action")).lower() == "clear":
+                result = clear_space_pdf_progress(target_user, payload)
+                mark_user_activity(viewer, {
+                    "status": "Cleared Space_PDF progress" if not admin_view else f"Cleared Space_PDF progress as @{target_user}",
+                    "space": "Space_PDF",
+                    "path": payload.get("path", ""),
+                })
+                self.send_json(200, {"ok": True, "username": target_user, "viewer": viewer, "admin_view": admin_view, **result})
+                return
+            progress = save_space_pdf_progress(target_user, payload)
+            SERVER_STATE["last_space_pdf_progress_post"] = {
+                **SERVER_STATE.get("last_space_pdf_progress_post", {}),
+                "ok": True,
+                "saved_pins": progress.get("pinnedPages", []),
+                "saved_pin_at": progress.get("pinnedPagesUpdatedAt", ""),
+            }
+            if not pin_only:
+                mark_user_activity(viewer, {
+                    "status": "Studying Space_PDF" if not admin_view else f"Studying Space_PDF as @{target_user}",
+                    "space": "Space_PDF",
+                    "title": progress.get("title", ""),
+                    "path": progress.get("path", ""),
+                    "page": progress.get("page", 1),
+                    "pages": progress.get("pages", 0),
+                })
+            self.send_json(200, {"ok": True, "username": target_user, "viewer": viewer, "admin_view": admin_view, "progress": progress})
+        except PermissionError as exc:
+            SERVER_STATE["last_space_pdf_progress_post"] = {
+                **SERVER_STATE.get("last_space_pdf_progress_post", {}),
+                "at": utc_timestamp(),
+                "ok": False,
+                "error": str(exc),
+            }
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            SERVER_STATE["last_space_pdf_progress_post"] = {
+                **SERVER_STATE.get("last_space_pdf_progress_post", {}),
+                "at": utc_timestamp(),
+                "ok": False,
+                "error": str(exc),
+            }
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/drawing":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body() or {}
+            viewer = normalize_username(session.get("username", ""))
+            target_user = normalize_username(payload.get("user", "") or payload.get("target_user", "") or viewer)
+            admin_view = target_user != viewer
+            if admin_view and not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can update another user's PDF drawing."})
+                return
+            drawing = save_space_pdf_drawing(target_user, payload, updated_by=viewer)
+            # Added 2026-07-20: drawing autosaves are durable state deltas, not user-activity events.
+            self.send_json(200, {"ok": True, "username": target_user, "viewer": viewer, "admin_view": admin_view, "drawing": drawing})
+        except PermissionError as exc:
+            self.send_json(403, {"ok": False, "error": str(exc)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/audio-markers":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            if not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can update shared PDF/Picture audio markers."})
+                return
+            payload = self.read_json_body() or {}
+            chat_mark_online(viewer)
+            result = save_space_pdf_shared_audio_marker(viewer, payload)
+            mark_user_activity(viewer, {
+                "status": "Updating shared PDF audio marker",
+                "space": "Space_PDF",
+                "path": payload.get("path", ""),
+                "page": payload.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-region-notices":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            if not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can update shared PDF/Picture AI notices."})
+                return
+            payload = self.read_json_body() or {}
+            chat_mark_online(viewer)
+            result = save_space_pdf_ai_region_notice(viewer, payload)
+            mark_user_activity(viewer, {
+                "status": "Updating shared PDF AI notice",
+                "space": "Space_PDF",
+                "path": payload.get("path", ""),
+                "page": payload.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-region-questions":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            if not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can update shared PDF/Picture AI questions."})
+                return
+            payload = self.read_json_body() or {}
+            chat_mark_online(viewer)
+            result = save_space_pdf_ai_region_question(viewer, payload)
+            mark_user_activity(viewer, {
+                "status": "Updating shared PDF AI question",
+                "space": "Space_PDF",
+                "path": payload.get("path", ""),
+                "page": payload.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/ai-question-progress":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            payload = self.read_json_body() or {}
+            chat_mark_online(viewer)
+            result = save_space_pdf_ai_question_progress(viewer, payload)
+            mark_user_activity(viewer, {
+                "status": "Saving MishiKa question progress",
+                "space": "Space_PDF",
+                "path": payload.get("path", ""),
+                "page": payload.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/audio-marker-server-file":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            if not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can upload shared PDF/Picture audio markers."})
+                return
+            payload = self.read_json_body() or {}
+            chat_mark_online(viewer)
+            result = save_space_pdf_shared_audio_server_file(viewer, payload)
+            mark_user_activity(viewer, {
+                "status": "Loading shared PDF audio marker from server",
+                "space": "Space_PDF",
+                "path": payload.get("path", ""),
+                "page": payload.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/audio-marker-server-pick":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            if not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can upload shared PDF/Picture audio markers."})
+                return
+            payload = self.read_json_body() or {}
+            chat_mark_online(viewer)
+            result = pick_space_pdf_shared_audio_server_file(viewer, payload)
+            mark_user_activity(viewer, {
+                "status": "Picking shared PDF audio marker on server",
+                "space": "Space_PDF",
+                "path": payload.get("path", ""),
+                "page": payload.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-pdf/audio-marker-upload":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            if not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can upload shared PDF/Picture audio markers."})
+                return
+            fields, files = parse_multipart_form(self.headers, self.rfile, max_bytes=52 * 1024 * 1024)
+            upload = files.get("file") or files.get("audio")
+            if not upload:
+                self.send_json(400, {"ok": False, "error": "No audio file selected."})
+                return
+            chat_mark_online(viewer)
+            result = save_space_pdf_shared_audio_upload(viewer, upload, fields)
+            mark_user_activity(viewer, {
+                "status": "Uploading shared PDF audio marker",
+                "space": "Space_PDF",
+                "path": fields.get("path", ""),
+                "page": fields.get("page", 1),
+            })
+            self.send_json(200, {"ok": True, "viewer": viewer, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/file-key-map":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            viewer = normalize_username(session.get("username", ""))
+            admin_view = is_admin_user(viewer)
+            target_user = normalize_username(payload.get("user", "") or viewer)
+            if target_user != viewer and not admin_view:
+                self.send_json(403, {"ok": False, "error": "Only admins can inspect another user's vocabulary stats."})
+                return
+            raw_candidates = [
+                payload.get("path", ""),
+                payload.get("effective_path", ""),
+                payload.get("link_target", ""),
+                payload.get("linked_path", ""),
+                *(payload.get("aliases") if isinstance(payload.get("aliases"), list) else []),
+            ]
+            candidates = []
+            seen_paths = set()
+            for raw_candidate in raw_candidates:
+                candidate = clean_path_value(raw_candidate)
+                if candidate and candidate.lower() not in seen_paths:
+                    seen_paths.add(candidate.lower())
+                    candidates.append(candidate)
+            if not candidates:
+                raise RuntimeError("Thieu duong dan file lesson.")
+            result = None
+            last_error = None
+            for candidate in candidates:
+                try:
+                    display_target = safe_server_data_path(candidate, viewer, admin=admin_view)
+                    effective_target = server_data_effective_file_path(display_target, viewer, admin=admin_view)
+                    meta = lesson_file_vocab_meta_for_target(effective_target)
+                    word_keys = list(meta.get("vocab_word_keys") or []) if isinstance(meta, dict) else []
+                    if not word_keys:
+                        continue
+                    result = {
+                        "path": candidate,
+                        "resolved_path": server_data_relative(effective_target),
+                        "lesson_id": clean(payload.get("lesson_id", ""))[:240],
+                        "vocab_word_keys": word_keys,
+                        "vocab_total_words": max(0, int(meta.get("vocab_total_words", len(word_keys)) or len(word_keys))),
+                        "vocab_space": clean(meta.get("vocab_space", "Lesson")),
+                    }
+                    stats = server_database_vocab_file_key_stats(
+                        target_user,
+                        word_keys,
+                        {scope: vocab_period_bucket(scope) for scope in ("day", "week", "month")},
+                        server_database_load_period_resets(),
+                    )
+                    result["vocab_stats"] = {**stats, "user": target_user, "path": candidate, "space": result["vocab_space"], "localEstimate": False, "cachedAt": utc_timestamp()}
+                    break
+                except Exception as key_exc:
+                    last_error = key_exc
+            if result is None:
+                raise RuntimeError(str(last_error) if last_error else "Khong co vocabulary metadata cho file.")
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/file-stats":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            viewer = normalize_username(session.get("username", ""))
+            target_user = normalize_username(payload.get("user", "") or viewer)
+            if target_user != viewer and not is_admin_user(viewer):
+                self.send_json(403, {"ok": False, "error": "Only admins can inspect another user's vocabulary stats."})
+                return
+            raw_candidates = [
+                payload.get("path", ""),
+                payload.get("effective_path", ""),
+                payload.get("link_target", ""),
+                payload.get("linked_path", ""),
+            ]
+            raw_aliases = payload.get("aliases") if isinstance(payload.get("aliases"), list) else []
+            raw_candidates.extend(raw_aliases)
+            candidates = []
+            seen_paths = set()
+            for raw_candidate in raw_candidates:
+                candidate = clean_path_value(raw_candidate)
+                if candidate and candidate.lower() not in seen_paths:
+                    seen_paths.add(candidate.lower())
+                    candidates.append(candidate)
+            if not candidates:
+                raise RuntimeError("Thieu duong dan file lesson.")
+            last_error = None
+            result = None
+            for candidate in candidates:
+                try:
+                    result = space_v_file_vocabulary_stats(candidate, viewer, target_user)
+                    result["resolved_path"] = result.get("path") or candidate
+                    result["requested_path"] = clean_path_value(payload.get("path", ""))
+                    break
+                except Exception as stats_exc:
+                    last_error = stats_exc
+            if result is None:
+                raise RuntimeError(str(last_error) if last_error else "Khong doc duoc thong ke tu vung.")
+            chat_mark_online(viewer)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/lesson-index":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            viewer = normalize_username(session.get("username", ""))
+            result = vocab_lesson_index_for_user(viewer)
+            chat_mark_online(viewer)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/reset":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi duoc reset top."})
+            return
+        try:
+            payload = self.read_json_body()
+            raw_scopes = payload.get("scopes") if isinstance(payload.get("scopes"), list) else [payload.get("scope", "")]
+            result = reset_vocab_leaderboard_periods(raw_scopes)
+            self.send_json(200, {"ok": True, **result, **vocabulary_leaderboard(10, double_check=True)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/space-leaderboard/reset-today-test":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi may server moi duoc reset Space lesson Top Today."})
+            return
+        try:
+            payload = self.read_json_body()
+            raw_types = payload.get("board_types") if isinstance(payload.get("board_types"), list) else []
+            result = reset_space_leaderboard_today_credit_for_testing(raw_types)
+            self.send_json(200, {"ok": True, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/npc-top/buff":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            admin_username = normalize_username(session.get("username", ""))
+            if not is_admin_user(admin_username):
+                self.send_json(403, {"ok": False, "error": "Only admins can buff NPC racers."})
+                return
+            payload = self.read_json_body()
+            result = buff_vocab_leaderboard_npc_top(
+                payload.get("username", payload.get("user", "")),
+                space_w_int(payload.get("amount", payload.get("count", 0)), 0),
+                admin_username=admin_username,
+            )
+            self.send_json(200, {"ok": True, "buff": result, "npcs": npc_top_public_roster(), **vocabulary_leaderboard(10, double_check=False, viewer=admin_username)})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/status":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            result = set_vocab_leaderboard_status(username, payload.get("scope", "total"), payload.get("status", ""))
+            self.send_json(200 if result.get("ok") else 400, result)
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/react":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            actor = normalize_username(session.get("username", ""))
+            result = toggle_vocab_leaderboard_reaction(
+                actor,
+                payload.get("target", ""),
+                payload.get("scope", "total"),
+                payload.get("reaction", "like"),
+            )
+            self.send_json(200 if result.get("ok") else 400, result)
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/vocab/leaderboard/chat":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            username = normalize_username(session.get("username", ""))
+            actor = resolve_admin_npc_actor(username, payload.get("actor", payload.get("as", "")) if isinstance(payload, dict) else "")
+            operation_id = payload.get("world_chat_operation_id", payload.get("operation_id", "")) if isinstance(payload, dict) else ""
+            result = add_vocab_leaderboard_chat_message(actor, payload.get("message", ""), operation_id)
+            chat_mark_online(username)
+            self.send_json(200 if result.get("ok") else 400, result)
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return

@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "source": "FUTURE/server_parts/http_server/03_handler_get_routes.py",
+  "mode": "get_route_method_fragments",
+  "source_sha256": "a3d26b7fe7c68eba68dde6e177922a02d97eb398e99dc527da9de93303c12e2a",
+  "parts": [
+    {
+      "file": "01_entry_frontend_status.pyfrag",
+      "line_start": 1,
+      "line_end": 153,
+      "bytes": 6996,
+      "sha256": "0358e11ff66c79aeeecf17fc6823c68a4eaf6873928432d91d5d9a81a86f99a7",
+      "first": "if path == \"/favicon.ico\":",
+      "last": "if path == \"/announcements\":"
+    },
+    {
+      "file": "02_chat_stream_screen_paint.pyfrag",
+      "line_start": 154,
+      "line_end": 412,
+      "bytes": 12448,
+      "sha256": "c483dea734b440addad1499638384306626bb865325ff2118ad0cb0923b13c69",
+      "first": "if path == \"/chat/attachment\":",
+      "last": "if path == \"/paint/admin/state\":"
+    },
+    {
+      "file": "03_auth_dashboard_server_data.pyfrag",
+      "line_start": 413,
+      "line_end": 627,
+      "bytes": 11176,
+      "sha256": "5248021c2d3f2184c84e56b6403d6df97fe3e6576897edd8a70102f6d343eb48",
+      "first": "if path == \"/auth/me\":",
+      "last": "if path == \"/server-data/file\":"
+    },
+    {
+      "file": "04_pdf_picture_render.pyfrag",
+      "line_start": 628,
+      "line_end": 795,
+      "bytes": 8496,
+      "sha256": "2a0b64b2c29254c89a71281cf0b0b725e790a6506392a2596b80a78045026436",
+      "first": "if path == \"/pdf/info\":",
+      "last": "if path == \"/picture/image\":"
+    },
+    {
+      "file": "05_progress_vocab_leaderboard.pyfrag",
+      "line_start": 796,
+      "line_end": 1124,
+      "bytes": 15830,
+      "sha256": "9127bdd7477e13a87b7dc0a986cca63055a2e2b920ff6934777506370672111c",
+      "first": "if path == \"/space-pdf/progress\":",
+      "last": "if path == \"/vocab/build-status\":"
+    },
+    {
+      "file": "06_world_game_assets.pyfrag",
+      "line_start": 1125,
+      "line_end": 1243,
+      "bytes": 5571,
+      "sha256": "cbc312da3774f18e535c2af68d1ddb3bb4ef642740435b7433bb83f6b295ef32",
+      "first": "if path == \"/world/state\":",
+      "last": "if path == \"/server-data/qm-sound\":"
+    }
+  ]
+}

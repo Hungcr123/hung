@@ -1,0 +1,4 @@
+interface:
+  display_name: "Space_W Lesson Builder"
+  short_description: "Build voiced Space_W lessons with Train mode"
+  default_prompt: "Use $spacew-lesson-builder to build a voiced Space_W lesson like Tin 2 with accurate Vietnamese prompts, translation comparison cards, highlighted about cards, and Train mode extra practice when needed. For Train mode audio, use Vietnamese Nam Minh and English Adam/Jessica only."
