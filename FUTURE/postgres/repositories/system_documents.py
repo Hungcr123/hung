@@ -14,7 +14,9 @@ EXCLUDED_SYSTEM_DOCUMENT_NAMES = {
 }
 
 POSTGRES_SYSTEM_DOCUMENT_NAMES = {
+    "_future_audio_cache_epoch.json",
     "_future_settings.json",
+    "_future_manifest_build_pending.json",
 }
 
 

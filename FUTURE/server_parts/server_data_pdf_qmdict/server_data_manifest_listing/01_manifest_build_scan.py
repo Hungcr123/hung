@@ -97,6 +97,27 @@ def server_data_manifest_name_fields(path: Path) -> dict:
         return {"name": path.name, "raw_name": path.name}
 
 
+# Added 2026-08-01: build one lesson's shared vocabulary index alongside its manifest metadata.
+def server_data_manifest_vocab_metadata(path: Path) -> dict:
+    try:
+        if path.suffix.lower() not in VOCAB_STATS_SUPPORTED_EXTENSIONS:
+            return {}
+        meta = lesson_file_vocab_meta_for_target(path)
+        if not isinstance(meta, dict) or not clean(meta.get("lesson_id", "")):
+            return {}
+        return {
+            "vocab_indexed": True,
+            "vocab_total_words": max(0, int(meta.get("vocab_total_words", 0) or 0)),
+            "vocab_valid_words": len(meta.get("vocab_valid_word_keys") or []),
+            "vocab_source_revision": clean(meta.get("vocab_source_revision", "")),
+            "vocab_qmdict_revision": clean(meta.get("vocab_validated_signature", "")),
+            "vocab_extractor_version": clean(meta.get("vocab_extractor_version", "")),
+        }
+    except Exception as exc:
+        stt_debug_log("server_data_manifest_vocab_metadata_failed", path=str(path), error=str(exc))
+        return {"vocab_indexed": False}
+
+
 SERVER_DATA_STRUCTURAL_METADATA_VERSION = 7
 SERVER_DATA_STRUCTURAL_METADATA_FIELDS = (
     "nodes", "questions", "direct_questions", "total_nodes", "paragraphs", "sentences", "normal_sentences", "train_sentences",
@@ -256,6 +277,7 @@ def server_data_manifest_entry(path: Path) -> dict | None:
                 entry["modified_ns"] = int(stat.st_mtime_ns)
                 entry.update(server_data_manifest_structural_metadata(path, target, stat))
                 entry.update(space_pdf_package_manifest_metadata(target))
+                entry.update(server_data_manifest_vocab_metadata(target))
             return entry
         is_dir = path.is_dir()
         if not is_dir and not is_lesson_file(path):
@@ -273,6 +295,7 @@ def server_data_manifest_entry(path: Path) -> dict | None:
             entry["modified_ns"] = int(stat.st_mtime_ns)
             entry.update(server_data_manifest_structural_metadata(path, path, stat))
             entry.update(space_pdf_package_manifest_metadata(path))
+            entry.update(server_data_manifest_vocab_metadata(path))
         return entry
     except Exception:
         return None

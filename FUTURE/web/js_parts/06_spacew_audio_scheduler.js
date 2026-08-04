@@ -1334,9 +1334,12 @@
       const normalizeVocabularyImage = (raw) => {
         const source = raw && typeof raw === "object" ? raw : {};
         return {
+          id: clean(source.id ?? source.image_id ?? source.imageId ?? ""),
           url: clean(source.url ?? source.u ?? source.src ?? ""),
           source: clean(source.source ?? source.s ?? ""),
           credit: clean(source.credit ?? source.c ?? source.title ?? ""),
+          number: Math.max(0, Math.floor(Number(source.number ?? source.n ?? 0) || 0)),
+          revision: clean(source.revision ?? source.rev ?? ""),
         };
       };
 
@@ -1968,12 +1971,24 @@
           futureStructureTextCache.set(assetUrl, cached);
           return cached;
         }
-        const pending = fetch(assetUrl, { cache: "no-store" })
-          .then(async (response) => {
+        const rawPath = clean(structurePath).replace(/\\/g, "/");
+        const requestPath = rawPath && !/^https?:\/\//i.test(rawPath) && !rawPath.startsWith("data:") && !rawPath.startsWith("blob:")
+          ? `/server-data/asset?path=${encodeURIComponent(rawPath.replace(/^\/+/, ""))}`
+          : "";
+        // Added 2026-08-01: route Structure reads through the bounded multi-endpoint loader so one stalled asset request cannot freeze Space_Q before vocabulary preflight.
+        const pending = (requestPath
+          ? fetchServerText(requestPath).then((result) => String(result && result.text || ""))
+          : fetchWithTimeout(assetUrl, { cache: "no-store" }, 8000).then(async (response) => {
             if (!response.ok) {
               throw new Error(`Không tải được Structure: ${response.status}`);
             }
             return decodeUtf8Buffer(await response.arrayBuffer());
+          }))
+          .then((text) => {
+            if (!String(text || "").trim()) {
+              throw new Error("Structure rỗng.");
+            }
+            return text;
           })
           .catch((error) => {
             futureStructureTextCache.delete(assetUrl);
@@ -2829,6 +2844,7 @@
           url,
           assetId: typeof raw === "object" ? clean(raw.asset_id ?? raw.assetId ?? raw.aid ?? "") : "",
           contentHash: typeof raw === "object" ? clean(raw.content_hash ?? raw.contentHash ?? raw.sha256 ?? "") : "",
+          revision: typeof raw === "object" ? clean(raw.revision ?? raw.rev ?? raw.v ?? "") : "",
           bytes: typeof raw === "object" ? Math.max(0, Number(raw.bytes ?? raw.size ?? 0) || 0) : 0,
         } : null;
       };
@@ -2859,6 +2875,15 @@
           return `${GENERIC_MEDIA_AUDIO_CACHE_PREFIX}${assetId}`;
         }
         if (asset.url) {
+          try {
+            const parsed = new URL(audioClipUrl(asset), window.location.origin);
+            const revision = clean(asset.revision || parsed.searchParams.get("revision") || parsed.searchParams.get("rev") || parsed.searchParams.get("v") || "");
+            if (parsed.pathname.toLowerCase() === "/server-data/qm-sound"
+              && (!revision || revision.toLowerCase() === "current")) {
+              return "";
+            }
+          } catch (error) {
+          }
           return `url:${audioClipUrl(asset)}`;
         }
         if (asset.base64) {
@@ -2888,16 +2913,21 @@
         }
         try {
           const parsed = new URL(audioClipUrl(asset), window.location.origin);
+          const revision = clean(asset.revision || parsed.searchParams.get("revision") || parsed.searchParams.get("rev") || parsed.searchParams.get("v") || "");
+          if (parsed.pathname.toLowerCase() === "/server-data/qm-sound"
+            && (!revision || revision.toLowerCase() === "current")) {
+            return "";
+          }
           const pathAsset = clean(parsed.searchParams.get("path") || "").replace(/\\/g, "/").toLowerCase();
           if (pathAsset) {
-            return `audio-path:${pathAsset}`;
+            return `audio-path:${pathAsset}${revision ? `:rev:${revision}` : ""}`;
           }
           const meaning = clean(parsed.searchParams.get("meaning") || "");
           if (meaning) {
-            return `audio-meaning:${hashSpaceWText(meaning.toLowerCase())}`;
+            return `audio-meaning:${hashSpaceWText(meaning.toLowerCase())}${revision ? `:rev:${revision}` : ""}`;
           }
           const semanticParams = Array.from(parsed.searchParams.entries())
-            .filter(([name]) => !["v", "ts", "cache", "version"].includes(clean(name).toLowerCase()))
+            .filter(([name]) => !["ts", "cache"].includes(clean(name).toLowerCase()))
             .sort((a, b) => `${a[0]}=${a[1]}`.localeCompare(`${b[0]}=${b[1]}`));
           return `audio-route:${hashSpaceWText(`${parsed.pathname.toLowerCase()}|${JSON.stringify(semanticParams)}`)}`;
         } catch (error) {
@@ -2919,12 +2949,30 @@
         return (key && cachedAudioClipUrls.get(key)) || audioClipUrl(asset);
       };
 
+      // Added 2026-07-30: invalidate only one revised vocabulary asset instead of flushing unrelated Space caches.
+      const invalidateCachedAudioClip = (clip) => {
+        const key = audioClipCacheKey(clip);
+        if (!key) {
+          return false;
+        }
+        pendingAudioClipPreloads.delete(key);
+        const previousUrl = cachedAudioClipUrls.get(key);
+        if (previousUrl && previousUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(previousUrl);
+        }
+        cachedAudioClipUrls.delete(key);
+        return true;
+      };
+
       const preloadAudioClip = async (clip, token = null, options = {}) => {
         const asset = normalizeAudioClip(clip);
         if (!asset || asset.kind === "speak") {
           return false;
         }
-        const key = audioClipCacheKey(asset);
+        const url = audioClipUrl(asset);
+        const key = audioClipCacheKey(asset) || (
+          window.__futureAudioCacheManager ? `audio-manager:${hashSpaceWText(url)}` : ""
+        );
         if (!key) {
           return false;
         }
@@ -2936,7 +2984,22 @@
         if (!forceReload && !priorityPlayback && pendingAudioClipPreloads.has(key)) {
           return pendingAudioClipPreloads.get(key);
         }
-        const url = audioClipUrl(asset);
+        if (window.__futureAudioCacheManager && typeof window.__futureAudioCacheManager.resolveAudioUrl === "function") {
+          const task = window.__futureAudioCacheManager.resolveAudioUrl(url).then((resolvedUrl) => {
+            if (!resolvedUrl || (token !== null && token !== vocabAudioCacheToken)) return false;
+            const previousUrl = cachedAudioClipUrls.get(key);
+            if (previousUrl && previousUrl.startsWith("blob:") && previousUrl !== resolvedUrl) {
+              try { URL.revokeObjectURL(previousUrl); } catch (error) {}
+            }
+            cachedAudioClipUrls.set(key, resolvedUrl);
+            return true;
+          }).catch(() => false);
+          if (!priorityPlayback) pendingAudioClipPreloads.set(key, task);
+          return task.finally(() => {
+            if (pendingAudioClipPreloads.get(key) === task) pendingAudioClipPreloads.delete(key);
+          });
+        }
+        return false;
         const persistentKey = audioMediaPersistentKey(asset);
         const legacyPersistentKey = `${GENERIC_AUDIO_CACHE_PREFIX}${key}`;
         const rememberCachedRecord = async (cached, sourceKey = persistentKey) => {
@@ -2948,7 +3011,8 @@
             return false;
           }
           const actualHash = await mediaBlobSha256(cached.blob);
-          if (!actualHash || (clean(cached.content_hash) && clean(cached.content_hash) !== actualHash)) {
+          if (!actualHash || (clean(cached.content_hash) && clean(cached.content_hash) !== actualHash)
+            || (clean(asset.contentHash) && clean(asset.contentHash) !== actualHash)) {
             await deleteSpaceWAudioRecord(sourceKey);
             return false;
           }
@@ -2960,7 +3024,7 @@
               content_hash: actualHash,
               bytes: cached.blob.size,
               mime: clean(cached.blob.type) || clean(asset.mime) || "audio/mpeg",
-              media_key_version: 1,
+              media_key_version: clean(audioMediaAssetId(asset)).startsWith("v2:w:") ? 2 : 1,
               migrated_at: new Date().toISOString(),
             });
             if (migrated && sourceKey !== persistentKey) {
@@ -2974,10 +3038,8 @@
           cachedAudioClipUrls.set(key, URL.createObjectURL(cached.blob));
           return true;
         };
-        const fetchAudioBlob = async (useNative = false) => {
-          const fetchAudio = useNative && typeof window.__futureNativeAudioFetch === "function"
-            ? window.__futureNativeAudioFetch
-            : fetch;
+        const fetchAudioBlob = async () => {
+          const fetchAudio = fetch;
           try {
             const response = await fetchAudio(url, { cache: forceReload ? "reload" : "force-cache", headers: { "Accept": "audio/*,*/*" } });
             if (!response.ok) {
@@ -3011,7 +3073,7 @@
             bytes: blob.size,
             blob,
             mime: clean(blob.type) || clean(asset.mime) || "audio/mpeg",
-            media_key_version: 1,
+            media_key_version: clean(audioMediaAssetId(asset)).startsWith("v2:w:") ? 2 : 1,
             access_at: Date.now(),
             created_at: new Date().toISOString(),
           };
@@ -3038,7 +3100,7 @@
               return true;
             }
           }
-          return rememberFetchedBlob(await fetchAudioBlob(priorityPlayback));
+          return rememberFetchedBlob(await fetchAudioBlob());
         })();
         if (!priorityPlayback) {
           pendingAudioClipPreloads.set(key, task);
@@ -3088,12 +3150,7 @@
         void (async () => {
         try {
           const startToken = Number(options.stopToken || 0) || 0;
-          // 2026-07-20: Feedback effects must start inside the Enter/click gesture; cache work may finish later.
-          if (options.immediateUserGesture) {
-            void preloadAudioClip(asset, null, { priorityPlayback: true });
-          } else {
-            await preloadAudioClip(asset, null, { priorityPlayback: true });
-          }
+          await preloadAudioClip(asset, null, { priorityPlayback: true });
           if (startToken && Number(options.currentStopToken && options.currentStopToken()) !== startToken) {
             done(false);
             return;
@@ -4540,6 +4597,57 @@
         }
       };
 
+      // Added 2026-07-31: the global cache-clear command must also remove the
+      // shared Space_V/Space_W/PDF URL-audio database and all live blob URLs.
+      const clearLessonAudioCache = async () => {
+        vocabAudioCacheToken += 1;
+        lessonAudioBackgroundToken += 1;
+        pendingAudioClipPreloads.clear();
+        pendingSpaceWAudioCacheTasks.clear();
+        cachedAudioClipUrls.forEach((value) => {
+          if (typeof value === "string" && value.startsWith("blob:")) {
+            try { URL.revokeObjectURL(value); } catch (error) {}
+          }
+        });
+        cachedAudioClipUrls.clear();
+        let db = null;
+        try { db = spaceWAudioDbPromise ? await spaceWAudioDbPromise : null; } catch (error) {}
+        if (db && db.objectStoreNames.contains(SPACE_W_AUDIO_STORE)) {
+          try {
+            await new Promise((resolve) => {
+              const tx = db.transaction(SPACE_W_AUDIO_STORE, "readwrite");
+              tx.objectStore(SPACE_W_AUDIO_STORE).clear();
+              tx.oncomplete = () => resolve();
+              tx.onerror = () => resolve();
+              tx.onabort = () => resolve();
+            });
+          } catch (error) {}
+        }
+        try { if (db) db.close(); } catch (error) {}
+        spaceWAudioDbPromise = null;
+        if (!("indexedDB" in window)) {
+          return { ok: true, deleted: false, reason: "indexeddb-unavailable" };
+        }
+        const deleted = await new Promise((resolve) => {
+          let settled = false;
+          const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(Boolean(value));
+          };
+          try {
+            const request = indexedDB.deleteDatabase(SPACE_W_AUDIO_DB_NAME);
+            request.onsuccess = () => finish(true);
+            request.onerror = () => finish(false);
+            request.onblocked = () => finish(false);
+          } catch (error) {
+            finish(false);
+          }
+        });
+        return { ok: deleted, deleted, database: SPACE_W_AUDIO_DB_NAME };
+      };
+      window.__futureClearLessonAudioCache = clearLessonAudioCache;
+
       const isUsableCachedAudioBlob = (blob) => {
         if (!(blob instanceof Blob)) {
           return false;
@@ -4727,6 +4835,7 @@
           body: JSON.stringify({
             text,
             voice: voiceValue,
+            client_source: "lesson_audio",
           }),
         });
         const source = payload && typeof payload === "object" ? payload : {};
@@ -4924,15 +5033,12 @@
 
       const requestSpaceWTtsBlob = async (text, selectedValue) => {
         const voiceValue = normalizedCacheVoiceValue(selectedValue);
-        if (voiceValue.startsWith("sot:")) {
-          const serverAudio = await requestServerSpaceWTtsAudio(text, voiceValue).catch(() => null);
+        if (voiceValue.startsWith("sot:") || voiceValue.startsWith("microsoft:")) {
+          const serverAudio = await requestServerSpaceWTtsAudio(text, voiceValue);
           if (serverAudio && serverAudio.blob instanceof Blob) {
             return serverAudio.blob;
           }
-          return requestSoundOfTextBlob(text, voiceValue.slice(4) || "en-US");
-        }
-        if (voiceValue.startsWith("microsoft:")) {
-          return requestEdgeTtsBlob(text, getEdgeVoiceInfo(voiceValue));
+          throw new Error("Server 2 did not return lesson audio.");
         }
         throw new Error("Voice is not cacheable.");
       };
@@ -4944,9 +5050,13 @@
         if (!phrase || !voiceValue || !key) {
           return null;
         }
-        let cached = await readSpaceWAudioRecord(key);
+        if (!window.__futureAudioCacheManager) {
+          return null;
+        }
+        const sharedManagerActive = Boolean(window.__futureAudioCacheManager);
+        let cached = sharedManagerActive ? null : await readSpaceWAudioRecord(key);
         const legacyKey = legacySpaceWAudioCacheKey(phrase, voiceValue);
-        if (!cached && legacyKey && legacyKey !== key) {
+        if (!sharedManagerActive && !cached && legacyKey && legacyKey !== key) {
           const legacy = await readSpaceWAudioRecord(legacyKey);
           if (legacy && legacy.blob instanceof Blob) {
             const migrated = await writeSpaceWAudioRecord({ ...legacy, key, shared_media: true, migrated_at: new Date().toISOString() });
@@ -4975,17 +5085,19 @@
           } catch (error) {
             timings = [];
           }
-          await writeSpaceWAudioRecord({
-            key,
-            blob,
-            timings,
-            mime: clean(blob.type) || "audio/mpeg",
-            voice: voiceValue,
-            text_hash: hashSpaceWText(phrase.toLowerCase().replace(/\s+/g, " ")),
-            lesson: currentSpaceWCache.identity || "",
-            node: Number(options.nodeIndex ?? currentNodeIndex) || 0,
-            created_at: new Date().toISOString(),
-          });
+          if (!sharedManagerActive) {
+            await writeSpaceWAudioRecord({
+              key,
+              blob,
+              timings,
+              mime: clean(blob.type) || "audio/mpeg",
+              voice: voiceValue,
+              text_hash: hashSpaceWText(phrase.toLowerCase().replace(/\s+/g, " ")),
+              lesson: currentSpaceWCache.identity || "",
+              node: Number(options.nodeIndex ?? currentNodeIndex) || 0,
+              created_at: new Date().toISOString(),
+            });
+          }
           return { key, blob, timings, cached: false };
         })().finally(() => {
           pendingSpaceWAudioCacheTasks.delete(key);
@@ -5019,14 +5131,20 @@
       };
 
       const getOrCreateSpaceWUrlAudio = async (url, timings = [], options = {}) => {
-        const source = clean(url);
+        if (!window.__futureAudioCacheManager) {
+          return null;
+        }
+        const source = window.__futureAudioCacheManager && typeof window.__futureAudioCacheManager.resolveQmSoundUrl === "function"
+          ? clean(await window.__futureAudioCacheManager.resolveQmSoundUrl(url))
+          : (typeof window.__futureRevisionSafeAudioUrl === "function" ? clean(window.__futureRevisionSafeAudioUrl(url)) : clean(url));
         const key = spaceWUrlAudioCacheKey(source);
         if (!source || !key) {
           return null;
         }
-        let cached = await readSpaceWAudioRecord(key);
+        const sharedManagerActive = Boolean(window.__futureAudioCacheManager);
+        let cached = sharedManagerActive ? null : await readSpaceWAudioRecord(key);
         const legacyKey = legacySpaceWUrlAudioCacheKey(source);
-        if (!cached && legacyKey && legacyKey !== key) {
+        if (!sharedManagerActive && !cached && legacyKey && legacyKey !== key) {
           const legacy = await readSpaceWAudioRecord(legacyKey);
           if (legacy && legacy.blob instanceof Blob) {
             const migrated = await writeSpaceWAudioRecord({ ...legacy, key, shared_media: true, migrated_at: new Date().toISOString() });
@@ -5048,19 +5166,24 @@
           return pendingSpaceWAudioCacheTasks.get(key);
         }
         const task = (async () => {
-          const blob = await fetchAudioBlob(source, { timeoutMs: Number(options.timeoutMs || 18000) || 18000 });
+          const resolvedSource = sharedManagerActive && typeof window.__futureAudioCacheManager.resolveAudioUrl === "function"
+            ? await window.__futureAudioCacheManager.resolveAudioUrl(source)
+            : source;
+          const blob = await fetchAudioBlob(resolvedSource, { timeoutMs: Number(options.timeoutMs || 18000) || 18000 });
           const nextTimings = Array.isArray(timings) && timings.length ? timings : [];
-          await writeSpaceWAudioRecord({
-            key,
-            blob,
-            timings: nextTimings,
-            mime: clean(blob.type) || "audio/mpeg",
-            voice: clean(options.voice || "embedded"),
-            lesson: currentSpaceWCache.identity || "",
-            node: Number(options.nodeIndex ?? currentNodeIndex) || 0,
-            source_url_hash: hashSpaceWText(source),
-            created_at: new Date().toISOString(),
-          });
+          if (!sharedManagerActive) {
+            await writeSpaceWAudioRecord({
+              key,
+              blob,
+              timings: nextTimings,
+              mime: clean(blob.type) || "audio/mpeg",
+              voice: clean(options.voice || "embedded"),
+              lesson: currentSpaceWCache.identity || "",
+              node: Number(options.nodeIndex ?? currentNodeIndex) || 0,
+              source_url_hash: hashSpaceWText(source),
+              created_at: new Date().toISOString(),
+            });
+          }
           return { key, blob, timings: nextTimings, cached: false };
         })().finally(() => {
           pendingSpaceWAudioCacheTasks.delete(key);

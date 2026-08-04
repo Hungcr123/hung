@@ -5770,6 +5770,17 @@
       animation-delay: 480ms !important;
     }
 
+    html.ft-lesson-entry-motion-freeze .ft-server-browser,
+    html.ft-lesson-entry-motion-freeze .ft-server-browser *,
+    html.ft-lesson-entry-motion-freeze .ft-server-browser *::before,
+    html.ft-lesson-entry-motion-freeze .ft-server-browser *::after {
+      animation: none !important;
+      transition: none !important;
+      pointer-events: none !important;
+      scroll-behavior: auto !important;
+      will-change: auto !important;
+    }
+
     /* Added 2026-07-28: keep task-focused file chips animated under reduced-motion settings. */
     html.ft-lesson-vault-motion-off .ft-server-browser .ft-server-item.is-task-focus .ft-server-chip,
     html.ft-paint-performance-mode .ft-server-browser .ft-server-item.is-task-focus .ft-server-chip {

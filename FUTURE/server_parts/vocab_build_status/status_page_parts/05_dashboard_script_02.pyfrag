@@ -6,7 +6,9 @@
             if (payload.signature) localStorage.setItem("future_server_data_manifest_signature", String(payload.signature));
           }} catch (error) {{}}
           if (serverDataManifestState) {{
-            serverDataManifestState.textContent = `Manifest refreshed: ${{entries.toLocaleString()}} items in ${{folders.toLocaleString()}} folders.`;
+            serverDataManifestState.textContent = payload.mode === "apply-pending"
+              ? "Staged builder changes queued for one consolidated publish."
+              : `Manifest refreshed: ${{entries.toLocaleString()}} items in ${{folders.toLocaleString()}} folders.`;
           }}
         }} catch (error) {{
           if (serverDataManifestState) serverDataManifestState.textContent = String(error && error.message ? error.message : error);

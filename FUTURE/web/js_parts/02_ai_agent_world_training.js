@@ -941,21 +941,13 @@
         setAiAgentGhostEnPlaybackRateByIndex(rateIndex, { persist: false, status: false, force: true });
       }
 
-      // Added 2026-07-14: reuses the shared IndexedDB qm-sound cache across Space W, PDF/Picture, Ghost EN, and QM City audio.
+      // Added 2026-07-31: every QmSound consumer resolves through the shared AudioCacheManager.
       async function cachedQmSoundPlaybackUrl(url = "", voice = "", nodeIndex = 0) {
         const source = clean(url);
-        if (!source || typeof getOrCreateSpaceWUrlAudio !== "function") {
-          return { url: source, objectUrl: "" };
-        }
+        if (!source) return { url: "", objectUrl: "" };
         try {
-          const cached = await getOrCreateSpaceWUrlAudio(source, [], {
-            voice,
-            nodeIndex,
-            timeoutMs: 9000,
-          });
-          if (cached && cached.blob instanceof Blob) {
-            const objectUrl = URL.createObjectURL(cached.blob);
-            return { url: objectUrl, objectUrl };
+          if (window.__futureAudioCacheManager && typeof window.__futureAudioCacheManager.resolveAudioUrl === "function") {
+            return { url: await window.__futureAudioCacheManager.resolveAudioUrl(source), objectUrl: "" };
           }
         } catch (error) {
         }
@@ -2938,6 +2930,9 @@
         }
         if (mobileAnimationButton) {
           mobileAnimationButton.classList.toggle("is-visible", shouldShow || pdfToolsSurface);
+        }
+        if (clearAudioCacheButton) {
+          clearAudioCacheButton.classList.toggle("is-visible", shouldShow || pdfToolsSurface);
         }
         if (mobileToolsToggle) {
           mobileToolsToggle.classList.toggle("is-visible", shouldShow || pdfToolsSurface);

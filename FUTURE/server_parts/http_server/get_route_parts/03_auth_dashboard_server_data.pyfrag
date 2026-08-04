@@ -477,7 +477,7 @@
             if not username:
                 self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
                 return
-            if not read_user_lines(username):
+            if not server_database_user_exists(username):
                 self.send_json(404, {"ok": False, "error": "Tài khoản không tồn tại.", "reason": "nouser"})
                 return
             # Added 2026-07-06: local-only browser test login for Codex DOM checks without normal password entry.
@@ -655,6 +655,7 @@
                 "integrity_signature": clean(manifest.get("signature", "")),
                 "folder_count": len(folders),
                 "entry_count": sum(len(rows) for rows in folders.values() if isinstance(rows, list)),
+                "build_hold": server_data_manifest_build_hold_status(),
             })
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
@@ -682,8 +683,31 @@
                 include_space_task=include_space_task,
             ))
             server_timing = clean(payload.pop("_server_timing", ""))
-            self.send_json(200, payload, extra_headers={"Server-Timing": server_timing} if server_timing else None)
+            response_bytes = payload.pop("_response_bytes", None)
+            response_etag = clean(payload.pop("_response_etag", ""))
+            response_cache_hit = bool(payload.pop("_response_cache_hit", False))
+            if isinstance(response_bytes, bytes):
+                self.send_bytes(
+                    200,
+                    response_bytes,
+                    "application/json; charset=utf-8",
+                    cache_control="private, max-age=0, must-revalidate",
+                    etag=response_etag,
+                    extra_headers={
+                        "Server-Timing": server_timing,
+                        "X-Future-Cache-Hit": "server-data-list-bytes" if response_cache_hit else "server-data-list-build",
+                    },
+                )
+            else:
+                self.send_json(200, payload, extra_headers={"Server-Timing": server_timing} if server_timing else None)
         except Exception as exc:
+            stt_debug_log(
+                "server_data_list_request_failed",
+                user=normalize_username((locals().get("session") or {}).get("username", "")),
+                path=clean_path_value(locals().get("rel_path", "")),
+                error=str(exc),
+                traceback=traceback.format_exc(),
+            )
             self.send_json(500, {"ok": False, "error": str(exc)})
         return
     if path == "/server-data/last-file":

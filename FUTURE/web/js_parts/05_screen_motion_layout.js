@@ -3738,6 +3738,7 @@
       const completeAuth = async (payload = {}) => {
         const authTimelineNow = () => (typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now());
         const authPhaseStart = authTimelineNow();
+        const authResponseCompletedAt = Date.now();
         let authPhaseMark = authPhaseStart;
         const recordAuthPhase = (phase = "") => {
           if (typeof window === "undefined" || typeof window.__ftRecordLoginTimelinePhase !== "function") {
@@ -3781,6 +3782,9 @@
         applyQuestionSideCardsPayload(payload.preferences || payload.prefs || {});
         applyQuestionAnimationPayload(payload.preferences || payload.prefs || {});
         applySpaceWVoicePayload(payload.preferences || payload.prefs || {});
+        if (typeof applyVocabAudioPreferencePayload === "function") {
+          applyVocabAudioPreferencePayload(payload.preferences || payload.prefs || {});
+        }
         applyAiAgentGhostEnVoicePayload(payload.preferences || payload.prefs || {});
         applyLearnerChatVoicePayload(payload.preferences || payload.prefs || {});
         applyTaskNoticeProfilePayload(payload.preferences || payload.prefs || {});
@@ -3880,11 +3884,18 @@
         if (payload.token || authToken) {
           persistAuthToken(payload.token || authToken);
         }
+        if (typeof beginLessonVaultLoginRestore === "function") {
+          beginLessonVaultLoginRestore(username, { startedAt: authResponseCompletedAt });
+        }
         recordAuthPhase("auth-storage");
         // Updated 2026-07-28: the login tree already carries file word keys; never fetch the 4+ MB lesson index during login.
         const shouldOpenLessonVaultAfterAuth = Boolean(openLessonVaultAfterLogoutLogin)
           || Boolean(hadLoginVaultRealBackdrop)
           || Boolean(loadGate && !loadGate.classList.contains("is-hidden") && !reloadSessionRestorePending);
+        // Updated 2026-07-31: start the authenticated snapshot warmup before the first Vault paint.
+        const authVaultWarmupPromise = typeof startLoginVaultWarmup === "function"
+          ? Promise.resolve(startLoginVaultWarmup("submit")).catch(() => null)
+          : Promise.resolve(null);
         openLessonVaultAfterLogoutLogin = false;
         const closeAuthGateAfterSuccess = () => {
           if (authGate) {
@@ -3918,7 +3929,7 @@
           const openVaultAfterAuth = async () => {
             try {
               if (typeof waitForLoginVaultWarmup === "function") {
-                void waitForLoginVaultWarmup(username, 900);
+                await waitForLoginVaultWarmup(username, 900);
               }
               const openedPayload = await openServerBrowserAfterAuth({
                 revealAfterLoad: false,
@@ -3929,7 +3940,7 @@
                 skipChildPrefetch: true,
               });
               if (typeof schedulePostAuthLessonVaultHydration === "function") {
-                schedulePostAuthLessonVaultHydration(openedPayload || null, username);
+                schedulePostAuthLessonVaultHydration(openedPayload || null, username, authVaultWarmupPromise);
               }
             } catch (error) {
               await Promise.resolve(openServerBrowserAfterAuth()).catch(() => {});
@@ -4217,6 +4228,9 @@
             return "";
           }
         })() || (authUser && authUser.value) || "");
+        if (typeof cancelLessonVaultLoginRestore === "function") {
+          cancelLessonVaultLoginRestore("logout", { userInteracted: false });
+        }
         try {
           forgetStoredAuthToken();
           sessionStorage.removeItem(RELOAD_SESSION_KEY);
@@ -4780,8 +4794,8 @@
       const vocabImageBytePrefetches = new Map();
       const VOCAB_IMAGE_DB_NAME = "future_vocab_image_cache";
       const VOCAB_IMAGE_DB_STORE = "images";
-      const VOCAB_IMAGE_DB_VERSION = 2;
-      const VOCAB_IMAGE_MEDIA_KEY_VERSION = 1;
+      const VOCAB_IMAGE_DB_VERSION = 3;
+      const VOCAB_IMAGE_MEDIA_KEY_VERSION = 2;
       const VOCAB_IMAGE_CACHE_MAX_ENTRIES = 192;
       const VOCAB_IMAGE_CACHE_MAX_BYTES = 64 * 1024 * 1024;
       const OFFLINE_STORAGE_ESTIMATE_REFRESH_MS = 60 * 1000;
@@ -4794,7 +4808,16 @@
       let vocabImagePrefetchTimer = 0;
       let vocabModePopupTimer = 0;
       let vocabModeTransitioning = false;
-      let currentVocabProgressCache = { identity: "", progressKey: "", savedProgress: null };
+      let currentVocabProgressCache = {
+        identity: "",
+        progressKey: "",
+        savedProgress: null,
+        serverPayload: null,
+        serverEtag: "",
+        serverProgressPromise: null,
+        serverProgressResult: null,
+        serverProgressSettled: false,
+      };
       let vocabProgressSaveTimer = 0;
       let vocabServerProgressSaveTimer = 0;
       let pendingVocabServerProgressRecord = null;

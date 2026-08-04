@@ -2788,6 +2788,10 @@
             const store = db.objectStoreNames.contains(VOCAB_IMAGE_DB_STORE)
               ? request.transaction.objectStore(VOCAB_IMAGE_DB_STORE)
               : db.createObjectStore(VOCAB_IMAGE_DB_STORE, { keyPath: "key" });
+            // 2026-07-30: remove every previously downloaded Internet vocabulary image during the local-only cutover.
+            if (Number(request.oldVersion || 0) < 3) {
+              store.clear();
+            }
             if (!store.indexNames.contains("accessAt")) {
               store.createIndex("accessAt", "accessAt", { unique: false });
             }
@@ -3094,7 +3098,7 @@
           return;
         }
         const existing = normalizeVocabularyImage(item.image || {});
-        if (existing.url) {
+        if (existing.url && (item.imageGalleryLoaded || clean(existing.source).toLowerCase() !== "local picture folder")) {
           if (options.prefetchBytes) {
             prefetchVocabImageBytes(existing);
           }
@@ -3105,6 +3109,9 @@
         if (cachedResult && Number(cachedResult.expiresAt || 0) > Date.now()) {
           if (cachedResult.image && cachedResult.image.url) {
             item.image = cachedResult.image;
+            item.images = Array.isArray(cachedResult.images) ? cachedResult.images.map(normalizeVocabularyImage).filter((entry) => entry.url) : [cachedResult.image];
+            item.imageSelectedIndex = Math.max(0, Math.min(item.images.length - 1, Number(cachedResult.selectedIndex || 0) || 0));
+            item.imageGalleryLoaded = true;
             if (options.prefetchBytes) {
               prefetchVocabImageBytes(cachedResult.image);
             }
@@ -3141,11 +3148,13 @@
               renderVocabPictureCard(item);
               window.requestAnimationFrame(positionVocabSideCards);
             }
-            return;
           }
           const result = await fetchServerJson(`/vocab/image?word=${encodeURIComponent(item.word)}`);
           const payload = result && result.payload && typeof result.payload === "object" ? result.payload : result;
           const image = normalizeVocabularyImage(payload && payload.image);
+          const images = Array.isArray(payload && payload.images)
+            ? payload.images.map(normalizeVocabularyImage).filter((entry) => entry.url)
+            : [];
           if (payload && payload.pending) {
             const attempts = Number(vocabImageRetryCounts.get(key) || 0) + 1;
             const retryMs = Math.max(800, Math.min(5000, Number(payload.retry_after_ms || 1400) || 1400));
@@ -3170,9 +3179,13 @@
           }
           vocabImageRetryCounts.delete(key);
           const serverAsset = payload && payload.asset && typeof payload.asset === "object" ? payload.asset : {};
-          const displayImage = image.url ? await fetchAndPersistVocabImage(clean(serverAsset.asset_id) || assetId, image, serverAsset) : image;
+          // Local picture responses use normal HTTP caching; do not download a second copy into IndexedDB.
+          const selectedIndex = Math.max(0, Math.min(Math.max(0, images.length - 1), Number(payload && payload.selected_index || 0) || 0));
+          const displayImage = images[selectedIndex] || image;
           vocabImageResultCache.set(key, {
             image: displayImage.url ? displayImage : null,
+            images,
+            selectedIndex,
             expiresAt: Date.now() + (image.url ? 24 * 60 * 60 * 1000 : 10 * 60 * 1000),
           });
           while (vocabImageResultCache.size > 512) {
@@ -3182,6 +3195,9 @@
             return;
           }
           item.image = displayImage;
+          item.images = images.length ? images : [displayImage];
+          item.imageSelectedIndex = selectedIndex;
+          item.imageGalleryLoaded = true;
           if (options.prefetchBytes) {
             prefetchVocabImageBytes(displayImage);
           }
@@ -3224,6 +3240,129 @@
         }, 120);
       };
 
+      let vocabImageLightboxReturnFocus = null;
+      let vocabImageLightboxState = { itemKey: "", word: "", images: [], index: 0, initialIndex: 0 };
+
+      const renderVocabImageLightboxSlide = () => {
+        const images = Array.isArray(vocabImageLightboxState.images) ? vocabImageLightboxState.images : [];
+        const index = Math.max(0, Math.min(Math.max(0, images.length - 1), Number(vocabImageLightboxState.index || 0) || 0));
+        const image = images[index] || {};
+        vocabImageLightboxState.index = index;
+        if (vocabImageLightboxImg) {
+          vocabImageLightboxImg.src = resolveServerAssetUrl(image.url || "");
+          vocabImageLightboxImg.alt = clean(vocabImageLightboxMeaning && vocabImageLightboxMeaning.textContent) || clean(vocabImageLightboxState.word) || "Vocabulary image";
+        }
+        if (vocabImageLightboxCaption) vocabImageLightboxCaption.textContent = [image.source || "Image signal", image.credit].filter(Boolean).join(" | ");
+        if (vocabImageLightboxPage) vocabImageLightboxPage.textContent = `${images.length ? index + 1 : 0} / ${images.length}`;
+        const multiple = images.length > 1;
+        if (vocabImageLightboxPrev) vocabImageLightboxPrev.disabled = !multiple;
+        if (vocabImageLightboxNext) vocabImageLightboxNext.disabled = !multiple;
+      };
+
+      const stepVocabImageLightbox = (delta = 1) => {
+        const total = vocabImageLightboxState.images.length;
+        if (total <= 1) return false;
+        vocabImageLightboxState.index = (vocabImageLightboxState.index + (delta < 0 ? -1 : 1) + total) % total;
+        renderVocabImageLightboxSlide();
+        return true;
+      };
+
+      // 2026-08-04: opens the active Space_V visual in a dedicated near-fullscreen study lightbox.
+      const openVocabImageLightbox = () => {
+        if (!vocabImageLightbox || !vocabImageLightboxImg || !vocabPictureImg || !vocabPicturePanel) return false;
+        const src = clean(vocabPictureImg.currentSrc || vocabPictureImg.getAttribute("src") || "");
+        if (!src || vocabPicturePanel.classList.contains("is-hidden")) return false;
+        const item = currentVocabItem() || {};
+        const images = (Array.isArray(item.images) ? item.images : [item.image]).map(normalizeVocabularyImage).filter((image) => image.url);
+        if (!images.length) return false;
+        const selectedId = clean(item.image && item.image.id);
+        const selectedIdIndex = images.findIndex((image) => selectedId && clean(image.id).toLowerCase() === selectedId.toLowerCase());
+        const fallbackIndex = Math.max(0, Math.min(images.length - 1, Number(item.imageSelectedIndex || 0) || 0));
+        const selectedIndex = selectedIdIndex >= 0 ? selectedIdIndex : fallbackIndex;
+        vocabImageLightboxState = {
+          itemKey: vocabWordKey(item),
+          word: clean(item.word),
+          images,
+          index: selectedIndex,
+          initialIndex: selectedIndex,
+        };
+        vocabImageLightboxReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : vocabPictureFrame;
+        if (vocabImageLightboxWord) vocabImageLightboxWord.textContent = clean(item.word || "Vocabulary image");
+        if (vocabImageLightboxMeaning) vocabImageLightboxMeaning.textContent = clean(item.meaning || "Visual reference");
+        renderVocabImageLightboxSlide();
+        vocabImageLightbox.classList.add("is-open");
+        vocabImageLightbox.setAttribute("aria-hidden", "false");
+        document.documentElement.classList.add("ft-vocab-image-lightbox-open");
+        window.requestAnimationFrame(() => vocabImageLightboxClose && vocabImageLightboxClose.focus({ preventScroll: true }));
+        return true;
+      };
+
+      // 2026-08-04: restores the exact Space_V study surface and prior keyboard focus after image viewing.
+      const closeVocabImageLightbox = () => {
+        if (!vocabImageLightbox || !vocabImageLightbox.classList.contains("is-open")) return false;
+        vocabImageLightbox.classList.remove("is-open");
+        vocabImageLightbox.setAttribute("aria-hidden", "true");
+        document.documentElement.classList.remove("ft-vocab-image-lightbox-open");
+        const returnFocus = vocabImageLightboxReturnFocus;
+        vocabImageLightboxReturnFocus = null;
+        const state = vocabImageLightboxState;
+        const current = currentVocabItem();
+        const selected = state.images[state.index] || null;
+        if (selected && current && vocabWordKey(current) === state.itemKey) {
+          current.image = selected;
+          current.images = state.images.slice();
+          current.imageSelectedIndex = state.index;
+          current.imageGalleryLoaded = true;
+          vocabImageResultCache.set(state.itemKey, {
+            image: selected,
+            images: state.images.slice(),
+            selectedIndex: state.index,
+            expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+          });
+          renderVocabPictureCard(current);
+          if (state.index !== state.initialIndex && selected.id && state.word) {
+            const operationId = window.crypto && typeof window.crypto.randomUUID === "function"
+              ? `vocab-image-${window.crypto.randomUUID()}`
+              : `vocab-image-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+            current.imageSelectionOperationId = operationId;
+            void fetchServerJson("/vocab/image-primary", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                word: state.word,
+                image_id: selected.id,
+                operation_id: operationId,
+                selected_epoch: Date.now() / 1000,
+              }),
+            }).then((result) => {
+              const payload = result && result.payload && typeof result.payload === "object" ? result.payload : result;
+              const active = currentVocabItem();
+              if (!active || vocabWordKey(active) !== state.itemKey || active.imageSelectionOperationId !== operationId) return;
+              const acceptedId = clean(payload && payload.image_id).toLowerCase();
+              const acceptedIndex = acceptedId
+                ? state.images.findIndex((image) => clean(image.id).toLowerCase() === acceptedId)
+                : -1;
+              if (acceptedIndex >= 0 && acceptedIndex !== state.index) {
+                active.image = state.images[acceptedIndex];
+                active.imageSelectedIndex = acceptedIndex;
+                vocabImageResultCache.set(state.itemKey, {
+                  image: active.image,
+                  images: state.images.slice(),
+                  selectedIndex: acceptedIndex,
+                  expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                });
+                renderVocabPictureCard(active);
+              }
+            }).catch((error) => console.warn("FTG vocab image primary save failed", error));
+          }
+        }
+        vocabImageLightboxState = { itemKey: "", word: "", images: [], index: 0, initialIndex: 0 };
+        if (returnFocus && typeof returnFocus.focus === "function") {
+          window.setTimeout(() => returnFocus.focus({ preventScroll: true }), 80);
+        }
+        return true;
+      };
+
       const renderVocabPictureCard = (item) => {
         if (!vocabPicturePanel || !vocabPictureImg || !vocabPictureCaption) {
           return;
@@ -3233,6 +3372,7 @@
         const shouldShow = Boolean(vocabSideCardsVisible() && url);
         vocabPicturePanel.classList.toggle("is-hidden", !shouldShow);
         if (!shouldShow) {
+          closeVocabImageLightbox();
           vocabPictureImg.removeAttribute("src");
           vocabPictureCaption.textContent = "";
           if (vocabSideCardsVisible()) {
@@ -3264,6 +3404,7 @@
       };
 
       const hideVocabSideCards = () => {
+        closeVocabImageLightbox();
         if (vocabDetailPanel) {
           vocabDetailPanel.classList.add("is-hidden");
         }
@@ -3650,13 +3791,17 @@
           const meaningWordKey = vocabWordKey(item);
           const meaningAudioToken = vocabMeaningAudioToken;
           window.setTimeout(() => {
-            if (
-              meaningAudioToken === vocabMeaningAudioToken
-              && vocabCurrentIndex === Number(absoluteIndex)
-              && vocabWordKey(vocabItems[vocabCurrentIndex] || null) === meaningWordKey
-            ) {
-              void playVocabMeaningAudio(item);
-            }
+            const playCurrentMeaning = () => {
+              if (
+                meaningAudioToken === vocabMeaningAudioToken
+                && vocabCurrentIndex === Number(absoluteIndex)
+                && vocabWordKey(vocabItems[vocabCurrentIndex] || null) === meaningWordKey
+              ) {
+                void playVocabMeaningAudio(item);
+              }
+            };
+            if (typeof window.__ftRunAfterLessonEntryGateOpen === "function") window.__ftRunAfterLessonEntryGateOpen(playCurrentMeaning);
+            else playCurrentMeaning();
           }, 180);
         }
         queueVocabProgressSave(180);
@@ -4088,19 +4233,113 @@
 
       const normalizeVocabVoiceKey = (voiceKey = "") => /en-us/i.test(clean(voiceKey)) ? "sot:en-US" : "sot:en-GB";
 
+      const vocabVoiceUserStorageKey = (username = currentAuthUsername || "") => {
+        const user = clean(username).toLowerCase();
+        return user ? `${SPACE_V_VOICE_KEY}:${encodeURIComponent(user)}` : SPACE_V_VOICE_KEY;
+      };
+
+      const vocabVoiceUserMetaKey = (username = currentAuthUsername || "") => `${vocabVoiceUserStorageKey(username)}:meta`;
+
+      let vocabVoicePreferenceEpoch = 0;
+      let vocabVoiceSelectionEpoch = 0;
+      let vocabVoiceServerRevision = 0;
+
       const readStoredVocabVoice = () => {
         try {
-          return normalizeVocabVoiceKey(localStorage.getItem(SPACE_V_VOICE_KEY) || "sot:en-GB");
+          const user = clean(currentAuthUsername || "");
+          const raw = user
+            ? localStorage.getItem(vocabVoiceUserStorageKey(user))
+            : localStorage.getItem(SPACE_V_VOICE_KEY);
+          const meta = user ? JSON.parse(localStorage.getItem(vocabVoiceUserMetaKey(user)) || "{}") : {};
+          vocabVoicePreferenceEpoch = Math.max(0, Number(meta && meta.updated_epoch || 0) || 0);
+          return normalizeVocabVoiceKey(raw || "sot:en-GB");
         } catch (error) {
           return "sot:en-GB";
         }
       };
 
-      const writeStoredVocabVoice = (voiceKey = "") => {
+      const writeStoredVocabVoice = (voiceKey = "", updatedEpoch = 0) => {
         try {
-          localStorage.setItem(SPACE_V_VOICE_KEY, normalizeVocabVoiceKey(voiceKey));
+          const normalized = normalizeVocabVoiceKey(voiceKey);
+          const user = clean(currentAuthUsername || "");
+          const key = vocabVoiceUserStorageKey(user);
+          if (!user) {
+            localStorage.setItem(SPACE_V_VOICE_KEY, normalized);
+            return { voice: normalized, updated_epoch: 0 };
+          }
+          // Server-provided epochs are authoritative; never replace them with
+          // a fast browser clock that could resurrect a stale tab's accent.
+          const suppliedEpoch = Number(updatedEpoch) || 0;
+          const epoch = suppliedEpoch > 0
+            ? suppliedEpoch
+            : Math.max(vocabVoicePreferenceEpoch || 0, Date.now() / 1000);
+          vocabVoicePreferenceEpoch = epoch;
+          localStorage.setItem(vocabVoiceUserMetaKey(user), JSON.stringify({ updated_epoch: epoch, updated_at: new Date(epoch * 1000).toISOString() }));
+          localStorage.setItem(key, normalized);
+          return { voice: normalized, updated_epoch: epoch, updated_at: new Date(epoch * 1000).toISOString() };
         } catch (error) {
+          return { voice: normalizeVocabVoiceKey(voiceKey), updated_epoch: Number(updatedEpoch) || 0 };
         }
+      };
+
+      const syncVocabVoicePreferenceToServer = async (preference = {}) => {
+        if (!authToken || !clean(currentAuthUsername || "") || !preference.voice) {
+          return false;
+        }
+        try {
+          const requestSelectionEpoch = vocabVoiceSelectionEpoch;
+          const result = await fetchAuthJson("/auth/preferences", {
+            method: "POST",
+            body: JSON.stringify({
+              _expected_server_revision: vocabVoiceServerRevision,
+              vocab_audio: {
+                voice: normalizeVocabVoiceKey(preference.voice),
+                updated_at: clean(preference.updated_at) || new Date().toISOString(),
+                updated_epoch: Number(preference.updated_epoch || 0) || 0,
+              },
+            }),
+          });
+          const returned = result && result.preferences && typeof result.preferences === "object" ? result.preferences : {};
+          vocabVoiceServerRevision = Math.max(vocabVoiceServerRevision, Number(returned._serverRevision || (result && result.server_revision) || 0) || 0);
+          if (returned._preferenceConflict && requestSelectionEpoch === vocabVoiceSelectionEpoch) {
+            const serverPreference = returned.vocab_audio || returned.vocabAudio;
+            if (serverPreference && serverPreference.voice) {
+              vocabVoiceKey = normalizeVocabVoiceKey(serverPreference.voice);
+              vocabVoicePreferenceEpoch = Math.max(0, Number(serverPreference.updated_epoch || 0) || 0);
+              writeStoredVocabVoice(vocabVoiceKey, vocabVoicePreferenceEpoch);
+              currentAccent = vocabVoiceAccent(vocabVoiceKey);
+              syncVocabVoiceSwitch();
+            }
+          }
+          return Boolean(result && result.ok !== false);
+        } catch (error) {
+          return false;
+        }
+      };
+
+      const applyVocabAudioPreferencePayload = (payload = {}) => {
+        const source = payload && typeof payload === "object" ? payload : {};
+        const preference = source.vocab_audio || source.vocabAudio || source.space_v_voice || source.spaceVVoice;
+        const localVoice = readStoredVocabVoice();
+        const localEpoch = vocabVoicePreferenceEpoch;
+        vocabVoiceServerRevision = Math.max(0, Number(source._serverRevision || source.server_revision || 0) || 0);
+        if (preference && typeof preference === "object" && preference.voice) {
+          const serverEpoch = Math.max(0, Number(preference.updated_epoch || 0) || 0);
+          // A server preference is authoritative on login/reload. A local
+          // clock cannot prove that an offline value is newer than it.
+          vocabVoiceKey = normalizeVocabVoiceKey(preference.voice);
+          vocabVoicePreferenceEpoch = serverEpoch;
+          writeStoredVocabVoice(vocabVoiceKey, serverEpoch);
+        } else {
+          vocabVoiceKey = localVoice;
+          if (localEpoch > 0) {
+            void syncVocabVoicePreferenceToServer(writeStoredVocabVoice(localVoice, localEpoch));
+          }
+        }
+        currentAccent = vocabVoiceAccent(vocabVoiceKey);
+        vocabVoiceSelectionEpoch += 1;
+        syncVocabVoiceSwitch();
+        return vocabVoiceKey;
       };
 
       const syncVocabVoiceSwitch = () => {
@@ -4132,13 +4371,16 @@
             }
           });
         }
-        clearVocabAudioCache();
+        if (typeof invalidateCachedAudioClip === "function") {
+          invalidateCachedAudioClip(result.clip);
+        }
         return true;
       };
 
       const refreshCurrentVocabAccentAudio = async (voiceKey = selectedVocabVoiceKey(), item = currentVocabItem()) => {
         const targetWord = clean(item && (item.word || item.w || item.en || item.text || ""));
         const targetVoice = normalizeVocabVoiceKey(voiceKey);
+        const selectionEpoch = vocabVoiceSelectionEpoch;
         if (!targetWord || !/^sot:en-(gb|us)$/i.test(targetVoice)) {
           return false;
         }
@@ -4174,10 +4416,14 @@
             throw new Error(clean(payload.error) || `Audio repair failed (${response.status}).`);
           }
           if (mergeRefreshedVocabAudio(item, payload)) {
-            vocabVoiceKey = targetVoice;
-            currentAccent = vocabVoiceAccent(targetVoice);
-            writeStoredVocabVoice(targetVoice);
-            syncVocabVoiceSwitch();
+            const stillSelected = selectionEpoch === vocabVoiceSelectionEpoch && targetVoice === selectedVocabVoiceKey();
+            if (stillSelected) {
+              vocabVoiceKey = targetVoice;
+              currentAccent = vocabVoiceAccent(targetVoice);
+              const preference = writeStoredVocabVoice(targetVoice, Math.max(vocabVoicePreferenceEpoch + 0.001, Date.now() / 1000));
+              void syncVocabVoicePreferenceToServer(preference);
+              syncVocabVoiceSwitch();
+            }
             preloadVocabItemAudio(item, {
               selectedValue: targetVoice,
               includeAlternates: false,
@@ -4199,9 +4445,11 @@
       const setVocabVoice = (voiceKey = "sot:en-GB", options = {}) => {
         const nextKey = normalizeVocabVoiceKey(voiceKey);
         vocabVoiceKey = nextKey;
+        vocabVoiceSelectionEpoch += 1;
         currentAccent = vocabVoiceAccent(nextKey);
         if (options.persist !== false) {
-          writeStoredVocabVoice(nextKey);
+          const preference = writeStoredVocabVoice(nextKey, Math.max(vocabVoicePreferenceEpoch + 0.001, Date.now() / 1000));
+          void syncVocabVoicePreferenceToServer(preference);
         }
         syncVocabVoiceSwitch();
         if (vocabModeActive && vocabItems.length) {
@@ -4239,17 +4487,6 @@
       };
 
       const selectedVocabVoiceKey = () => clean(vocabVoiceKey) || "sot:en-GB";
-
-      const clearVocabAudioCache = () => {
-        vocabAudioCacheToken += 1;
-        pendingAudioClipPreloads.clear();
-        cachedAudioClipUrls.forEach((url) => {
-          if (url && url.startsWith("blob:")) {
-            URL.revokeObjectURL(url);
-          }
-        });
-        cachedAudioClipUrls.clear();
-      };
 
       const vocabAudioPriorityIndexes = (items = vocabItems, options = {}) => {
         const total = Array.isArray(items) ? items.length : 0;
@@ -4317,20 +4554,30 @@
         const clips = collectVocabAudioClips(items, options);
         const token = ++vocabAudioCacheToken;
         if (!clips.length) {
-          return;
+          return Promise.resolve({ total: 0, ready: 0, failed: 0, canceled: false, keys: [] });
         }
         let cursor = 0;
+        let ready = 0;
+        let failed = 0;
         const workerCount = Math.min(VOCAB_AUDIO_PRELOAD_WORKERS, clips.length);
         const runWorker = async () => {
           while (token === vocabAudioCacheToken && cursor < clips.length) {
             const clip = clips[cursor];
             cursor += 1;
-            await preloadAudioClip(clip, null);
+            if (await preloadAudioClip(clip, null, { forceReload: Boolean(options.forceReload) })) {
+              ready += 1;
+            } else {
+              failed += 1;
+            }
           }
         };
-        for (let index = 0; index < workerCount; index += 1) {
-          void runWorker();
-        }
+        return Promise.all(Array.from({ length: workerCount }, () => runWorker())).then(() => ({
+          total: clips.length,
+          ready,
+          failed,
+          canceled: token !== vocabAudioCacheToken,
+          keys: clips.map((clip) => audioClipCacheKey(clip)).filter(Boolean),
+        }));
       };
 
       const preloadVocabItemAudio = (item, options = {}) => {
@@ -4345,6 +4592,39 @@
         }).forEach((clip) => {
           void preloadAudioClip(clip, null, { forceReload: Boolean(options.forceReload) });
         });
+      };
+
+      // Added 2026-07-31: after a Group audio-cache clear, preserve Continue
+      // progress and rebuild the active Space_V cache from the current word.
+      window.__futureReloadCurrentSpaceVAudioCache = async () => {
+        if (!vocabModeActive || !Array.isArray(vocabItems) || !vocabItems.length) {
+          return { ok: true, active: false, reason: "no-active-space-v" };
+        }
+        stopVocabMeaningAudio();
+        stopActiveAudio();
+        const startIndex = Math.max(0, Math.min(vocabItems.length - 1, Number(vocabCurrentIndex) || 0));
+        const priority = await preloadVocabularyAudioCache(vocabItems, {
+          focusIndex: startIndex,
+          lookAhead: VOCAB_AUDIO_LOOKAHEAD,
+          selectedValue: selectedVocabVoiceKey(),
+          includeAlternates: false,
+          includeMeaning: true,
+          includeAll: false,
+          maxItems: VOCAB_AUDIO_LOOKAHEAD,
+          forceReload: true,
+        });
+        warmVocabularyAudioCacheForLesson({ kind: "future_vocabulary_payload", words: vocabItems, effects: lessonEffects }, {
+          startIndex,
+          selectedValue: selectedVocabVoiceKey(),
+          includeAlternates: false,
+          includeMeaning: true,
+          forceReload: true,
+          excludeAudioKeys: priority.keys || [],
+          startDelayMs: 120,
+          delayMs: 45,
+          status: false,
+        });
+        return { ok: priority.failed === 0, active: true, startIndex, total: priority.total, ready: priority.ready, failed: priority.failed };
       };
 
       const pulseVocabCard = (mode = "word") => {
@@ -4363,6 +4643,29 @@
       vocabVoiceKey = readStoredVocabVoice();
       currentAccent = vocabVoiceAccent(vocabVoiceKey);
       syncVocabVoiceSwitch();
+      window.addEventListener("storage", (event) => {
+        const user = clean(currentAuthUsername || "");
+        if (!user || event.key !== vocabVoiceUserStorageKey(user)) {
+          return;
+        }
+        let incomingEpoch = 0;
+        try {
+          const meta = JSON.parse(localStorage.getItem(vocabVoiceUserMetaKey(user)) || "{}");
+          incomingEpoch = Math.max(0, Number(meta && meta.updated_epoch || 0) || 0);
+        } catch (error) {
+        }
+        if (incomingEpoch < vocabVoicePreferenceEpoch) {
+          return;
+        }
+        vocabVoicePreferenceEpoch = incomingEpoch;
+        vocabVoiceKey = normalizeVocabVoiceKey(event.newValue || "sot:en-GB");
+        currentAccent = vocabVoiceAccent(vocabVoiceKey);
+        vocabVoiceSelectionEpoch += 1;
+        // Accent asset IDs include voice and revision; cancel only the old
+        // preload plan and preserve unrelated Space audio blob URLs.
+        vocabAudioCacheToken += 1;
+        syncVocabVoiceSwitch();
+      });
 
       const playVocabAudio = async (voiceKey = selectedVocabVoiceKey(), itemOverride = null, options = {}) => {
         const item = itemOverride || currentVocabItem();
@@ -4387,7 +4690,10 @@
         if (sotPlayed) {
           return true;
         }
-        return playBrowserVoiceOnce(item.word, options);
+        // Added 2026-07-31: do not bypass the server audio contract after a
+        // SOT miss; browser speech is allowed only from the explicit final
+        // `tts_all_generation_failed` path inside playSoundOfText().
+        return false;
       };
 
       const playVocabAnswerThen = async (item, index, nextStep, options = {}) => {
@@ -4821,7 +5127,9 @@
           } else {
             startNextVocabProbe();
           }
-          const initialProgressRecord = saveVocabProgressNow({ queueServerSync: false });
+          const initialProgressRecord = options.deferInitialProgressSave
+            ? null
+            : saveVocabProgressNow({ queueServerSync: false });
           if (initialProgressRecord) {
             initialProgressRecord.action = options.forceNewRun ? "new_run" : "autosave";
             if (options.forceNewRun && initialProgressRecord.state) {

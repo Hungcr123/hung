@@ -10,6 +10,7 @@ PROCESS_FRONTEND_PART_FILES = (
     "04_voice_worker_bridge.py",
     "04_process_worker_bridge.py",
     "04_distributed_worker_pool.py",
+    "04_durable_tts_queue.py",
     "05_payload_assets_storage.py",
     "06_frontend_delivery.py",
     "07_server_screen_clip_hotkey.py",

@@ -47,6 +47,7 @@ POSTGRES_LESSON_TIME_CREDIT_STATE_TABLE = "future_server2.lesson_time_credit_sta
 POSTGRES_INVENTORY_ITEMS_TABLE = "future_server2.inventory_items"
 POSTGRES_INVENTORY_EVENTS_TABLE = "future_server2.inventory_events"
 POSTGRES_VOCAB_IMAGE_CACHE_TABLE = "future_server2.vocab_image_cache"
+POSTGRES_VOCAB_IMAGE_SELECTION_TABLE = "future_server2.vocab_image_selection"
 POSTGRES_LESSON_FILES_TABLE = "future_server2.lesson_files"
 POSTGRES_LESSON_FILE_REPLICAS_TABLE = "future_server2.lesson_file_replicas"
 POSTGRES_LESSON_FILE_ALIASES_TABLE = "future_server2.lesson_file_aliases"
@@ -64,6 +65,7 @@ POSTGRES_ANNOUNCEMENTS_TABLE = "future_server2.announcements"
 POSTGRES_LESSON_TASK_NOTICES_TABLE = "future_server2.lesson_task_notices"
 POSTGRES_LESSON_TASK_NOTICE_STATE_TABLE = "future_server2.lesson_task_notice_state"
 POSTGRES_SPACE_W_SPEAK_SKIP_REQUESTS_TABLE = "future_server2.space_w_speak_skip_requests"
+POSTGRES_TTS_JOBS_TABLE = "future_server2.tts_jobs"
 POSTGRES_GLOBAL_BACKEND_FLAGS = ("FUTURE_DB_BACKEND", "FUTURE_POSTGRES_BACKEND")
 POSTGRES_ONLY_REQUIRED_DOMAINS = (
     "APPEND_EVENTS", "AUTH", "INVENTORY", "LEADERBOARD_DOCUMENTS",
@@ -840,6 +842,48 @@ def postgres_initialize_schema() -> dict:
                 )
                 """
             )
+            # Added 2026-07-30: durable priority queue for interactive and builder TTS.
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS future_server2.tts_jobs (
+                    job_id TEXT PRIMARY KEY,
+                    dedupe_key TEXT NOT NULL UNIQUE,
+                    output_key TEXT NOT NULL DEFAULT '',
+                    priority SMALLINT NOT NULL DEFAULT 3,
+                    source TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    text_payload TEXT NOT NULL,
+                    voice TEXT NOT NULL,
+                    params_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    request_user TEXT NOT NULL DEFAULT '',
+                    build_id TEXT NOT NULL DEFAULT '',
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    max_attempts INTEGER NOT NULL DEFAULT 5,
+                    leased_by TEXT NOT NULL DEFAULT '',
+                    lease_token TEXT NOT NULL DEFAULT '',
+                    lease_expires_epoch DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    heartbeat_epoch DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    next_retry_epoch DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    created_epoch DOUBLE PRECISION NOT NULL,
+                    updated_epoch DOUBLE PRECISION NOT NULL,
+                    started_epoch DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    completed_epoch DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    last_error TEXT NOT NULL DEFAULT '',
+                    artifact_path TEXT NOT NULL DEFAULT '',
+                    artifact_sha256 TEXT NOT NULL DEFAULT '',
+                    artifact_size BIGINT NOT NULL DEFAULT 0,
+                    result_json JSONB NOT NULL DEFAULT '{}'::jsonb
+                )
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS tts_jobs_claim_idx "
+                "ON future_server2.tts_jobs(status, priority, next_retry_epoch, created_epoch)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS tts_jobs_lease_idx "
+                "ON future_server2.tts_jobs(status, lease_expires_epoch)"
+            )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS space_w_speak_skip_lookup_idx "
                 "ON future_server2.space_w_speak_skip_requests(username, progress_key, session_id, node_index)"
@@ -1399,6 +1443,21 @@ def postgres_initialize_schema() -> dict:
             cursor.execute("CREATE INDEX IF NOT EXISTS vocab_image_cache_expiry_idx ON future_server2.vocab_image_cache(expires_epoch)")
             cursor.execute(
                 """
+                CREATE TABLE IF NOT EXISTS future_server2.vocab_image_selection (
+                    username TEXT NOT NULL,
+                    word_key TEXT NOT NULL,
+                    image_id TEXT NOT NULL,
+                    operation_id TEXT NOT NULL DEFAULT '',
+                    server_revision BIGINT NOT NULL DEFAULT 1,
+                    selected_at_utc TEXT NOT NULL,
+                    selected_epoch DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    PRIMARY KEY(username, word_key)
+                )
+                """
+            )
+            cursor.execute("CREATE INDEX IF NOT EXISTS vocab_image_selection_updated_idx ON future_server2.vocab_image_selection(username,selected_epoch DESC)")
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS future_server2.lesson_files (
                     file_id TEXT PRIMARY KEY,
                     space_id TEXT NOT NULL DEFAULT '',
@@ -1453,6 +1512,12 @@ def postgres_initialize_schema() -> dict:
                 """
             )
             cursor.execute("CREATE INDEX IF NOT EXISTS lesson_file_replicas_file_idx ON future_server2.lesson_file_replicas(file_id, status)")
+            # Added 2026-07-30: watcher inactive-path updates compare normalized
+            # paths case-insensitively and need indexed exact/prefix lookup.
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS lesson_file_replicas_path_lower_pattern_idx "
+                "ON future_server2.lesson_file_replicas(lower(normalized_path) text_pattern_ops)"
+            )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS future_server2.lesson_file_aliases (
@@ -1470,6 +1535,10 @@ def postgres_initialize_schema() -> dict:
                 """
             )
             cursor.execute("CREATE INDEX IF NOT EXISTS lesson_file_aliases_file_idx ON future_server2.lesson_file_aliases(file_id, active)")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS lesson_file_aliases_path_lower_pattern_idx "
+                "ON future_server2.lesson_file_aliases(lower(normalized_path) text_pattern_ops)"
+            )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS future_server2.vault_folders (
@@ -1674,7 +1743,7 @@ def postgres_initialize_schema() -> dict:
                 """
             )
             cursor.execute("CREATE INDEX IF NOT EXISTS canonical_migration_archive_lesson_idx ON future_server2.canonical_migration_archive(lesson_id,file_id)")
-        return {"ok": True, "schema": "future_server2", "tables": ["user_preferences", "lesson_last_file", "lesson_progress", "pdf_drawings", "vocabulary_registry", "vocabulary_events", "daily_earn", "weekly_earn", "monthly_earn", "npc_period_earn", "append_events", "documents", "users", "auth_sessions", "chat_messages", "chat_read_state", "lesson_task_state", "lesson_time", "lesson_time_credit_state", "inventory_items", "inventory_events", "vocab_image_cache", "lesson_files", "lesson_file_replicas", "lesson_file_aliases", "vault_folders", "vault_entries", "vault_revisions", "lesson_folder_links", "lesson_progress_orphans", "database_meta", "space_pdf_documents", "space_pdf_lesson_meta", "space_pdf_package_replicas", "canonical_migration_archive"]}
+        return {"ok": True, "schema": "future_server2", "tables": ["user_preferences", "lesson_last_file", "lesson_progress", "pdf_drawings", "vocabulary_registry", "vocabulary_events", "daily_earn", "weekly_earn", "monthly_earn", "npc_period_earn", "append_events", "documents", "users", "auth_sessions", "chat_messages", "chat_read_state", "lesson_task_state", "lesson_time", "lesson_time_credit_state", "inventory_items", "inventory_events", "vocab_image_cache", "vocab_image_selection", "lesson_files", "lesson_file_replicas", "lesson_file_aliases", "vault_folders", "vault_entries", "vault_revisions", "lesson_folder_links", "lesson_progress_orphans", "database_meta", "space_pdf_documents", "space_pdf_lesson_meta", "space_pdf_package_replicas", "canonical_migration_archive"]}
 
     return postgres_execute(_run)
 
@@ -1742,37 +1811,99 @@ def postgres_save_user_preferences(username: str, patch: dict) -> dict:
     normalized = normalize_username(username)
     if not normalized:
         raise RuntimeError("User khong ton tai.")
-    current_row = postgres_load_user_preferences(normalized)
-    current = dict(current_row.get("preferences") or {}) if current_row else {}
-    revision = max(0, int(current_row.get("server_revision", 0) or 0)) if current_row else 0
-    preferences = normalize_user_preferences(dict(patch) if isinstance(patch, dict) else {}, current)
-    if current_row and server_database_preference_identity(preferences) == server_database_preference_identity(current):
-        current["updated_at"] = clean(current_row.get("updated_at"))
-        return {
-            "preferences": current,
-            "server_revision": max(1, revision),
-            "updated_at": clean(current_row.get("updated_at")),
-            "updated_epoch": max(0.0, float(current_row.get("updated_epoch", 0) or 0)),
-            "changed": False,
-        }
-    updated_at = utc_timestamp()
-    updated_epoch = timestamp_to_epoch(updated_at)
-    preferences["updated_at"] = updated_at
-    next_revision = revision + 1 if revision else 1
-    postgres_upsert_user_preferences_row({
-        "username": normalized,
-        "preferences": preferences,
-        "server_revision": next_revision,
-        "updated_at": updated_at,
-        "updated_epoch": updated_epoch,
-    })
-    return {
-        "preferences": preferences,
-        "server_revision": next_revision,
-        "updated_at": updated_at,
-        "updated_epoch": updated_epoch,
-        "changed": True,
-    }
+    source_patch = dict(patch) if isinstance(patch, dict) else {}
+    expected_revision = None
+    for key in ("_expected_server_revision", "expected_server_revision", "expectedServerRevision"):
+        if key in source_patch:
+            try:
+                expected_revision = max(0, int(source_patch.pop(key) or 0))
+            except Exception:
+                expected_revision = 0
+            break
+
+    def _run(connection):
+        with connection.cursor() as cursor:
+            # Added 2026-07-30: serialize same-user preference patches so delayed tab responses cannot overwrite newer state.
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"future-user-preferences:{normalized.lower()}",))
+            cursor.execute(
+                "SELECT preferences_json,server_revision,updated_at_utc,updated_epoch "
+                "FROM future_server2.user_preferences WHERE lower(username)=lower(%s) FOR UPDATE",
+                (normalized,),
+            )
+            row = cursor.fetchone()
+            current = dict(row[0]) if row and isinstance(row[0], dict) else {}
+            revision = max(0, int(row[1] or 0)) if row else 0
+            current_updated_at = clean(row[2]) if row else ""
+            current_updated_epoch = max(0.0, float(row[3] or 0)) if row else 0.0
+            if expected_revision is not None and expected_revision != revision:
+                incoming_vocab = source_patch.get("vocab_audio") if isinstance(source_patch.get("vocab_audio"), dict) else {}
+                current_vocab = current.get("vocab_audio") if isinstance(current.get("vocab_audio"), dict) else {}
+                try:
+                    incoming_epoch = float(incoming_vocab.get("updated_epoch", 0) or 0)
+                except Exception:
+                    incoming_epoch = 0.0
+                try:
+                    current_vocab_epoch = float(current_vocab.get("updated_epoch", 0) or 0)
+                except Exception:
+                    current_vocab_epoch = 0.0
+                # A newer same-device action may arrive after another tab's
+                # write. Accept it only with a sane client clock; stale or
+                # clock-skewed tabs keep the authoritative server revision.
+                allow_newer_vocab_rebase = bool(
+                    expected_revision < revision
+                    and incoming_epoch > current_vocab_epoch
+                    and abs(incoming_epoch - time.time()) <= 300.0
+                )
+                if not allow_newer_vocab_rebase:
+                    current["updated_at"] = current_updated_at
+                    return {
+                        "preferences": current,
+                        "server_revision": max(1, revision),
+                        "updated_at": current_updated_at,
+                        "updated_epoch": current_updated_epoch,
+                        "changed": False,
+                        "conflict": True,
+                    }
+            preferences = normalize_user_preferences(source_patch, current)
+            if row and server_database_preference_identity(preferences) == server_database_preference_identity(current):
+                current["updated_at"] = current_updated_at
+                return {
+                    "preferences": current,
+                    "server_revision": max(1, revision),
+                    "updated_at": current_updated_at,
+                    "updated_epoch": current_updated_epoch,
+                    "changed": False,
+                }
+            updated_at = utc_timestamp()
+            updated_epoch = timestamp_to_epoch(updated_at)
+            preferences["updated_at"] = updated_at
+            next_revision = revision + 1 if revision else 1
+            raw = json.dumps(preferences, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+            source_sha256 = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+            cursor.execute(
+                """
+                INSERT INTO future_server2.user_preferences
+                    (username,preferences_json,server_revision,updated_at_utc,updated_epoch,migrated_at_utc,source_sha256)
+                VALUES (%s,%s::jsonb,%s,%s,%s,%s,%s)
+                ON CONFLICT (username) DO UPDATE SET
+                    preferences_json=excluded.preferences_json,
+                    server_revision=excluded.server_revision,
+                    updated_at_utc=excluded.updated_at_utc,
+                    updated_epoch=excluded.updated_epoch,
+                    migrated_at_utc=excluded.migrated_at_utc,
+                    source_sha256=excluded.source_sha256
+                """,
+                (normalized, raw, next_revision, updated_at, updated_epoch, utc_timestamp(), source_sha256),
+            )
+            return {
+                "preferences": preferences,
+                "server_revision": next_revision,
+                "updated_at": updated_at,
+                "updated_epoch": updated_epoch,
+                "changed": True,
+            }
+
+    return postgres_execute(_run)
 
 
 def postgres_load_lesson_last_file(username: str) -> dict:
@@ -2014,7 +2145,7 @@ def postgres_load_lesson_progress_payload(space: str, username: str) -> dict | N
             namespace = cursor.fetchone()
             cursor.execute(
                 """
-                SELECT progress_key,record_json,complete,node_index,node_count,learned_count,file_id,identity,path
+                SELECT progress_key,record_json,complete,node_index,node_count,learned_count,server_revision,file_id,identity,path
                 FROM future_server2.lesson_progress WHERE username=%s AND space=%s
                 """,
                 (normalized_user, normalized_space),
@@ -2030,13 +2161,17 @@ def postgres_load_lesson_progress_payload(space: str, username: str) -> dict | N
                     record["nodeCount"] = max(0, space_w_int(row[4], 0))
                 if "learnedCount" not in record:
                     record["learnedCount"] = max(0, space_w_int(row[5], 0))
-                if clean(row[6]) and not clean(record.get("file_id") or record.get("lesson_id")):
-                    record["file_id"] = clean(row[6])
-                    record["lesson_id"] = clean(row[6])
-                if clean(row[7]) and not clean(record.get("identity")):
-                    record["identity"] = clean(row[7])
-                if clean(row[8]) and not clean(record.get("path")):
-                    record["path"] = clean(row[8])
+                record["_serverRevision"] = max(
+                    max(0, space_w_int(record.get("_serverRevision", record.get("serverRevision", 0)), 0)),
+                    max(0, space_w_int(row[6], 0)),
+                )
+                if clean(row[7]) and not clean(record.get("file_id") or record.get("lesson_id")):
+                    record["file_id"] = clean(row[7])
+                    record["lesson_id"] = clean(row[7])
+                if clean(row[8]) and not clean(record.get("identity")):
+                    record["identity"] = clean(row[8])
+                if clean(row[9]) and not clean(record.get("path")):
+                    record["path"] = clean(row[9])
                 states[clean(row[0])] = record
             # Added 2026-07-26: keep legacy path-only progress visible while
             # PostgreSQL canonical identity rollout finishes reattaching rows.
@@ -2101,7 +2236,7 @@ def postgres_load_lesson_progress_payloads(username: str, spaces: object = None)
             cursor.execute(
                 """
                 SELECT space, progress_key, record_json, complete, node_index, node_count,
-                       learned_count, file_id, identity, path
+                       learned_count, server_revision, file_id, identity, path
                 FROM future_server2.lesson_progress
                 WHERE username=%s AND space = ANY(%s)
                 """,
@@ -2120,13 +2255,17 @@ def postgres_load_lesson_progress_payloads(username: str, spaces: object = None)
                     record["nodeCount"] = max(0, space_w_int(row[5], 0))
                 if "learnedCount" not in record:
                     record["learnedCount"] = max(0, space_w_int(row[6], 0))
-                if clean(row[7]) and not clean(record.get("file_id") or record.get("lesson_id")):
-                    record["file_id"] = clean(row[7])
-                    record["lesson_id"] = clean(row[7])
-                if clean(row[8]) and not clean(record.get("identity")):
-                    record["identity"] = clean(row[8])
-                if clean(row[9]) and not clean(record.get("path")):
-                    record["path"] = clean(row[9])
+                record["_serverRevision"] = max(
+                    max(0, space_w_int(record.get("_serverRevision", record.get("serverRevision", 0)), 0)),
+                    max(0, space_w_int(row[7], 0)),
+                )
+                if clean(row[8]) and not clean(record.get("file_id") or record.get("lesson_id")):
+                    record["file_id"] = clean(row[8])
+                    record["lesson_id"] = clean(row[8])
+                if clean(row[9]) and not clean(record.get("identity")):
+                    record["identity"] = clean(row[9])
+                if clean(row[10]) and not clean(record.get("path")):
+                    record["path"] = clean(row[10])
                 states[clean(row[1])] = record
             cursor.execute(
                 """
@@ -2230,7 +2369,7 @@ def postgres_read_pdf_drawing_row_by_path(username: str, path: str, page: object
                 """
                 SELECT document_key FROM future_server2.pdf_drawings
                 WHERE username=%s AND lower(path)=lower(%s) AND page=%s
-                ORDER BY updated_epoch DESC LIMIT 1
+                    ORDER BY updated_epoch DESC, deleted DESC, server_revision DESC LIMIT 1
                 """,
                 (normalized_user, normalized_path, page_number),
             )
@@ -2295,7 +2434,15 @@ def postgres_upsert_pdf_drawing_row(row: dict) -> dict:
     return postgres_execute(_write)
 
 
-def postgres_write_pdf_drawing_row(username: str, document_key: str, page: object, row: dict | None = None, remove: bool = False) -> dict:
+def postgres_write_pdf_drawing_row(
+    username: str,
+    document_key: str,
+    page: object,
+    row: dict | None = None,
+    remove: bool = False,
+    clear_alias_document_keys: object = None,
+    clear_path: str = "",
+) -> dict:
     normalized_user = normalize_username(username)
     key = clean(document_key)[:64]
     page_number = max(1, space_w_int(page, 1))
@@ -2353,7 +2500,24 @@ def postgres_write_pdf_drawing_row(username: str, document_key: str, page: objec
                 (normalized_user, key, page_number),
             )
             revision = cursor.fetchone()
-            return {"removed": False, "server_revision": max(1, space_w_int(revision[0] if revision else 1, 1))}
+            alias_keys = [clean(value)[:64] for value in (clear_alias_document_keys if isinstance(clear_alias_document_keys, (list, tuple, set)) else []) if clean(value)[:64] and clean(value)[:64] != key]
+            normalized_path = clean_path_value(clear_path)
+            alias_removed = 0
+            if alias_keys or normalized_path:
+                predicates = []
+                params = [normalized_user, page_number, key]
+                if alias_keys:
+                    predicates.append("document_key = ANY(%s)")
+                    params.append(alias_keys)
+                if normalized_path:
+                    predicates.append("lower(path)=lower(%s)")
+                    params.append(normalized_path)
+                cursor.execute(
+                    "DELETE FROM future_server2.pdf_drawings WHERE username=%s AND page=%s AND document_key<>%s AND (" + " OR ".join(predicates) + ")",
+                    tuple(params),
+                )
+                alias_removed = max(0, int(cursor.rowcount or 0))
+            return {"removed": False, "server_revision": max(1, space_w_int(revision[0] if revision else 1, 1)), "alias_removed": alias_removed}
 
     return postgres_execute(_write)
 
@@ -4412,6 +4576,83 @@ def postgres_store_vocab_image_cache_batch(rows: list[dict] | tuple[dict, ...]) 
         return count
 
     return int(postgres_execute(_write) or 0)
+
+
+# Added 2026-08-04: read one user's selected primary image with an indexed two-column lookup.
+def postgres_load_vocab_image_selection(username: str, word_key: str) -> dict:
+    normalized_user = normalize_username(username)
+    key = clean(word_key).lower()[:180]
+    if not normalized_user or not key:
+        return {}
+
+    def _read(connection):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT image_id,operation_id,server_revision,selected_at_utc,selected_epoch "
+                "FROM future_server2.vocab_image_selection WHERE lower(username)=lower(%s) AND word_key=%s",
+                (normalized_user, key),
+            )
+            row = cursor.fetchone()
+        return {
+            "image_id": clean(row[0]),
+            "operation_id": clean(row[1]),
+            "server_revision": max(1, int(row[2] or 1)),
+            "selected_at": clean(row[3]),
+            "selected_epoch": max(0.0, float(row[4] or 0)),
+        } if row else {}
+
+    return postgres_execute(_read)
+
+
+# Added 2026-08-04: persist one primary-image choice atomically and reject out-of-order device writes by numeric epoch.
+def postgres_save_vocab_image_selection(username: str, word_key: str, image_id: str, operation_id: str = "", selected_epoch: object = 0) -> dict:
+    normalized_user = normalize_username(username)
+    key = clean(word_key).lower()[:180]
+    selected_image = clean(image_id)[:260]
+    operation = clean(operation_id)[:160]
+    if not normalized_user or not key or not selected_image:
+        raise RuntimeError("Invalid vocabulary image selection.")
+    try:
+        incoming_epoch = float(selected_epoch or 0)
+    except (TypeError, ValueError):
+        incoming_epoch = 0.0
+    now_epoch = time.time()
+    if incoming_epoch <= 0 or abs(incoming_epoch - now_epoch) > 300.0:
+        incoming_epoch = now_epoch
+
+    def _write(connection):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"future-vocab-image:{normalized_user.lower()}:{key}",))
+            cursor.execute(
+                "SELECT image_id,operation_id,server_revision,selected_at_utc,selected_epoch "
+                "FROM future_server2.vocab_image_selection WHERE lower(username)=lower(%s) AND word_key=%s FOR UPDATE",
+                (normalized_user, key),
+            )
+            row = cursor.fetchone()
+            if row and operation and clean(row[1]) == operation:
+                return {"image_id": clean(row[0]), "operation_id": clean(row[1]), "server_revision": max(1, int(row[2] or 1)), "selected_at": clean(row[3]), "selected_epoch": max(0.0, float(row[4] or 0)), "changed": False}
+            current_epoch = max(0.0, float(row[4] or 0)) if row else 0.0
+            if row and incoming_epoch < current_epoch:
+                return {"image_id": clean(row[0]), "operation_id": clean(row[1]), "server_revision": max(1, int(row[2] or 1)), "selected_at": clean(row[3]), "selected_epoch": current_epoch, "changed": False, "stale": True}
+            revision = max(1, int(row[2] or 1) + 1) if row else 1
+            selected_at = utc_timestamp()
+            cursor.execute(
+                """
+                INSERT INTO future_server2.vocab_image_selection
+                    (username,word_key,image_id,operation_id,server_revision,selected_at_utc,selected_epoch)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT(username,word_key) DO UPDATE SET
+                    image_id=excluded.image_id,
+                    operation_id=excluded.operation_id,
+                    server_revision=excluded.server_revision,
+                    selected_at_utc=excluded.selected_at_utc,
+                    selected_epoch=excluded.selected_epoch
+                """,
+                (normalized_user, key, selected_image, operation, revision, selected_at, incoming_epoch),
+            )
+        return {"image_id": selected_image, "operation_id": operation, "server_revision": revision, "selected_at": selected_at, "selected_epoch": incoming_epoch, "changed": True}
+
+    return postgres_execute(_write)
 
 def postgres_lesson_file_alias_row_from_source(row: dict) -> dict:
     first_seen = clean(row.get("first_seen_at_utc") or row.get("first_seen", ""))

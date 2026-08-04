@@ -1,6 +1,78 @@
 # Loaded by FUTURE.server_parts.06_process_frontend_runtime into the shared Future server runtime namespace.
 # This is a nested transitional split; do not import directly yet.
 
+AUDIO_CACHE_EPOCH_FILE = SERVER_DATA_ROOT / "_future_audio_cache_epoch.json"
+AUDIO_CACHE_EPOCH_LOCK = threading.RLock()
+AUDIO_CACHE_EPOCH_VALUE = 0
+
+
+# Added 2026-07-31: one durable monotonic epoch invalidates audio on every client, including offline clients.
+def global_audio_cache_epoch(force_reload: bool = False) -> int:
+    global AUDIO_CACHE_EPOCH_VALUE
+    with AUDIO_CACHE_EPOCH_LOCK:
+        if AUDIO_CACHE_EPOCH_VALUE > 0 and not force_reload:
+            return AUDIO_CACHE_EPOCH_VALUE
+        payload = {}
+        document_row = None
+        document_reader = globals().get("server_database_document_entry")
+        try:
+            document_row = document_reader(AUDIO_CACHE_EPOCH_FILE) if callable(document_reader) else None
+            content = document_row.get("content") if isinstance(document_row, dict) else b""
+            if isinstance(content, bytes):
+                payload = json.loads(content.decode(clean(document_row.get("encoding")) or "utf-8-sig"))
+        except Exception:
+            payload = {}
+        if not payload:
+            try:
+                if AUDIO_CACHE_EPOCH_FILE.is_file():
+                    payload = json.loads(AUDIO_CACHE_EPOCH_FILE.read_text(encoding="utf-8-sig"))
+            except Exception:
+                payload = {}
+        epoch = max(0, space_w_int(payload.get("global_audio_cache_epoch", 0), 0)) if isinstance(payload, dict) else 0
+        if epoch <= 0:
+            epoch = max(1, int(time.time() * 1000))
+            atomic_write_json(AUDIO_CACHE_EPOCH_FILE, {
+                "global_audio_cache_epoch": epoch,
+                "updated_at": utc_timestamp(),
+                "reason": "initialize",
+            })
+        elif not isinstance(document_row, dict):
+            atomic_write_json(AUDIO_CACHE_EPOCH_FILE, {
+                "global_audio_cache_epoch": epoch,
+                "updated_at": clean(payload.get("updated_at", "")) or utc_timestamp(),
+                "reason": clean(payload.get("reason", "")) or "postgres_migration",
+            })
+        AUDIO_CACHE_EPOCH_VALUE = epoch
+        return epoch
+
+
+# Added 2026-07-31: Dashboard Clear advances the durable epoch exactly once per command.
+def bump_global_audio_cache_epoch(reason: object = "") -> int:
+    global AUDIO_CACHE_EPOCH_VALUE
+    with AUDIO_CACHE_EPOCH_LOCK:
+        current = global_audio_cache_epoch()
+        next_epoch = max(current + 1, int(time.time() * 1000))
+        atomic_write_json(AUDIO_CACHE_EPOCH_FILE, {
+            "global_audio_cache_epoch": next_epoch,
+            "updated_at": utc_timestamp(),
+            "reason": clean(reason) or "audio_cache_clear",
+        })
+        AUDIO_CACHE_EPOCH_VALUE = next_epoch
+        for lock_name, cache_name in (
+            ("QMLEARN_AUDIO_URL_CACHE_LOCK", "QMLEARN_AUDIO_URL_CACHE"),
+            ("SPACE_V_QMDICT_PAYLOAD_CACHE_LOCK", "SPACE_V_QMDICT_PAYLOAD_CACHE"),
+            ("QMLEARN_HTTP_AUDIO_CACHE_LOCK", "QMLEARN_HTTP_AUDIO_CACHE"),
+        ):
+            lock = globals().get(lock_name)
+            cache = globals().get(cache_name)
+            if lock is not None and isinstance(cache, dict):
+                try:
+                    with lock:
+                        cache.clear()
+                except Exception:
+                    pass
+        return next_epoch
+
 def cached_public_file_bytes(path: Path) -> bytes:
     target = Path(path).resolve()
     stat = target.stat()
@@ -126,13 +198,14 @@ def frontend_reload_state() -> dict:
                 "token": token,
                 "updated_at": clean(payload.get("updated_at", "")),
                 "reason": clean(payload.get("reason", "")),
+                "command": clean(payload.get("command", "")),
             }
     try:
         stat = PUBLIC_FRONTEND_PATH.stat()
         token = f"init-{int(stat.st_mtime_ns)}-{int(stat.st_size)}"
     except Exception:
         token = "init"
-    return {"token": token, "updated_at": "", "reason": ""}
+    return {"token": token, "updated_at": "", "reason": "", "command": ""}
 
 
 def write_frontend_reload_state_file(payload: dict) -> None:
@@ -148,13 +221,21 @@ def write_frontend_reload_state_file(payload: dict) -> None:
         os.fsync(handle.fileno())
     os.replace(tmp_path, FRONTEND_RELOAD_FILE)
 
-def bump_frontend_reload_state(reason: object = "") -> dict:
+def bump_frontend_reload_state(reason: object = "", command: object = "") -> dict:
     signature = frontend_delivery_signature()
+    normalized_command = clean(command).lower()
+    audio_cache_epoch = (
+        bump_global_audio_cache_epoch(reason)
+        if normalized_command == "clear-audio-cache"
+        else global_audio_cache_epoch()
+    )
     token = f"{int(time.time() * 1000)}-{clean(signature.get('digest', ''))[:12]}"
     payload = {
         "token": token,
         "updated_at": utc_timestamp(),
         "reason": clean(reason) or "manual_update",
+        "command": normalized_command,
+        "global_audio_cache_epoch": audio_cache_epoch,
         "frontend_version": clean(signature.get("version", "")),
     }
     write_frontend_reload_state_file(payload)

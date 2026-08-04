@@ -456,6 +456,10 @@
                 self.send_json(403, {"ok": False, "error": "Only admins can refresh the lesson manifest."})
                 return
             source = self.read_json_body()
+            if truthy(source.get("apply_pending"), False):
+                status = apply_server_data_manifest_build_hold("admin-apply")
+                self.send_json(202, {"ok": True, "mode": "apply-pending", "accepted": True, "build_hold": status})
+                return
             refresh_paths = [
                 clean_path_value(item)
                 for item in (source.get("paths") if isinstance(source.get("paths"), list) else [])
@@ -490,7 +494,7 @@
             if not username:
                 self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
                 return
-            if not read_user_lines(username):
+            if not server_database_user_exists(username):
                 self.send_json(404, {"ok": False, "error": "Tài khoản không tồn tại.", "reason": "nouser"})
                 return
             # Added 2026-07-06: lets Codex inspect the local DOM as a real user without exposing a tunnel login bypass.

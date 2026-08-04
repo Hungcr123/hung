@@ -17,6 +17,9 @@ SERVER_DATABASE_LESSON_STATE_USERS: set[str] = set()
 SERVER_DATABASE_LESSON_STATE_SIGNATURES: dict[str, tuple[int, int, int, int]] = {}
 SERVER_DATABASE_LESSON_FILE_ALIAS_LOCK = threading.RLock()
 SERVER_DATABASE_LESSON_FILE_ALIAS_CACHE: dict[str, str] = {}
+# Added 2026-07-30: serialize overlapping watcher identity batches before they
+# acquire PostgreSQL connections/advisory locks and form a lock convoy.
+SERVER_DATABASE_LESSON_IDENTITY_REGISTER_LOCK = threading.Lock()
 SERVER_DATABASE_FOLDER_LINK_CACHE_LOCK = threading.RLock()
 SERVER_DATABASE_FOLDER_LINK_CACHE: dict[str, dict] = {}
 # Added 2026-07-23: virtual Lesson Vault placement cache.  It is a rebuildable
@@ -368,6 +371,16 @@ def server_database_load_vocab_image_cache_rows(limit: int = 2048) -> list[dict]
 # Added 2026-07-20: persist a coalesced batch of positive or negative derived vocabulary image results.
 def server_database_store_vocab_image_cache_batch(rows: list[dict] | tuple[dict, ...]) -> int:
     return postgres_store_vocab_image_cache_batch(rows)
+
+
+def server_database_load_vocab_image_selection(username: str, word_key: str) -> dict:
+    normalized = normalize_username(username)
+    key = clean(word_key).lower()
+    return postgres_load_vocab_image_selection(normalized, key) if normalized and key else {}
+
+
+def server_database_save_vocab_image_selection(username: str, word_key: str, image_id: str, operation_id: str = "", selected_epoch: object = 0) -> dict:
+    return postgres_save_vocab_image_selection(normalize_username(username), clean(word_key).lower(), clean(image_id), clean(operation_id), selected_epoch)
 
 
 def server_database_load_user_preferences(username: str) -> dict:
@@ -912,15 +925,34 @@ def server_database_read_pdf_drawing_row_by_path(username: str, path: str, page:
     return postgres_read_pdf_drawing_row_by_path(normalized_user, normalized_path, page_number)
 
 
-def server_database_write_pdf_drawing_row(username: str, document_key: str, page: object, row: dict | None = None, remove: bool = False) -> dict:
+def server_database_write_pdf_drawing_row(
+    username: str,
+    document_key: str,
+    page: object,
+    row: dict | None = None,
+    remove: bool = False,
+    clear_alias_document_keys: object = None,
+    clear_path: str = "",
+) -> dict:
     normalized_user = normalize_username(username)
     cache_key = server_database_pdf_drawing_cache_key(normalized_user, document_key, page)
     source = row if isinstance(row, dict) else {}
     if not normalized_user or not cache_key[1]:
         raise RuntimeError("PDF drawing row identity is required.")
-    result = postgres_write_pdf_drawing_row(normalized_user, cache_key[1], cache_key[2], source, remove=remove)
+    result = postgres_write_pdf_drawing_row(
+        normalized_user,
+        cache_key[1],
+        cache_key[2],
+        source,
+        remove=remove,
+        clear_alias_document_keys=clear_alias_document_keys,
+        clear_path=clear_path,
+    )
     with SERVER_DATABASE_PDF_DRAWING_RAM_CACHE_LOCK:
         SERVER_DATABASE_PDF_DRAWING_RAM_CACHE.pop(cache_key, None)
+        if clear_alias_document_keys:
+            for alias in clear_alias_document_keys if isinstance(clear_alias_document_keys, (list, tuple, set)) else []:
+                SERVER_DATABASE_PDF_DRAWING_RAM_CACHE.pop(server_database_pdf_drawing_cache_key(normalized_user, alias, page), None)
         if not remove:
             SERVER_DATABASE_PDF_DRAWING_RAM_CACHE[cache_key] = {
                 "row": copy.deepcopy({**source, "server_revision": int(result.get("server_revision", 1) or 1)})
@@ -1208,6 +1240,9 @@ def server_database_document_requires_sync(path: Path | str) -> bool:
     suffix = target.suffix.lower()
     if suffix not in {".json", ".jsonl", ".txt"}:
         return False
+    # Added 2026-07-31: explicit PostgreSQL system documents remain durable even when their names contain "cache".
+    if server_database_document_postgres_authoritative(target):
+        return True
     try:
         resolved = target.resolve()
         if SERVER_LOG_ROOT in resolved.parents:
@@ -2201,7 +2236,8 @@ def server_database_register_lesson_file_entries(
     if not rows and not normalized_inactive:
         return {"ok": True, "registered": 0, "collisions": 0, "inactive": 0}
     from FUTURE.postgres.repositories import lesson_identity as pg_lesson_identity
-    result = pg_lesson_identity.register_lesson_file_entries(rows, normalized_inactive)
+    with SERVER_DATABASE_LESSON_IDENTITY_REGISTER_LOCK:
+        result = pg_lesson_identity.register_lesson_file_entries(rows, normalized_inactive)
     reattached_users = [normalize_username(value) for value in result.get("reattached_users", []) if normalize_username(value)]
     if reattached_users:
         SERVER_DATABASE_CHANGE_GENERATIONS["progress"] += 1

@@ -3334,6 +3334,16 @@
         radial-gradient(circle, rgba(70, 240, 215, 0.18), transparent 58%),
         rgba(3, 13, 14, 0.86);
       box-shadow: inset 0 0 28px rgba(70, 240, 215, 0.1);
+      cursor: zoom-in;
+      outline: none;
+      transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .ft-vocab-picture-frame:hover,
+    .ft-vocab-picture-frame:focus-visible {
+      transform: translateY(-2px) scale(1.012);
+      border-color: rgba(108, 240, 164, 0.78);
+      box-shadow: inset 0 0 28px rgba(70, 240, 215, 0.14), 0 12px 30px rgba(0, 0, 0, 0.32), 0 0 24px rgba(70, 240, 215, 0.18);
     }
 
     .ft-vocab-picture-frame::after {
@@ -3356,11 +3366,350 @@
       filter: saturate(1.08) contrast(1.06);
     }
 
+    .ft-vocab-picture-expand {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      z-index: 2;
+      padding: 5px 8px;
+      border: 1px solid rgba(217, 255, 239, 0.52);
+      border-radius: 999px;
+      color: #eafff8;
+      background: rgba(2, 16, 18, 0.72);
+      backdrop-filter: blur(8px);
+      font-size: 9px;
+      font-weight: 950;
+      letter-spacing: 0.14em;
+      box-shadow: 0 0 18px rgba(70, 240, 215, 0.16);
+      pointer-events: none;
+    }
+
     .ft-vocab-picture-caption {
       color: rgba(189, 252, 242, 0.76);
       font-size: 11px;
       font-weight: 780;
       line-height: 1.3;
+    }
+
+    .ft-vocab-image-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483600;
+      display: grid;
+      place-items: center;
+      padding: clamp(12px, 2vw, 30px);
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 260ms ease, visibility 260ms step-end;
+    }
+
+    .ft-vocab-image-lightbox.is-open {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+      transition: opacity 260ms ease, visibility 0s;
+    }
+
+    .ft-vocab-image-lightbox-backdrop {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 18% 16%, rgba(70, 240, 215, 0.19), transparent 34%),
+        radial-gradient(circle at 84% 80%, rgba(255, 147, 77, 0.16), transparent 35%),
+        rgba(1, 7, 10, 0.88);
+      backdrop-filter: blur(18px) saturate(0.82);
+    }
+
+    .ft-vocab-image-lightbox-shell {
+      position: relative;
+      width: min(1500px, 96vw);
+      height: min(920px, 94dvh);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+      border: 1px solid rgba(115, 255, 223, 0.4);
+      border-radius: clamp(20px, 2.4vw, 36px);
+      background:
+        linear-gradient(145deg, rgba(8, 27, 31, 0.97), rgba(4, 10, 16, 0.98)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 32px);
+      box-shadow: 0 40px 120px rgba(0, 0, 0, 0.62), 0 0 70px rgba(70, 240, 215, 0.12), inset 0 0 50px rgba(70, 240, 215, 0.06);
+      transform: translateY(22px) scale(0.94);
+      opacity: 0;
+    }
+
+    .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-shell {
+      animation: ftVocabLightboxEnter 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .ft-vocab-image-lightbox-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      border-radius: inherit;
+      background: linear-gradient(110deg, transparent 18%, rgba(157, 255, 233, 0.08) 48%, transparent 72%);
+      transform: translateX(-120%);
+      pointer-events: none;
+    }
+
+    .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-shell::before {
+      animation: ftVocabLightboxSweep 1100ms 160ms ease-out both;
+    }
+
+    .ft-vocab-image-lightbox-head,
+    .ft-vocab-image-lightbox-foot {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: clamp(14px, 2vw, 26px) clamp(16px, 2.5vw, 34px);
+      background: rgba(3, 14, 18, 0.72);
+      backdrop-filter: blur(16px);
+    }
+
+    .ft-vocab-image-lightbox-head {
+      border-bottom: 1px solid rgba(70, 240, 215, 0.18);
+    }
+
+    .ft-vocab-image-lightbox-kicker {
+      margin: 0 0 5px;
+      color: #63f5d9;
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .ft-vocab-image-lightbox-head h2 {
+      margin: 0;
+      color: #f3fffb;
+      font-size: clamp(24px, 4vw, 54px);
+      font-weight: 950;
+      line-height: 0.96;
+      letter-spacing: -0.035em;
+      text-shadow: 0 0 30px rgba(70, 240, 215, 0.22);
+    }
+
+    .ft-vocab-image-lightbox-head p:last-child {
+      margin: 8px 0 0;
+      color: rgba(216, 255, 244, 0.72);
+      font-size: clamp(12px, 1.35vw, 17px);
+      font-weight: 720;
+    }
+
+    .ft-vocab-image-lightbox-close {
+      flex: 0 0 auto;
+      width: clamp(46px, 5vw, 62px);
+      height: clamp(46px, 5vw, 62px);
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 178, 126, 0.58);
+      border-radius: 50%;
+      color: #fff4eb;
+      background: radial-gradient(circle, rgba(255, 136, 70, 0.2), rgba(16, 12, 12, 0.78));
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 400;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 0 24px rgba(255, 136, 70, 0.16);
+      transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    .ft-vocab-image-lightbox-close:hover,
+    .ft-vocab-image-lightbox-close:focus-visible {
+      transform: rotate(7deg) scale(1.06);
+      background: radial-gradient(circle, rgba(255, 136, 70, 0.42), rgba(25, 12, 10, 0.9));
+      box-shadow: 0 0 34px rgba(255, 136, 70, 0.3);
+      outline: none;
+    }
+
+    .ft-vocab-image-lightbox-stage {
+      position: relative;
+      z-index: 1;
+      min-height: 0;
+      margin: 0;
+      padding: clamp(12px, 2vw, 28px);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(70, 240, 215, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(70, 240, 215, 0.035) 1px, transparent 1px),
+        radial-gradient(circle at center, rgba(70, 240, 215, 0.11), transparent 58%);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+
+    .ft-vocab-image-lightbox-stage img {
+      position: relative;
+      z-index: 2;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: clamp(14px, 1.6vw, 24px);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(219, 255, 246, 0.14), 0 0 48px rgba(70, 240, 215, 0.12);
+      transform: scale(0.96);
+    }
+
+    .ft-vocab-image-lightbox-nav {
+      position: absolute;
+      top: 50%;
+      z-index: 5;
+      width: clamp(48px, 5.5vw, 72px);
+      height: clamp(70px, 10vh, 108px);
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(119, 255, 223, 0.32);
+      color: #eafff8;
+      background: linear-gradient(145deg, rgba(5, 28, 31, 0.84), rgba(3, 10, 15, 0.68));
+      backdrop-filter: blur(14px);
+      font-size: clamp(38px, 5vw, 66px);
+      font-weight: 300;
+      line-height: 1;
+      cursor: pointer;
+      transform: translateY(-50%);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32), inset 0 0 28px rgba(70, 240, 215, 0.06);
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, opacity 180ms ease;
+    }
+
+    .ft-vocab-image-lightbox-nav.is-prev {
+      left: clamp(12px, 2vw, 30px);
+      border-radius: 18px 8px 8px 18px;
+    }
+
+    .ft-vocab-image-lightbox-nav.is-next {
+      right: clamp(12px, 2vw, 30px);
+      border-radius: 8px 18px 18px 8px;
+    }
+
+    .ft-vocab-image-lightbox-nav:hover,
+    .ft-vocab-image-lightbox-nav:focus-visible {
+      border-color: rgba(119, 255, 223, 0.8);
+      background: linear-gradient(145deg, rgba(11, 65, 64, 0.92), rgba(5, 23, 28, 0.82));
+      transform: translateY(-50%) scale(1.06);
+      outline: none;
+    }
+
+    .ft-vocab-image-lightbox-nav:disabled {
+      opacity: 0.2;
+      cursor: default;
+      transform: translateY(-50%);
+    }
+
+    .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-stage img {
+      animation: ftVocabImageReveal 650ms 110ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .ft-vocab-image-lightbox-orbit {
+      position: absolute;
+      width: min(72vw, 820px);
+      aspect-ratio: 1;
+      border: 1px solid rgba(70, 240, 215, 0.1);
+      border-radius: 50%;
+      box-shadow: inset 0 0 80px rgba(70, 240, 215, 0.035);
+      animation: ftVocabOrbit 18s linear infinite;
+    }
+
+    .ft-vocab-image-lightbox-orbit::before,
+    .ft-vocab-image-lightbox-orbit::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      border: 1px dashed rgba(255, 166, 105, 0.14);
+    }
+
+    .ft-vocab-image-lightbox-orbit::before { inset: 12%; }
+    .ft-vocab-image-lightbox-orbit::after { inset: 27%; border-color: rgba(70, 240, 215, 0.16); }
+
+    .ft-vocab-image-lightbox-foot {
+      min-height: 58px;
+      border-top: 1px solid rgba(70, 240, 215, 0.15);
+      color: rgba(197, 252, 239, 0.68);
+      font-size: 11px;
+      font-weight: 760;
+      letter-spacing: 0.04em;
+    }
+
+    .ft-vocab-image-lightbox-hint {
+      flex: 0 0 auto;
+      color: rgba(255, 201, 163, 0.78);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .ft-vocab-image-lightbox-page {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 86px;
+      padding: 7px 13px;
+      border: 1px solid rgba(70, 240, 215, 0.22);
+      border-radius: 999px;
+      color: #eafff8;
+      background: rgba(4, 22, 25, 0.78);
+      text-align: center;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      box-shadow: inset 0 0 18px rgba(70, 240, 215, 0.06);
+    }
+
+    html.ft-vocab-image-lightbox-open,
+    html.ft-vocab-image-lightbox-open body {
+      overflow: hidden !important;
+    }
+
+    @keyframes ftVocabLightboxEnter {
+      from { transform: translateY(22px) scale(0.94); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    @keyframes ftVocabLightboxSweep {
+      from { transform: translateX(-120%); }
+      to { transform: translateX(120%); }
+    }
+
+    @keyframes ftVocabImageReveal {
+      from { transform: scale(0.92); opacity: 0; filter: blur(10px) saturate(0.7); }
+      to { transform: scale(1); opacity: 1; filter: blur(0) saturate(1.06); }
+    }
+
+    @keyframes ftVocabOrbit {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 640px) {
+      .ft-vocab-image-lightbox { padding: 8px; }
+      .ft-vocab-image-lightbox-shell { width: 100%; height: min(96dvh, 900px); border-radius: 22px; }
+      .ft-vocab-image-lightbox-head { align-items: flex-start; padding: 16px; }
+      .ft-vocab-image-lightbox-head h2 { padding-right: 4px; }
+      .ft-vocab-image-lightbox-close { width: 46px; height: 46px; }
+      .ft-vocab-image-lightbox-stage { padding: 10px; }
+      .ft-vocab-image-lightbox-nav { width: 44px; height: 72px; font-size: 42px; }
+      .ft-vocab-image-lightbox-nav.is-prev { left: 8px; }
+      .ft-vocab-image-lightbox-nav.is-next { right: 8px; }
+      .ft-vocab-image-lightbox-foot { justify-content: center; padding: 12px 16px; }
+      .ft-vocab-image-lightbox-foot > span:first-child { display: none; }
+      .ft-vocab-image-lightbox-page { position: static; transform: none; }
+      .ft-vocab-image-lightbox-hint { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-shell,
+      .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-shell::before,
+      .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-stage img,
+      .ft-vocab-image-lightbox-orbit {
+        animation: none !important;
+      }
+      .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-shell,
+      .ft-vocab-image-lightbox.is-open .ft-vocab-image-lightbox-stage img {
+        transform: none;
+        opacity: 1;
+      }
     }
 
     .ft-vocab-side-connector {

@@ -650,3 +650,28 @@ def auth_admin_session(self) -> dict | None:
 def do_OPTIONS(self):
     self.send_response(204)
     self.safe_finish_response()
+# Added 2026-08-03: count parsed in-flight requests, not idle HTTP/1.1 keep-alive sockets.
+def parse_request(self):
+    parsed = BaseHTTPRequestHandler.parse_request(self)
+    if parsed and not bool(getattr(self, "_future_request_activity_registered", False)):
+        lock = getattr(self.server, "_future_request_accept_times_lock", None)
+        if lock is not None:
+            with lock:
+                self.server._future_active_requests = max(0, int(getattr(self.server, "_future_active_requests", 0) or 0)) + 1
+                self.server._future_last_request_at = time.monotonic()
+                self._future_request_activity_registered = True
+    return parsed
+
+
+def handle_one_request(self):
+    self._future_request_activity_registered = False
+    try:
+        return BaseHTTPRequestHandler.handle_one_request(self)
+    finally:
+        if bool(getattr(self, "_future_request_activity_registered", False)):
+            lock = getattr(self.server, "_future_request_accept_times_lock", None)
+            if lock is not None:
+                with lock:
+                    self.server._future_active_requests = max(0, int(getattr(self.server, "_future_active_requests", 0) or 0) - 1)
+                    self.server._future_last_request_at = time.monotonic()
+            self._future_request_activity_registered = False

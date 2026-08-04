@@ -1094,8 +1094,8 @@ def save_space_pdf_drawing(username: str, drawing_payload: dict, updated_by: str
                 "deleted": True,
                 "updated_at_utc": incoming_updated_at,
                 "updated_epoch": incoming_epoch,
-                "updated_by": updated_by_user,
-            })
+                  "updated_by": updated_by_user,
+              }, clear_alias_document_keys=[legacy_document_key], clear_path=rel_path)
             revision = max(1, space_w_int(result.get("server_revision", 1), 1))
             changed = True
         else:
@@ -1174,6 +1174,12 @@ SPACE_PDF_AI_JSON_STORE_FLUSHER_STARTED = False
 SPACE_PDF_AI_REGION_NOTICES_PUBLIC_CACHE: dict[tuple, dict] = {}
 SPACE_PDF_AI_REGION_QUESTIONS_PUBLIC_CACHE: dict[tuple, dict] = {}
 SPACE_PDF_AI_REGION_QUESTIONS_PUBLIC_CACHE_LIMIT = 2048
+SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_LOCKS = tuple(threading.Lock() for _index in range(64))
+SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_FAILURES: dict[str, float] = {}
+SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_RETRY_SECONDS = 20.0
+SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_RATE_LOCK = threading.Lock()
+SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_LAST: dict[str, float] = {}
+SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_MIN_SECONDS = 5.0
 
 
 def _space_pdf_ai_json_clone(value: object) -> dict:
@@ -1221,10 +1227,15 @@ def _read_space_pdf_ai_json_store_disk(path: Path, root_key: str = "documents") 
 
 
 def _load_space_pdf_ai_json_store_locked(name: str, path: Path, root_key: str = "documents") -> dict:
+    with SPACE_PDF_AI_JSON_STORE_LOCK:
+        row = SPACE_PDF_AI_JSON_STORE_CACHE.get(name)
+        # Added 2026-07-30: this process owns runtime mutations; hot reads trust RAM instead of querying PostgreSQL for a signature.
+        if row:
+            return _space_pdf_ai_json_clone(row.get("payload"))
     stamp = _space_pdf_ai_json_file_stamp(path)
     with SPACE_PDF_AI_JSON_STORE_LOCK:
         row = SPACE_PDF_AI_JSON_STORE_CACHE.get(name)
-        if row and (row.get("dirty") or row.get("stamp") == stamp):
+        if row:
             return _space_pdf_ai_json_clone(row.get("payload"))
         payload = _read_space_pdf_ai_json_store_disk(path, root_key)
         SPACE_PDF_AI_JSON_STORE_CACHE[name] = {
@@ -1242,10 +1253,14 @@ def _load_space_pdf_ai_json_store_locked(name: str, path: Path, root_key: str = 
 
 # Added 2026-07-09: returns the live RAM store row so hot progress updates do not clone the whole JSON file.
 def _space_pdf_ai_json_store_live_row(name: str, path: Path, root_key: str = "documents") -> dict:
+    with SPACE_PDF_AI_JSON_STORE_LOCK:
+        row = SPACE_PDF_AI_JSON_STORE_CACHE.get(name)
+        if row:
+            return row
     stamp = _space_pdf_ai_json_file_stamp(path)
     with SPACE_PDF_AI_JSON_STORE_LOCK:
         row = SPACE_PDF_AI_JSON_STORE_CACHE.get(name)
-        if row and (row.get("dirty") or row.get("stamp") == stamp):
+        if row:
             return row
         payload = _read_space_pdf_ai_json_store_disk(path, root_key)
         row = {
@@ -1363,6 +1378,15 @@ def flush_space_pdf_ai_runtime_stores(force: bool = False) -> None:
             _flush_space_pdf_ai_json_store_row(name, row, force)
         except Exception as exc:
             print(f"Future PDF AI store flush failed for {name}: {exc}", flush=True)
+
+
+# Added 2026-07-30: mutation endpoints durably flush only their own low-frequency store before acknowledging.
+def flush_space_pdf_ai_runtime_store(name: str, force: bool = False) -> bool:
+    with SPACE_PDF_AI_JSON_STORE_LOCK:
+        row = SPACE_PDF_AI_JSON_STORE_CACHE.get(clean(name))
+    if not isinstance(row, dict) or not row.get("dirty"):
+        return True
+    return _flush_space_pdf_ai_json_store_row(clean(name), row, force)
 
 
 def start_space_pdf_ai_json_store_flusher() -> None:
@@ -1589,7 +1613,7 @@ def save_space_pdf_ai_region_notice(username: str, notice_payload: dict) -> dict
     normalized_page = normalize_space_pdf_drawing_page(source.get("page", 1))
     if not rel_path:
         raise RuntimeError("Thieu duong dan PDF/Picture.")
-    key = hashlib.sha256(f"{normalized_mode}|{rel_path.lower()}".encode("utf-8")).hexdigest()[:32]
+    key = space_pdf_child_document_key(rel_path, normalized_mode, identity)
     page_key = str(normalized_page)
     action = clean(source.get("action", "save")).lower()
     notice_id = clean(source.get("id", ""))
@@ -1641,13 +1665,12 @@ def save_space_pdf_ai_region_notice(username: str, notice_payload: dict) -> dict
             audio_text = normalize_space_pdf_ai_notice_text(source.get("audioText", source.get("audio_text", existing.get("audioText", existing.get("audio_text", text)))), 2400)
             audio_path = clean(existing.get("audioPath", existing.get("audio_path", "")))
             audio_mime = clean(existing.get("audioMime", existing.get("audio_mime", "")))
-            voice_changed = clean(voice).lower() != clean(existing.get("voice", "")).lower()
-            audio_text_changed = audio_text != normalize_space_pdf_ai_notice_text(existing.get("audioText", existing.get("audio_text", "")), 2400)
-            should_build_audio = action in {"build_audio", "set_voice"} or (audio_text and (not audio_path or voice_changed or audio_text_changed))
+            # Normal Set Notice must stay fast; voice generation is an explicit action handled by the dedicated button.
+            should_build_audio = action in {"build_audio", "set_voice"}
             if should_build_audio:
                 if not audio_text:
                     raise RuntimeError("Nhap noi dung voice cho AI notice.")
-                audio_payload = chat_synthesize_message_audio_queued(audio_text, voice)
+                audio_payload = chat_synthesize_message_audio_queued(audio_text, voice, source="admin_ai_notice")
                 audio_path = normalize_space_pdf_shared_audio_link(audio_payload.get("audio_path", ""))
                 audio_mime = clean(audio_payload.get("audio_mime", "")) or audio_mime
                 voice = clean(audio_payload.get("voice", voice)) or voice
@@ -1702,6 +1725,8 @@ def save_space_pdf_ai_region_notice(username: str, notice_payload: dict) -> dict
                 documents.pop(key, None)
         payload["documents"] = documents
         _write_space_pdf_ai_region_notice_store_locked(payload)
+        if not flush_space_pdf_ai_runtime_store("region_notices", True):
+            raise RuntimeError("Khong the luu AI notice vao PostgreSQL.")
         SPACE_PDF_AI_REGION_NOTICES_PUBLIC_CACHE.clear()
     snapshot = read_space_pdf_ai_region_notices(viewer, rel_path, normalized_page, normalized_mode)
     current_notice = next((item for item in snapshot.get("notices", []) if clean(item.get("id", "")) == notice_id), {})
@@ -1714,6 +1739,140 @@ def save_space_pdf_ai_region_notice(username: str, notice_payload: dict) -> dict
         "notice": current_notice if isinstance(current_notice, dict) else {},
         "notices": snapshot.get("notices", []),
     }
+
+
+# Added 2026-08-01: repairs one persisted notice audio only after a learner click, with striped single-flight locking and no background polling.
+def ensure_space_pdf_ai_region_notice_audio(username: str, notice_payload: dict) -> dict:
+    viewer = normalize_username(username)
+    source = notice_payload if isinstance(notice_payload, dict) else {}
+    notice_id = clean(source.get("id", ""))
+    if not notice_id:
+        raise RuntimeError("Thieu ID cua AI notice.")
+    normalized_mode = normalize_space_pdf_shared_audio_mode(source.get("mode", "pdf"))
+    normalized_page = normalize_space_pdf_drawing_page(source.get("page", 1))
+    raw_path = clean_path_value(source.get("path", ""))
+    snapshot = read_space_pdf_ai_region_notices(
+        viewer,
+        raw_path,
+        normalized_page,
+        normalized_mode,
+        clean(source.get("lesson_id", source.get("lessonId", ""))),
+        clean(source.get("lesson_handle", source.get("lessonHandle", ""))),
+    )
+    rel_path = clean_path_value(snapshot.get("path", ""))
+    key = clean(snapshot.get("key", ""))
+    if not rel_path or not key:
+        raise RuntimeError("Khong tim thay PDF/Picture cua AI notice.")
+    repair_key = f"{key}|{normalized_page}|{notice_id}"
+    repair_lock = SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_LOCKS[abs(hash(repair_key)) % len(SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_LOCKS)]
+
+    def audio_path_ready(value: object) -> bool:
+        try:
+            audio_path = normalize_space_pdf_shared_audio_link(value)
+            if not audio_path:
+                return False
+            lowered = audio_path.lower()
+            if lowered.startswith(("http://", "https://", "data:", "blob:", "/server-data/asset?path=")):
+                return True
+            target = (SERVER_DATA_ROOT / audio_path).resolve()
+            target.relative_to(SERVER_DATA_ROOT.resolve())
+            return target.is_file() and target.stat().st_size > 0
+        except Exception:
+            return False
+
+    with repair_lock:
+        snapshot = read_space_pdf_ai_region_notices(viewer, rel_path, normalized_page, normalized_mode)
+        notice = next((item for item in snapshot.get("notices", []) if clean(item.get("id", "")) == notice_id), None)
+        if not isinstance(notice, dict):
+            raise RuntimeError("AI notice khong con ton tai.")
+        current_audio_path = clean(notice.get("audio_path", notice.get("audioPath", "")))
+        if audio_path_ready(current_audio_path):
+            index_payload = chat_finalize_sound_audio_payload({"audio_path": current_audio_path})
+            return {
+                **snapshot,
+                "notice": notice,
+                "audio_repaired": False,
+                "audio_ready": True,
+                "sound_index_repaired": bool(index_payload.get("sound_index_repaired")),
+                "sound_index_key": clean(index_payload.get("sound_index_key", "")),
+            }
+        failure_epoch = float(SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_FAILURES.get(repair_key, 0.0) or 0.0)
+        if failure_epoch and time.time() - failure_epoch < SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_RETRY_SECONDS:
+            raise RuntimeError("Voice dang duoc khoi phuc, hay bam lai sau vai giay.")
+        audio_text = normalize_space_pdf_ai_notice_text(notice.get("audio_text", notice.get("audioText", notice.get("text", ""))), 2400)
+        if not audio_text:
+            raise RuntimeError("AI notice nay khong co noi dung voice de khoi phuc.")
+        voice, voice_label = _space_pdf_shared_audio_voice_details(notice.get("voice", SPACE_PDF_SHARED_AUDIO_DEFAULT_VOICE))
+        with SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_RATE_LOCK:
+            now_epoch = time.time()
+            last_epoch = float(SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_LAST.get(viewer, 0.0) or 0.0)
+            if last_epoch and now_epoch - last_epoch < SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_MIN_SECONDS:
+                raise RuntimeError("Ban vua yeu cau khoi phuc voice; hay thu lai sau vai giay.")
+            if len(SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_LAST) >= 4096:
+                SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_LAST.clear()
+            SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_USER_LAST[viewer] = now_epoch
+        try:
+            audio_payload = chat_synthesize_message_audio_queued(
+                audio_text,
+                voice,
+                preferred_user=viewer,
+                source="pdf_ai_notice_repair",
+            )
+            repaired_path = normalize_space_pdf_shared_audio_link(audio_payload.get("audio_path", ""))
+            if not audio_path_ready(repaired_path):
+                raise RuntimeError(f"Server chua tao duoc file voice hop le: {repaired_path or 'missing-path'}")
+        except Exception:
+            if len(SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_FAILURES) >= 2048:
+                SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_FAILURES.clear()
+            SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_FAILURES[repair_key] = time.time()
+            raise
+
+        with SPACE_PDF_AI_REGION_NOTICES_LOCK:
+            payload = _read_space_pdf_ai_region_notice_store_locked()
+            documents = payload.get("documents") if isinstance(payload.get("documents"), dict) else {}
+            document_key = key
+            document = documents.get(document_key) if isinstance(documents.get(document_key), dict) else {}
+            if not document:
+                document_key = next((
+                    clean(item_key) for item_key, value in documents.items()
+                    if isinstance(value, dict)
+                    and clean_path_value(value.get("path", "")).lower() == rel_path.lower()
+                    and normalize_space_pdf_shared_audio_mode(value.get("mode", normalized_mode)) == normalized_mode
+                ), "")
+                document = documents.get(document_key) if document_key and isinstance(documents.get(document_key), dict) else {}
+            pages = document.get("pages") if isinstance(document.get("pages"), dict) else {}
+            page_key = str(normalized_page)
+            rows = pages.get(page_key) if isinstance(pages.get(page_key), list) else []
+            row = next((item for item in rows if isinstance(item, dict) and clean(item.get("id", "")) == notice_id), None)
+            if not isinstance(row, dict):
+                raise RuntimeError("AI notice da thay doi trong luc khoi phuc voice.")
+            stored_text = normalize_space_pdf_ai_notice_text(row.get("audioText", row.get("audio_text", row.get("text", ""))), 2400)
+            stored_voice, _stored_voice_label = _space_pdf_shared_audio_voice_details(row.get("voice", SPACE_PDF_SHARED_AUDIO_DEFAULT_VOICE))
+            if stored_text != audio_text or stored_voice != voice:
+                raise RuntimeError("AI notice da duoc sua; bam lai de dung noi dung moi.")
+            row["audioPath"] = repaired_path
+            row["audioMime"] = _space_pdf_shared_audio_guess_mime(repaired_path, clean(audio_payload.get("audio_mime", "")))
+            row["voice"] = clean(audio_payload.get("voice", voice)) or voice
+            row["voiceLabel"] = clean(audio_payload.get("voice_label", voice_label)) or voice_label
+            row["audioRepairedAt"] = utc_timestamp()
+            row["audioRepairedBy"] = viewer
+            documents[document_key] = document
+            payload["documents"] = documents
+            _write_space_pdf_ai_region_notice_store_locked(payload)
+            if not flush_space_pdf_ai_runtime_store("region_notices", True):
+                raise RuntimeError("Khong the luu voice AI notice vao PostgreSQL.")
+            SPACE_PDF_AI_REGION_NOTICES_PUBLIC_CACHE.clear()
+        SPACE_PDF_AI_NOTICE_AUDIO_REPAIR_FAILURES.pop(repair_key, None)
+        repaired_snapshot = read_space_pdf_ai_region_notices(viewer, rel_path, normalized_page, normalized_mode)
+        repaired_notice = next((item for item in repaired_snapshot.get("notices", []) if clean(item.get("id", "")) == notice_id), {})
+        return {
+            **repaired_snapshot,
+            "notice": repaired_notice,
+            "audio_repaired": True,
+            "audio_ready": True,
+            "sound_index_repaired": bool(audio_payload.get("sound_index_repaired")),
+            "sound_index_key": clean(audio_payload.get("sound_index_key", "")),
+        }
 
 
 def normalize_space_pdf_ai_question_answer(item: dict | None = None, *, index: int = 0) -> dict:
@@ -1737,6 +1896,8 @@ def normalize_space_pdf_ai_question_answer(item: dict | None = None, *, index: i
         "explanationVoiceLabel": clean(source.get("explanationVoiceLabel", source.get("explanation_voice_label", ""))) or voice_label,
         "audioPath": audio_path,
         "audioMime": _space_pdf_shared_audio_guess_mime(audio_path, clean(source.get("audioMime", source.get("audio_mime", "")))) if audio_path else "",
+        "audioJobId": clean(source.get("audioJobId", source.get("audio_job_id", ""))),
+        "audioStatus": "ready" if audio_path else clean(source.get("audioStatus", source.get("audio_status", ""))),
     }
 
 
@@ -1967,6 +2128,8 @@ def normalize_space_pdf_ai_question_item(item: dict | None = None, *, page: int 
         "introAudioPath": normalize_space_pdf_shared_audio_link(source.get("introAudioPath", source.get("intro_audio_path", ""))),
         "introAudioMime": clean(source.get("introAudioMime", source.get("intro_audio_mime", ""))),
         "introTimingPayload": normalize_space_pdf_ai_question_timing_payload(source.get("introTimingPayload", source.get("intro_timing_payload", {}))),
+        "introAudioJobId": clean(source.get("introAudioJobId", source.get("intro_audio_job_id", ""))),
+        "introAudioStatus": "ready" if normalize_space_pdf_shared_audio_link(source.get("introAudioPath", source.get("intro_audio_path", ""))) else clean(source.get("introAudioStatus", source.get("intro_audio_status", ""))),
         "answers": answers[:8],
         "created_at": clean(source.get("createdAt", source.get("created_at", ""))),
         "created_by": clean(source.get("createdBy", source.get("created_by", ""))),
@@ -2139,6 +2302,63 @@ def warm_space_pdf_ai_region_question_cache_async(delay_seconds: float = 0.4) ->
     threading.Thread(target=runner, name="space-pdf-ai-question-cache-warm", daemon=True).start()
 
 
+# Added 2026-07-30: durable AI Question TTS completion patches the saved node after the ACK path.
+def space_pdf_ai_question_tts_completed(job: dict, audio_result: dict) -> None:
+    params = job.get("params_json") if isinstance(job.get("params_json"), dict) else {}
+    rel_path = clean_path_value(params.get("path", ""))
+    mode = normalize_space_pdf_shared_audio_mode(params.get("mode", "pdf"))
+    page = normalize_space_pdf_drawing_page(params.get("page", 1))
+    question_id = clean(params.get("question_id", ""))
+    answer_id = clean(params.get("answer_id", ""))
+    if not rel_path or not question_id:
+        return
+    audio_payload = chat_remote_tts_payload(
+        str(job.get("text_payload", "") or ""),
+        clean(job.get("voice", "")),
+        audio_result,
+    )
+    audio_path = normalize_space_pdf_shared_audio_link(audio_payload.get("audio_path", ""))
+    if not audio_path:
+        return
+    identity = clean(params.get("lesson_id", ""))
+    key = space_pdf_child_document_key(rel_path, mode, identity)
+    with SPACE_PDF_AI_REGION_QUESTIONS_LOCK:
+        payload = _read_space_pdf_ai_region_question_store_locked()
+        documents = payload.get("documents") if isinstance(payload.get("documents"), dict) else {}
+        document = documents.get(key) if isinstance(documents.get(key), dict) else {}
+        pages = document.get("pages") if isinstance(document.get("pages"), dict) else {}
+        rows = pages.get(str(page)) if isinstance(pages.get(str(page)), list) else []
+        changed = False
+        for row in rows:
+            if not isinstance(row, dict) or clean(row.get("id", "")) != question_id:
+                continue
+            if answer_id:
+                for answer in row.get("answers", []) if isinstance(row.get("answers"), list) else []:
+                    if isinstance(answer, dict) and clean(answer.get("id", "")) == answer_id:
+                        answer["audioPath"] = audio_path
+                        answer["audioMime"] = clean(audio_payload.get("audio_mime", "")) or "audio/mpeg"
+                        answer["audioJobId"] = clean(job.get("job_id", ""))
+                        answer["audioStatus"] = "ready"
+                        changed = True
+            else:
+                row["introAudioPath"] = audio_path
+                row["introAudioMime"] = clean(audio_payload.get("audio_mime", "")) or "audio/mpeg"
+                row["introTimingPayload"] = normalize_space_pdf_ai_question_timing_payload(audio_payload)
+                row["introAudioJobId"] = clean(job.get("job_id", ""))
+                row["introAudioStatus"] = "ready"
+                changed = True
+            break
+        if changed:
+            pages[str(page)] = rows
+            document["pages"] = pages
+            documents[key] = document
+            payload["documents"] = documents
+            _write_space_pdf_ai_region_question_store_locked(payload)
+            if not flush_space_pdf_ai_runtime_store("region_questions", True):
+                raise RuntimeError("Khong the luu audio AI question vao PostgreSQL.")
+            SPACE_PDF_AI_REGION_QUESTIONS_PUBLIC_CACHE.clear()
+
+
 def save_space_pdf_ai_region_question(username: str, question_payload: dict) -> dict:
     viewer = normalize_username(username)
     if not is_admin_user(viewer):
@@ -2244,6 +2464,8 @@ def save_space_pdf_ai_region_question(username: str, question_payload: dict) -> 
             intro_voice = clean(source.get("voice", existing.get("voice", SPACE_PDF_AI_REGION_QUESTION_DEFAULT_VOICE))) or SPACE_PDF_AI_REGION_QUESTION_DEFAULT_VOICE
             intro_audio_path = normalize_space_pdf_shared_audio_link(source.get("introAudioPath", source.get("intro_audio_path", existing.get("introAudioPath", existing.get("intro_audio_path", "")))))
             intro_audio_mime = clean(source.get("introAudioMime", source.get("intro_audio_mime", existing.get("introAudioMime", existing.get("intro_audio_mime", "")))))
+            intro_audio_job_id = clean(source.get("introAudioJobId", source.get("intro_audio_job_id", existing.get("introAudioJobId", existing.get("intro_audio_job_id", "")))))
+            intro_audio_status = "ready" if intro_audio_path else clean(existing.get("introAudioStatus", existing.get("intro_audio_status", "")))
             intro_timing_payload = normalize_space_pdf_ai_question_timing_payload(
                 source.get("introTimingPayload", source.get("intro_timing_payload", existing.get("introTimingPayload", existing.get("intro_timing_payload", {}))))
             )
@@ -2255,12 +2477,31 @@ def save_space_pdf_ai_region_question(username: str, question_payload: dict) -> 
                 intro_audio_path = ""
                 intro_audio_mime = ""
                 intro_timing_payload = {}
-            if mikasa_intro and not intro_audio_path:
-                audio_payload = chat_synthesize_ai_question_audio_queued(mikasa_intro, intro_voice)
-                intro_audio_path = normalize_space_pdf_shared_audio_link(audio_payload.get("audio_path", ""))
-                intro_audio_mime = _space_pdf_shared_audio_guess_mime(intro_audio_path, clean(audio_payload.get("audio_mime", ""))) if intro_audio_path else ""
-                intro_voice = clean(audio_payload.get("voice", intro_voice)) or intro_voice
-                intro_timing_payload = normalize_space_pdf_ai_question_timing_payload(audio_payload)
+                intro_audio_job_id = ""
+                intro_audio_status = ""
+            if mikasa_intro and not intro_audio_path and not intro_audio_job_id:
+                try:
+                    intro_job = durable_tts_enqueue(
+                        mikasa_intro,
+                        intro_voice,
+                        priority=1,
+                        source="admin_ai_question",
+                        preferred_user=viewer,
+                        output_key=f"ai-question:{key}:{page_key}:{question_id}:intro",
+                        params={
+                            "path": rel_path,
+                            "mode": normalized_mode,
+                            "page": normalized_page,
+                            "lesson_id": identity,
+                            "question_id": question_id,
+                            "answer_id": "",
+                        },
+                    )
+                    intro_audio_job_id = clean(intro_job.get("job_id", ""))
+                    intro_audio_status = clean(intro_job.get("status", "")) or "queued"
+                except Exception as exc:
+                    intro_audio_status = "failed"
+                    stt_debug_log("ai_question_intro_tts_enqueue_failed", question_id=question_id, error=str(exc))
             existing_answers = existing.get("answers") if isinstance(existing.get("answers"), list) else []
             existing_answer_rows = [
                 normalize_space_pdf_ai_question_answer(answer, index=index)
@@ -2302,18 +2543,38 @@ def save_space_pdf_ai_region_question(username: str, question_payload: dict) -> 
                         answer["audioPath"] = normalize_space_pdf_shared_audio_link(answer.get("audioPath") or existing_answer.get("audioPath", ""))
                         answer["audioMime"] = clean(answer.get("audioMime") or existing_answer.get("audioMime", ""))
                         answer["explanationVoiceLabel"] = clean(answer.get("explanationVoiceLabel") or existing_answer.get("explanationVoiceLabel", ""))
+                        answer["audioJobId"] = clean(answer.get("audioJobId") or existing_answer.get("audioJobId", ""))
+                        answer["audioStatus"] = "ready" if answer.get("audioPath") else clean(existing_answer.get("audioStatus", ""))
                     else:
                         answer["audioPath"] = ""
                         answer["audioMime"] = ""
+                        answer["audioJobId"] = ""
+                        answer["audioStatus"] = ""
                 mode_value = clean(answer.get("explanationMode", "text_voice"))
                 should_build = mode_value in {"text_voice", "voice"} and answer.get("explanationText")
-                if should_build and not answer.get("audioPath"):
-                    audio_payload = chat_synthesize_ai_question_audio_queued(answer.get("explanationText", ""), answer.get("explanationVoice") or SPACE_PDF_AI_REGION_QUESTION_DEFAULT_VOICE)
-                    audio_path = normalize_space_pdf_shared_audio_link(audio_payload.get("audio_path", ""))
-                    answer["audioPath"] = audio_path
-                    answer["audioMime"] = _space_pdf_shared_audio_guess_mime(audio_path, clean(audio_payload.get("audio_mime", ""))) if audio_path else ""
-                    answer["explanationVoice"] = clean(audio_payload.get("voice", answer.get("explanationVoice", ""))) or answer.get("explanationVoice", SPACE_PDF_AI_REGION_QUESTION_DEFAULT_VOICE)
-                    answer["explanationVoiceLabel"] = clean(audio_payload.get("voice_label", answer.get("explanationVoiceLabel", ""))) or answer.get("explanationVoiceLabel", "")
+                if should_build and not answer.get("audioPath") and not answer.get("audioJobId"):
+                    try:
+                        answer_job = durable_tts_enqueue(
+                            answer.get("explanationText", ""),
+                            answer.get("explanationVoice") or SPACE_PDF_AI_REGION_QUESTION_DEFAULT_VOICE,
+                            priority=1,
+                            source="admin_ai_question",
+                            preferred_user=viewer,
+                            output_key=f"ai-question:{key}:{page_key}:{question_id}:{clean(answer.get('id', ''))}",
+                            params={
+                                "path": rel_path,
+                                "mode": normalized_mode,
+                                "page": normalized_page,
+                                "lesson_id": identity,
+                                "question_id": question_id,
+                                "answer_id": clean(answer.get("id", "")),
+                            },
+                        )
+                        answer["audioJobId"] = clean(answer_job.get("job_id", ""))
+                        answer["audioStatus"] = clean(answer_job.get("status", "")) or "queued"
+                    except Exception as exc:
+                        answer["audioStatus"] = "failed"
+                        stt_debug_log("ai_question_answer_tts_enqueue_failed", question_id=question_id, answer_id=clean(answer.get("id", "")), error=str(exc))
             question_row = {
                 "id": question_id,
                 "page": normalized_page,
@@ -2354,6 +2615,8 @@ def save_space_pdf_ai_region_question(username: str, question_payload: dict) -> 
                 "introAudioPath": intro_audio_path,
                 "introAudioMime": intro_audio_mime,
                 "introTimingPayload": intro_timing_payload,
+                "introAudioJobId": intro_audio_job_id,
+                "introAudioStatus": intro_audio_status,
                 "title": (clean(source.get("title", "")) or question.splitlines()[0])[:120],
                 "answers": answers[:8],
                 "createdAt": clean(existing.get("createdAt", existing.get("created_at", ""))) or now,
@@ -2378,6 +2641,8 @@ def save_space_pdf_ai_region_question(username: str, question_payload: dict) -> 
                 documents.pop(key, None)
         payload["documents"] = documents
         _write_space_pdf_ai_region_question_store_locked(payload)
+        if not flush_space_pdf_ai_runtime_store("region_questions", True):
+            raise RuntimeError("Khong the luu AI question vao PostgreSQL.")
         SPACE_PDF_AI_REGION_QUESTIONS_PUBLIC_CACHE.clear()
     snapshot = read_space_pdf_ai_region_questions(viewer, rel_path, normalized_page, normalized_mode)
     current_question = next((item for item in snapshot.get("questions", []) if clean(item.get("id", "")) == question_id), {})
@@ -3179,7 +3444,7 @@ def save_space_pdf_shared_audio_marker(username: str, marker_payload: dict) -> d
             if action == "build_audio":
                 if not text:
                     raise RuntimeError("Nhap noi dung text de build audio.")
-                audio_payload = chat_synthesize_message_audio_queued(text, voice)
+                audio_payload = chat_synthesize_message_audio_queued(text, voice, source="pdf_picture_shared_audio")
                 next_audio_path = normalize_space_pdf_shared_audio_link(audio_payload.get("audio_path", ""))
                 next_audio_mime = clean(audio_payload.get("audio_mime", "")) or next_audio_mime
                 voice = clean(audio_payload.get("voice", voice)) or voice

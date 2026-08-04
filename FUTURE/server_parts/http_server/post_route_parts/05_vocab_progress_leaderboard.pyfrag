@@ -1,3 +1,28 @@
+    if path == "/vocab/image-primary":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            word = lesson_task_notice_text(payload.get("word", ""), limit=180)
+            image_id = lesson_task_notice_text(payload.get("image_id") or payload.get("imageId") or "", limit=260)
+            if not word or not image_id:
+                raise RuntimeError("Missing vocabulary image selection.")
+            record = space_v_local_picture_asset(word, image_id=image_id)
+            if not record or clean(record.get("image_id", "")).casefold() != image_id.casefold():
+                raise RuntimeError("Vocabulary image no longer exists.")
+            result = server_database_save_vocab_image_selection(
+                session.get("username", ""),
+                vocab_key(word),
+                image_id,
+                payload.get("operation_id") or payload.get("operationId") or "",
+                payload.get("selected_epoch") or payload.get("selectedEpoch") or 0,
+            )
+            self.send_json(200, {"ok": True, "word": word, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
     if path == "/vocab/scan-space-w":
         try:
             session = self.auth_session()
@@ -7,7 +32,7 @@
             query = parse_qs(urlparse(self.path).query)
             compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
             payload = self.read_json_body()
-            result = scan_space_w_vocabulary(payload.get("path", ""), session.get("username", ""), include_words=not compact_response)
+            result = scan_space_w_vocabulary(payload.get("path", ""), session.get("username", ""), include_words=not compact_response, lesson_id=payload.get("lesson_id") or payload.get("lessonId") or "")
             self.send_json(200, {
                 "ok": True,
                 "response_schema": "vocab-scan-compact-v1" if compact_response else "vocab-scan-full-v1",
@@ -340,10 +365,15 @@
                 self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
                 return
             viewer = normalize_username(session.get("username", ""))
+            payload = self.read_json_body() or {}
+            action = clean(payload.get("action", "save")).lower()
+            if action == "ensure_audio":
+                result = ensure_space_pdf_ai_region_notice_audio(viewer, payload)
+                self.send_json(200, {"ok": True, "viewer": viewer, **result})
+                return
             if not is_admin_user(viewer):
                 self.send_json(403, {"ok": False, "error": "Only admins can update shared PDF/Picture AI notices."})
                 return
-            payload = self.read_json_body() or {}
             chat_mark_online(viewer)
             result = save_space_pdf_ai_region_notice(viewer, payload)
             mark_user_activity(viewer, {

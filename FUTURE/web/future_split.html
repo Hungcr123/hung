@@ -217,6 +217,14 @@
     </svg>
   </button>
 
+  <button class="ft-clear-audio-cache-button" id="ft-clear-audio-cache-button" type="button" aria-label="Clear cached audio" title="Clear cached audio">
+    <svg class="ft-clear-audio-cache-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M8 18.5V13a8 8 0 0 1 16 0v5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+      <path d="M8 17.5H5.8A1.8 1.8 0 0 0 4 19.3v4.2a1.8 1.8 0 0 0 1.8 1.8H9v-7.8Zm16 0h2.2a1.8 1.8 0 0 1 1.8 1.8v4.2a1.8 1.8 0 0 1-1.8 1.8H23v-7.8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="m13 18 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
   <button class="ft-speak-admin-button" id="ft-speak-admin-button" type="button" aria-label="Review Speak error requests">
     <svg class="ft-speak-admin-icon" viewBox="0 0 32 32" aria-hidden="true">
       <path d="M8 7.5h10.5l5.5 5.5v11.5H8V7.5Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/>
@@ -1430,6 +1438,145 @@
     </section>
   </div>
 
+  <div class="ft-lesson-entry-gate notranslate" id="ft-lesson-entry-gate" hidden aria-hidden="true" translate="no">
+    <div class="ft-entry-gate-frame" id="ft-entry-gate-frame" role="status" aria-live="polite">
+      <div class="ft-entry-gate-background" aria-hidden="true">
+        <div class="ft-entry-core-reactor"></div>
+      </div>
+
+      <div class="ft-entry-gate2-panel is-top" aria-hidden="true">
+        <div class="ft-entry-vocab-alert" id="ft-entry-vocab-alert" hidden>
+          <span class="ft-entry-vocab-alert-kicker">VOCABULARY SIGNAL // NEW DATA</span>
+          <strong id="ft-entry-vocab-alert-count">0 NEW WORDS</strong>
+          <span class="ft-entry-vocab-alert-meta" id="ft-entry-vocab-alert-packs">0 PACKS</span>
+          <span class="ft-entry-vocab-alert-meta" id="ft-entry-vocab-alert-detail">MISSION QUEUE READY</span>
+          <div class="ft-entry-vocab-alert-actions">
+            <button type="button" id="ft-entry-vocab-alert-learn">TỪ VỰNG TRƯỚC<span>PREV VOCAB</span></button>
+            <button type="button" id="ft-entry-vocab-alert-skip">TIẾP TỤC (EN)<span>CONTINUE ACCESS</span></button>
+          </div>
+        </div>
+        <div class="ft-entry-gate2-console">
+          <small>CYBER_EYE_V2</small>
+          <div class="ft-entry-cyber-eye">
+            <span class="ft-entry-eye-iris"></span>
+            <span class="ft-entry-eye-pupil"></span>
+            <span class="ft-entry-eye-laser"></span>
+          </div>
+          <span class="ft-entry-gate2-screen"><span class="ft-entry-gate2-status" id="ft-entry-gate2-status">LOCKED</span></span>
+          <span class="ft-entry-gate2-led" id="ft-entry-gate2-led"></span>
+        </div>
+        <div class="ft-entry-hub-row">
+          <span>SYS_NODE: ALPHA<br><small>VOLT: 450KV</small></span>
+          <span class="ft-entry-atomic-logo"><i></i><i></i><i></i><b></b></span>
+          <span>STATUS: SECURE<br><small>SYNC: OK</small></span>
+        </div>
+      </div>
+
+      <div class="ft-entry-gate2-panel is-bottom" aria-hidden="true">
+        <div class="ft-entry-hub-row">
+          <span>FLOW: STABLE<br><small>CORE: ACTIVE</small></span>
+          <span class="ft-entry-atomic-logo"><i></i><i></i><i></i><b></b></span>
+          <span>SHIELD: 99.9%<br><small>GRID: ONLINE</small></span>
+        </div>
+      </div>
+
+      <div class="ft-entry-primary-door is-left" aria-hidden="true">
+        <span class="ft-entry-tech-grid"></span>
+        <span class="ft-entry-warning-stripe"></span>
+        <span class="ft-entry-panel-circuit">
+          <svg class="ft-entry-door-circuit-board is-radiation-chip" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <g class="ft-entry-door-circuit-traces">
+              <path d="M0 18H18V35H40"></path><path d="M100 18H82V35H60"></path>
+              <path d="M0 42H24V46H40"></path><path d="M100 42H76V46H60"></path>
+              <path d="M0 82H18V65H40"></path><path d="M100 82H82V65H60"></path>
+              <path d="M42 0V35"></path><path d="M58 100V65"></path>
+            </g>
+            <g class="ft-entry-door-circuit-nodes">
+              <circle cx="40" cy="35" r="0.9"></circle><circle cx="60" cy="35" r="0.9"></circle>
+              <circle cx="40" cy="46" r="0.9"></circle><circle cx="60" cy="46" r="0.9"></circle>
+              <circle cx="40" cy="65" r="0.9"></circle><circle cx="60" cy="65" r="0.9"></circle>
+            </g>
+          </svg>
+          <i class="ft-entry-circuit-strip"></i>
+          <span class="ft-entry-door-atomic-logo is-radiation" aria-hidden="true">
+            <span class="ft-entry-radiation-icon">☢</span>
+          </span>
+          <i class="ft-entry-circuit-strip"></i>
+          <span class="ft-entry-door-index">HAZARD_ZONE_01</span>
+        </span>
+        <span class="ft-entry-warning-stripe is-bottom"></span>
+      </div>
+
+      <div class="ft-entry-primary-door is-right" aria-hidden="true">
+        <span class="ft-entry-tech-grid"></span>
+        <span class="ft-entry-warning-stripe"></span>
+         <div class="ft-entry-center-console">
+           <span class="ft-entry-clock" id="ft-entry-gate-clock">00:00:00</span>
+           <section class="ft-entry-pdf-stream" id="ft-entry-pdf-stream" hidden aria-live="polite">
+             <span class="ft-entry-pdf-tech-chart" id="ft-entry-pdf-stream-graph" aria-hidden="true">
+               <svg class="ft-entry-pdf-tech-svg" viewBox="0 0 300 300">
+                 <defs><filter id="ft-entry-pdf-neon-glow" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur stdDeviation="4" result="blur"></feGaussianBlur><feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter></defs>
+                 <circle class="ft-entry-pdf-ring-outer" cx="150" cy="150" r="140"></circle>
+                 <circle class="ft-entry-pdf-ring-ticks" cx="150" cy="150" r="125"></circle>
+                 <circle class="ft-entry-pdf-progress-track" cx="150" cy="150" r="110"></circle>
+                 <circle class="ft-entry-pdf-progress-fill" id="ft-entry-pdf-stream-progress-ring" cx="150" cy="150" r="110" filter="url(#ft-entry-pdf-neon-glow)"></circle>
+                 <circle class="ft-entry-pdf-ring-inner" cx="150" cy="150" r="90"></circle>
+               </svg>
+               <span class="ft-entry-pdf-tech-center"><b id="ft-entry-pdf-stream-phase">PDF STREAM</b><strong id="ft-entry-pdf-stream-percent">--%</strong><small id="ft-entry-pdf-stream-bytes">0 B / --</small></span>
+             </span>
+             <span class="ft-entry-pdf-stream-meta"><b id="ft-entry-pdf-stream-chunk">AWAITING SOURCE</b></span>
+           </section>
+           <span class="ft-entry-scan-label">BIOMETRIC</span>
+           <button class="ft-entry-fingerprint" id="ft-entry-gate-open" type="button" hidden title="Open a new run"><i></i></button>
+           <button class="ft-entry-continue" id="ft-entry-gate-continue" type="button" hidden title="Continue previous"><span class="ft-entry-continue-text">CONT</span><span class="ft-entry-continue-logo"><i></i><i></i></span></button>
+           <span class="ft-entry-primary-led" id="ft-entry-primary-led"></span>
+           <button class="ft-entry-gate-train" id="ft-entry-gate-train" type="button" hidden>REVIEW TRAIN</button>
+           <button class="ft-entry-gate-exit" id="ft-entry-gate-exit" type="button" hidden>EXIT</button>
+        </div>
+        <span class="ft-entry-panel-circuit">
+          <svg class="ft-entry-door-circuit-board is-alert-chip" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <g class="ft-entry-door-circuit-traces">
+              <path d="M0 16H16V28H24"></path><path d="M100 16H84V28H76"></path>
+              <path d="M0 42H14V48H24"></path><path d="M100 42H86V48H76"></path>
+              <path d="M0 84H16V72H24"></path><path d="M100 84H84V72H76"></path>
+              <path d="M40 0V28"></path><path d="M60 100V72"></path>
+            </g>
+            <g class="ft-entry-door-circuit-nodes">
+              <circle cx="24" cy="28" r="0.9"></circle><circle cx="76" cy="28" r="0.9"></circle>
+              <circle cx="24" cy="48" r="0.9"></circle><circle cx="76" cy="48" r="0.9"></circle>
+              <circle cx="24" cy="72" r="0.9"></circle><circle cx="76" cy="72" r="0.9"></circle>
+            </g>
+          </svg>
+          <span class="ft-entry-alert-panel" aria-hidden="true">
+            <span class="ft-entry-alert-border">
+              <i class="ft-entry-alert-screw ft-entry-alert-s-tl"></i>
+              <i class="ft-entry-alert-screw ft-entry-alert-s-tr"></i>
+              <i class="ft-entry-alert-screw ft-entry-alert-s-bl"></i>
+              <i class="ft-entry-alert-screw ft-entry-alert-s-br"></i>
+              <i class="ft-entry-alert-stripe ft-entry-alert-stripe-top"></i>
+              <span class="ft-entry-alert-triangle">
+                <i class="ft-entry-alert-tri-outer"></i>
+                <i class="ft-entry-alert-tri-inner"><strong>!</strong></i>
+              </span>
+              <strong class="ft-entry-alert-title">WARNING</strong>
+              <span class="ft-entry-alert-sub">CHÚ Ý TẬP TRUNG</span>
+              <i class="ft-entry-alert-divider"></i>
+              <small class="ft-entry-alert-sector">SECTOR: 7G // AUTH_REQD</small>
+              <i class="ft-entry-alert-stripe ft-entry-alert-stripe-bottom"></i>
+            </span>
+          </span>
+        </span>
+        <span class="ft-entry-warning-stripe is-bottom"></span>
+      </div>
+
+      <div class="ft-entry-gate-message">
+        <span class="ft-entry-gate-kicker" id="ft-entry-gate-kicker">SEALING LESSON VAULT</span>
+        <strong id="ft-entry-gate-title">Preparing lesson channel</strong>
+        <span class="ft-entry-gate-progress"><i></i></span>
+      </div>
+    </div>
+  </div>
+
   <div class="ft-top-loading" id="ft-top-loading" aria-live="polite" aria-hidden="true">
     <span class="ft-top-loading-core" aria-hidden="true"></span>
     <span class="ft-top-loading-text" id="ft-top-loading-text">Loading...</span>
@@ -2131,12 +2278,38 @@
       <aside class="ft-vocab-picture-panel is-hidden" id="ft-vocab-picture-panel" aria-live="polite">
         <div class="ft-vocab-side-content">
           <p class="ft-vocab-side-title">Visual Signal</p>
-          <div class="ft-vocab-picture-frame">
+          <div class="ft-vocab-picture-frame" id="ft-vocab-picture-frame" role="button" tabindex="0" aria-label="Open vocabulary image">
             <img class="ft-vocab-picture-img" id="ft-vocab-picture-img" alt="" loading="lazy">
+            <span class="ft-vocab-picture-expand" aria-hidden="true">EXPAND</span>
           </div>
           <div class="ft-vocab-picture-caption" id="ft-vocab-picture-caption"></div>
         </div>
       </aside>
+
+      <div class="ft-vocab-image-lightbox" id="ft-vocab-image-lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="ft-vocab-image-lightbox-word">
+        <div class="ft-vocab-image-lightbox-backdrop" aria-hidden="true"></div>
+        <section class="ft-vocab-image-lightbox-shell">
+          <header class="ft-vocab-image-lightbox-head">
+            <div>
+              <p class="ft-vocab-image-lightbox-kicker">Visual vocabulary</p>
+              <h2 id="ft-vocab-image-lightbox-word">Vocabulary image</h2>
+              <p id="ft-vocab-image-lightbox-meaning"></p>
+            </div>
+            <button class="ft-vocab-image-lightbox-close" id="ft-vocab-image-lightbox-close" type="button" aria-label="Close enlarged vocabulary image">×</button>
+          </header>
+          <figure class="ft-vocab-image-lightbox-stage">
+            <div class="ft-vocab-image-lightbox-orbit" aria-hidden="true"></div>
+            <button class="ft-vocab-image-lightbox-nav is-prev" id="ft-vocab-image-lightbox-prev" type="button" aria-label="Previous vocabulary image">‹</button>
+            <img id="ft-vocab-image-lightbox-img" alt="">
+            <button class="ft-vocab-image-lightbox-nav is-next" id="ft-vocab-image-lightbox-next" type="button" aria-label="Next vocabulary image">›</button>
+          </figure>
+          <footer class="ft-vocab-image-lightbox-foot">
+            <span id="ft-vocab-image-lightbox-caption"></span>
+            <span class="ft-vocab-image-lightbox-page" id="ft-vocab-image-lightbox-page">1 / 1</span>
+            <span class="ft-vocab-image-lightbox-hint">ESC to close</span>
+          </footer>
+        </section>
+      </div>
 
       <div class="ft-connector" id="ft-connector" aria-hidden="true">
         <svg class="ft-connector-svg" id="ft-connector-svg" viewBox="0 0 150 80" preserveAspectRatio="none">

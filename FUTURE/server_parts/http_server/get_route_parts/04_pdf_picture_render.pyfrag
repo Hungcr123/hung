@@ -192,7 +192,8 @@
                     file_in.seek(start_byte)
                 remaining = content_length
                 while remaining > 0:
-                    chunk = file_in.read(min(1024 * 1024, remaining))
+                    # Keep PDF Range responses observable as a smooth stream to XHR progress.
+                    chunk = file_in.read(min(64 * 1024, remaining))
                     if not chunk:
                         break
                     try:
@@ -205,6 +206,7 @@
                         raise
                     sent += len(chunk)
                     remaining -= len(chunk)
+                    self.wfile.flush()
             stt_debug_log("pdf_file_response", path=rel_path, username=username, bytes=sent, total=file_size, range=range_header, status=status_code, ms=elapsed_ms)
         except PermissionError as exc:
             self.send_json(403, {"ok": False, "error": str(exc)})

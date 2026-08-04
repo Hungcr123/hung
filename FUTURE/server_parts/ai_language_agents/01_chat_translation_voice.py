@@ -7,8 +7,49 @@ def chat_builder_tools():
     if str(PROGRAME_ROOT) not in sys.path:
         sys.path.insert(0, str(PROGRAME_ROOT))
     import future_lesson_builder_gui as builder  # type: ignore
-
+    # Added 2026-08-01: keep TTS asset writes on the active Server 2 data root (including isolated test roots), never the builder's import-time default.
+    active_root = Path(
+        os.environ.get("FUTURE_SERVER_DATA_ROOT", "")
+        or globals().get("SERVER_DATA_ROOT", "")
+        or getattr(builder, "SERVER_DATA_ROOT", r"C:\server data")
+    ).resolve()
+    builder.SERVER_DATA_ROOT = active_root
+    builder.SERVER_SOUND_DIR = active_root / "Sound"
+    builder.SERVER_STRUCTURE_DIR = active_root / "Structure"
+    builder.SERVER_PICTURE_DIR = active_root / "Picture"
+    try:
+        asset_globals = builder.indexed_write_server_sound_asset.__globals__
+        configure_root = asset_globals.get("configure_sound_asset_root")
+        if callable(configure_root):
+            configure_root(active_root)
+        else:
+            asset_globals["SERVER_DATA_ROOT"] = active_root
+            asset_globals["SERVER_SOUND_DIR"] = active_root / "Sound"
+            asset_globals["SERVER_SOUND_V2_DIR"] = active_root / "Sound" / "_v2"
+            asset_globals["SOUND_ASSET_INDEX_FILE"] = active_root / "_future_sound_asset_index.json"
+            asset_globals["SOUND_ASSET_INDEX_WAL_FILE"] = active_root / "_future_sound_asset_index.wal.jsonl"
+    except (AttributeError, KeyError):
+        pass
     return builder
+
+
+# Added 2026-08-01: verifies one completed Sound write and repairs only its exact index entry before callers persist audioPath.
+def chat_finalize_sound_audio_payload(payload: dict | None) -> dict:
+    result = dict(payload) if isinstance(payload, dict) else {}
+    audio_path = clean(result.get("audio_path", result.get("audioPath", "")))
+    if not audio_path.lower().startswith("sound/"):
+        return result
+    builder = chat_builder_tools()
+    asset_globals = builder.indexed_write_server_sound_asset.__globals__
+    ensure_entry = asset_globals.get("ensure_sound_asset_index_entry")
+    if not callable(ensure_entry):
+        raise RuntimeError("Sound index helper is unavailable.")
+    index_result = ensure_entry(audio_path)
+    if not isinstance(index_result, dict) or not index_result.get("ok"):
+        raise RuntimeError(f"Sound file/index is not ready: {audio_path}")
+    result["sound_index_key"] = clean(index_result.get("key", ""))
+    result["sound_index_repaired"] = bool(index_result.get("index_repaired"))
+    return result
 
 
 VIETNAMESE_MARK_RE = re.compile(r"[ăâđêôơưáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", re.I)
@@ -254,14 +295,14 @@ def chat_synthesize_message_audio(text: str, voice_key: str) -> dict:
         "label": voice_label,
     }
     audio_payload.update(timing_payload)
-    return {
+    return chat_finalize_sound_audio_payload({
         "audio_path": audio_path,
         "audio_mime": mime,
         "voice": builder.normalize_audio_voice_key(voice) or voice,
         "voice_label": voice_label,
         **timing_payload,
         "audio": audio_payload,
-    }
+    })
 
 
 # Added 2026-07-07: stores audio bytes returned by a distributed TTS worker on the server Sound path.
@@ -287,7 +328,7 @@ def chat_remote_tts_payload(text: str, voice_key: str, raw: dict) -> dict:
         "label": voice_label,
     }
     audio_payload.update(timing_payload)
-    return {
+    return chat_finalize_sound_audio_payload({
         "audio_path": audio_path,
         "audio_mime": mime,
         "voice": normalized_voice,
@@ -295,34 +336,47 @@ def chat_remote_tts_payload(text: str, voice_key: str, raw: dict) -> dict:
         **timing_payload,
         "audio": audio_payload,
         "remote_worker": True,
-    }
+    })
 
 
-def chat_synthesize_message_audio_queued(text: str, voice_key: str, preferred_user: str = "") -> dict:
+def chat_synthesize_message_audio_queued(
+    text: str,
+    voice_key: str,
+    preferred_user: str = "",
+    source: str = "runtime_voice",
+) -> dict:
     normalized_voice = clean(voice_key)
     requires_remote_kokoro_vi = normalized_voice.lower().startswith("kokoro_vi:")
     try:
-        raw = distributed_worker_try_tts_raw(text, normalized_voice, timeout_seconds=VOICE_WORK_QUEUE.timeout_seconds, preferred_user=preferred_user)
+        raw = durable_tts_submit_raw(
+            text,
+            normalized_voice,
+            priority=1,
+            source=source,
+            timeout_seconds=VOICE_WORK_QUEUE.timeout_seconds,
+            preferred_user=preferred_user,
+            params={"timeout_seconds": 0 if normalized_voice.lower().startswith("kokoro_vi:") else VOICE_WORK_QUEUE.timeout_seconds},
+        )
         if raw:
-            return chat_remote_tts_payload(text, normalized_voice, raw)
+            return chat_finalize_sound_audio_payload(chat_remote_tts_payload(text, normalized_voice, raw))
     except Exception as exc:
         stt_debug_log("distributed_tts_fallback", voice=normalized_voice, error=str(exc))
     if requires_remote_kokoro_vi and clean(os.environ.get("FUTURE_KOKORO_VI_SERVER_FALLBACK", "")).lower() not in {"1", "true", "yes", "on"}:
         raise RuntimeError("Kokoro VI voice needs an online worker with Python 3.11 + kokoro-vietnamese/onnxruntime/soundfile. Server 2 fallback is disabled to avoid heavy CPU/RAM.")
     if VOICE_WORKER_ENABLED:
         try:
-            return synthesize_message_audio_via_voice_worker(text, normalized_voice, timeout=VOICE_WORK_QUEUE.timeout_seconds)
+            return chat_finalize_sound_audio_payload(synthesize_message_audio_via_voice_worker(text, normalized_voice, timeout=VOICE_WORK_QUEUE.timeout_seconds))
         except Exception as exc:
             stt_debug_log("voice_worker_fallback", voice=normalized_voice, error=str(exc))
     try:
         from FUTURE.server_parts.worker_jobs.heavy_language_jobs import synthesize_message_audio_worker
-        return VOICE_WORK_QUEUE.run(
+        return chat_finalize_sound_audio_payload(VOICE_WORK_QUEUE.run(
             f"voice:{normalized_voice[:40]}",
             synthesize_message_audio_worker,
             text,
             normalized_voice,
             timeout=VOICE_WORK_QUEUE.timeout_seconds,
-        )
+        ))
     except RuntimeError:
         raise
     except Exception as exc:
@@ -332,25 +386,33 @@ def chat_synthesize_message_audio_queued(text: str, voice_key: str, preferred_us
 # Added 2026-07-02: routes admin MishiKa AI Question audio builds away from user-facing Ghost AI voice work.
 def chat_synthesize_ai_question_audio_queued(text: str, voice_key: str, preferred_user: str = "") -> dict:
     try:
-        raw = distributed_worker_try_tts_raw(text, voice_key, timeout_seconds=AI_QUESTION_VOICE_WORK_QUEUE.timeout_seconds, preferred_user=preferred_user)
+        raw = durable_tts_submit_raw(
+            text,
+            voice_key,
+            priority=1,
+            source="admin_ai_question",
+            timeout_seconds=AI_QUESTION_VOICE_WORK_QUEUE.timeout_seconds,
+            preferred_user=preferred_user,
+            params={"timeout_seconds": AI_QUESTION_VOICE_WORK_QUEUE.timeout_seconds},
+        )
         if raw:
-            return chat_remote_tts_payload(text, voice_key, raw)
+            return chat_finalize_sound_audio_payload(chat_remote_tts_payload(text, voice_key, raw))
     except Exception as exc:
         stt_debug_log("distributed_tts_ai_question_fallback", voice=clean(voice_key), error=str(exc))
     if VOICE_WORKER_ENABLED:
         try:
-            return synthesize_message_audio_via_voice_worker(text, voice_key, timeout=AI_QUESTION_VOICE_WORK_QUEUE.timeout_seconds)
+            return chat_finalize_sound_audio_payload(synthesize_message_audio_via_voice_worker(text, voice_key, timeout=AI_QUESTION_VOICE_WORK_QUEUE.timeout_seconds))
         except Exception as exc:
             stt_debug_log("voice_worker_ai_question_fallback", voice=clean(voice_key), error=str(exc))
     try:
         from FUTURE.server_parts.worker_jobs.heavy_language_jobs import synthesize_message_audio_worker
-        return AI_QUESTION_VOICE_WORK_QUEUE.run(
+        return chat_finalize_sound_audio_payload(AI_QUESTION_VOICE_WORK_QUEUE.run(
             f"ai-question:{clean(voice_key)[:40]}",
             synthesize_message_audio_worker,
             text,
             voice_key,
             timeout=AI_QUESTION_VOICE_WORK_QUEUE.timeout_seconds,
-        )
+        ))
     except RuntimeError:
         raise
     except Exception as exc:

@@ -34,6 +34,8 @@ ACCESS_LOG_ROUTE_SOURCES = {
     ("POST", "/space-s/progress"): "space_s.progress_save",
     ("GET", "/space-pdf/progress"): "space_pdf.progress_read",
     ("POST", "/space-pdf/progress"): "space_pdf.progress_save",
+    ("GET", "/space-pdf/drawing"): "space_pdf.drawing_read",
+    ("POST", "/space-pdf/drawing"): "space_pdf.drawing_write",
     ("GET", "/space-picture/progress"): "space_picture.progress_read",
     ("POST", "/space-picture/progress"): "space_picture.progress_save",
     "/inventory": "inventory.read",

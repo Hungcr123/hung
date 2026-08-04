@@ -46,6 +46,14 @@ DISTRIBUTED_WORKER_ASSIGN_GRACE_SECONDS = 4.0
 DISTRIBUTED_WORKER_MAX_ATTEMPTS_PER_WORKER = 5
 DISTRIBUTED_WORKER_MAX_TOTAL_ATTEMPTS = 40
 DISTRIBUTED_WORKER_ROUND_ROBIN_CURSOR: dict[str, int] = {}
+DISTRIBUTED_WORKER_QUARANTINE_SECONDS = 90
+
+
+def distributed_worker_queue_sort_locked() -> None:
+    DISTRIBUTED_WORKER_QUEUE.sort(key=lambda item: (
+        int((DISTRIBUTED_WORKER_JOBS.get(item) or {}).get("priority", 1) or 1),
+        float((DISTRIBUTED_WORKER_JOBS.get(item) or {}).get("created_at", 0) or 0),
+    ))
 
 
 def distributed_worker_clean_capabilities(value) -> list[str]:
@@ -94,6 +102,8 @@ def distributed_worker_effective_job_limit_locked(kind: str, payload: dict | Non
     for worker in DISTRIBUTED_WORKERS.values():
         if worker.get("status") != "online":
             continue
+        if float(worker.get("quarantine_until", 0) or 0) > now:
+            continue
         if key not in (worker.get("capabilities") or []):
             continue
         if now - float(worker.get("last_seen", 0) or 0) > DISTRIBUTED_WORKER_STALE_SECONDS:
@@ -103,6 +113,12 @@ def distributed_worker_effective_job_limit_locked(kind: str, payload: dict | Non
         max_jobs = distributed_worker_clean_max_jobs(worker.get("max_jobs_by_kind", {}), worker.get("capabilities") or [])
         worker_capacity += int(max_jobs.get(key, 0) or 0)
     return max(0, min(128, max(base_limit, worker_capacity)))
+
+
+# Added 2026-07-31: expose live aggregate worker capacity to bulk submitters safely.
+def distributed_worker_effective_job_limit(kind: str, payload: dict | None = None) -> int:
+    with DISTRIBUTED_WORKER_CONDITION:
+        return distributed_worker_effective_job_limit_locked(kind, payload)
 
 
 # Added 2026-07-07: normalizes per-worker max jobs so one worker can run one lane of each kind.
@@ -263,8 +279,11 @@ def read_distributed_worker_token_file(path: Path) -> str:
     return ""
 
 
-# Added 2026-07-07: creates a shared token for public pull-workers without exposing anonymous job endpoints.
+# Updated 2026-08-02: explicit process configuration overrides persisted tokens without rewriting them.
 def ensure_distributed_worker_token() -> str:
+    configured_token = clean(os.environ.get("FUTURE_DISTRIBUTED_WORKER_TOKEN", ""))
+    if len(configured_token) >= 24:
+        return configured_token
     try:
         SERVER_DATA_ROOT.mkdir(parents=True, exist_ok=True)
         RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
@@ -301,7 +320,7 @@ def ensure_distributed_worker_token() -> str:
         atomic_write_text(DISTRIBUTED_WORKER_TOKEN_FILE, token, encoding="utf-8")
         return token
     except Exception:
-        return clean(os.environ.get("FUTURE_DISTRIBUTED_WORKER_TOKEN", "")) or "future-worker-local-token"
+        return configured_token or "future-worker-local-token"
 
 
 def distributed_worker_public_token_hint() -> str:
@@ -329,6 +348,30 @@ def distributed_worker_authorized(headers=None, payload: dict | None = None) -> 
 
 def distributed_worker_prune_locked(now: float | None = None) -> None:
     now = float(now or time.time())
+    for job_id, job in list(DISTRIBUTED_WORKER_JOBS.items()):
+        if job.get("status") != "claimed":
+            continue
+        claimed_at = float(job.get("claimed_at", 0) or 0)
+        lease_seconds = max(15.0, float(job.get("lease_seconds", 180) or 180))
+        if not claimed_at or now - claimed_at <= lease_seconds:
+            continue
+        worker_id = clean(job.get("worker_id", ""))
+        worker = DISTRIBUTED_WORKERS.get(worker_id)
+        if worker:
+            active = distributed_worker_active_jobs(worker)
+            for kind, ids in list(active.items()):
+                active[kind] = [item for item in ids if item != job_id]
+            distributed_worker_apply_active_jobs(worker, active)
+            lease_failures = int(worker.get("lease_failures", 0) or 0) + 1
+            worker.update({
+                "lease_failures": lease_failures,
+                "last_error": f"Job lease expired after {int(lease_seconds)}s.",
+                "updated_at": now,
+            })
+            if lease_failures >= 2:
+                worker["quarantine_until"] = now + DISTRIBUTED_WORKER_QUARANTINE_SECONDS
+        if distributed_worker_requeue_job_locked(job_id, worker_id, "Worker job lease expired.", now):
+            DISTRIBUTED_WORKER_STATS["timeout"] += 1
     for worker in DISTRIBUTED_WORKERS.values():
         last_seen = float(worker.get("last_seen", 0) or 0)
         if last_seen and now - last_seen > DISTRIBUTED_WORKER_STALE_SECONDS:
@@ -384,7 +427,8 @@ def distributed_worker_requeue_job_locked(job_id: str, worker_id: str = "", erro
         "retried_at": now,
     })
     if job_id not in DISTRIBUTED_WORKER_QUEUE:
-        DISTRIBUTED_WORKER_QUEUE.insert(0, job_id)
+        DISTRIBUTED_WORKER_QUEUE.append(job_id)
+        distributed_worker_queue_sort_locked()
     DISTRIBUTED_WORKER_STATS["retried"] += 1
     return True
 
@@ -430,6 +474,8 @@ def distributed_worker_available_locked(kind: str, preferred_user: str = "", pay
     rows = []
     for worker in DISTRIBUTED_WORKERS.values():
         if worker.get("status") != "online":
+            continue
+        if float(worker.get("quarantine_until", 0) or 0) > now:
             continue
         if key not in (worker.get("capabilities") or []):
             continue
@@ -499,6 +545,7 @@ def distributed_worker_register(payload: dict, client_ip: str = "", user_agent: 
             "last_seen": now,
             "updated_at": now,
             "client_ip": clean(client_ip)[:80],
+            "connection_listener": clean(payload.get("_server_listener", worker.get("connection_listener", "")))[:32],
             "user_agent": clean(user_agent)[:180],
             "version": clean(payload.get("version", ""))[:40],
             "message": clean(payload.get("message", ""))[:220],
@@ -506,6 +553,12 @@ def distributed_worker_register(payload: dict, client_ip: str = "", user_agent: 
         distributed_worker_apply_active_jobs(worker, distributed_worker_active_jobs(worker))
         DISTRIBUTED_WORKERS[worker_id] = worker
         DISTRIBUTED_WORKER_CONDITION.notify_all()
+    ensure_tts_capacity = globals().get("durable_tts_ensure_dispatcher_capacity")
+    if callable(ensure_tts_capacity):
+        try:
+            ensure_tts_capacity()
+        except Exception:
+            pass
     return {
         "worker_id": worker_id,
         "token_hint": distributed_worker_public_token_hint(),
@@ -553,6 +606,7 @@ def distributed_worker_poll(payload: dict, client_ip: str = "", user_agent: str 
             "last_seen": time.time(),
             "updated_at": time.time(),
             "client_ip": clean(client_ip)[:80],
+            "connection_listener": clean(payload.get("_server_listener", worker.get("connection_listener", "")))[:32],
             "user_agent": clean(user_agent)[:180],
         })
         distributed_worker_apply_active_jobs(worker, distributed_worker_active_jobs(worker))
@@ -643,6 +697,8 @@ def distributed_worker_submit_result(payload: dict, client_ip: str = "") -> dict
             DISTRIBUTED_WORKER_STATS["completed"] += 1
             if worker:
                 worker["completed"] = int(worker.get("completed", 0) or 0) + 1
+                worker["lease_failures"] = 0
+                worker["quarantine_until"] = 0
         else:
             error = clean(payload.get("error", ""))[:1200] or "Worker failed."
             job_payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
@@ -727,6 +783,9 @@ def distributed_worker_add_server_log(message: str, *, kind: str = "", error: st
 
 # Added 2026-07-07: prefer LAN HTTP for distributed workers so large audio payloads avoid tunnel SSL churn.
 def distributed_worker_server_url(prefer_lan: bool = True) -> str:
+    dedicated = clean(SERVER_STATE.get("distributed_worker_url", "")).rstrip("/")
+    if dedicated and prefer_lan:
+        return dedicated
     local_urls = [clean(item).rstrip("/") for item in (SERVER_STATE.get("server_urls", []) or []) if clean(item)]
     if prefer_lan:
         for item in local_urls:
@@ -742,7 +801,7 @@ def distributed_worker_server_url(prefer_lan: bool = True) -> str:
     public_app_url = clean(SERVER_STATE.get("public_app_url", "")).rstrip("/")
     if public_app_url:
         return public_app_url[:-6].rstrip("/") if public_app_url.lower().endswith("/login") else public_app_url
-    return "http://127.0.0.1:8877"
+    return "http://127.0.0.1:8890"
 
 
 # Added 2026-07-07: gives authorized workers a Gemini key only at job time so keys are not copied to other PCs.
@@ -769,6 +828,17 @@ def distributed_worker_submit_job(kind: str, payload: dict, timeout_seconds: flo
     job_id = f"{key}-{uuid.uuid4().hex[:12]}"
     now = time.time()
     preferred = clean(preferred_user).lower()
+    priority = max(1, min(3, int(submit_payload.get("_priority", 1) or 1)))
+    voice_for_lease = clean(submit_payload.get("voice", submit_payload.get("voice_key", ""))).lower()
+    configured_lease = float(submit_payload.get("_lease_seconds", 0) or 0)
+    if configured_lease > 0:
+        lease_seconds = max(15.0, min(900.0, configured_lease))
+    elif key == "tts" and voice_for_lease.startswith("kokoro_vi:"):
+        lease_seconds = 600.0
+    elif key == "tts":
+        lease_seconds = 120.0 if priority >= 2 else 60.0
+    else:
+        lease_seconds = max(30.0, min(300.0, wait_budget + 15.0))
     with DISTRIBUTED_WORKER_CONDITION:
         available = distributed_worker_available_locked(key, preferred, submit_payload)
         if not available:
@@ -799,6 +869,8 @@ def distributed_worker_submit_job(kind: str, payload: dict, timeout_seconds: flo
             "payload": submit_payload,
             "status": "queued",
             "created_at": now,
+            "priority": priority,
+            "lease_seconds": lease_seconds,
             "timeout_seconds": 0 if timeout_seconds is None else timeout_seconds,
             "preferred_user": preferred,
             "exclusive_until": now + min(2.0, max(0.0, wait_budget * 0.25)) if has_preferred_worker else 0,
@@ -815,6 +887,7 @@ def distributed_worker_submit_job(kind: str, payload: dict, timeout_seconds: flo
             target_worker["last_assigned_at"] = now
             target_worker["updated_at"] = now
         DISTRIBUTED_WORKER_QUEUE.append(job_id)
+        distributed_worker_queue_sort_locked()
         DISTRIBUTED_WORKER_CONDITION.notify_all()
     if not event.wait(timeout_seconds):
         with DISTRIBUTED_WORKER_CONDITION:
@@ -853,6 +926,7 @@ def distributed_worker_dashboard_payload(local_client: bool = False) -> dict:
             for kind in DISTRIBUTED_WORKER_JOB_KINDS
         }
         workers = []
+        listener_counts = {"web-8877": 0, "lan-8890": 0, "unknown": 0}
         for worker in sorted(DISTRIBUTED_WORKERS.values(), key=lambda item: (item.get("status") != "online", item.get("name", ""))):
             if worker.get("status") != "online":
                 continue
@@ -875,9 +949,14 @@ def distributed_worker_dashboard_payload(local_client: bool = False) -> dict:
                 "completed": int(worker.get("completed", 0) or 0),
                 "failed": int(worker.get("failed", 0) or 0),
                 "last_error": worker.get("last_error", ""),
+                "lease_failures": int(worker.get("lease_failures", 0) or 0),
+                "quarantine_seconds": int(max(0.0, float(worker.get("quarantine_until", 0) or 0) - now)),
                 "client_ip": worker.get("client_ip", "") if local_client else "",
+                "connection_listener": worker.get("connection_listener", ""),
                 "version": worker.get("version", ""),
             })
+            listener = clean(worker.get("connection_listener", "")) or "unknown"
+            listener_counts[listener] = int(listener_counts.get(listener, 0) or 0) + 1
         queued = sum(1 for job in DISTRIBUTED_WORKER_JOBS.values() if job.get("status") == "queued")
         claimed = sum(1 for job in DISTRIBUTED_WORKER_JOBS.values() if job.get("status") == "claimed")
         active = sum(1 for worker in workers if worker.get("status") == "online")
@@ -890,6 +969,7 @@ def distributed_worker_dashboard_payload(local_client: bool = False) -> dict:
         "enabled": True,
         "workers": workers,
         "online": active,
+        "listener_counts": listener_counts,
         "queued": queued,
         "claimed": claimed,
         "job_limits": job_limits,
@@ -1281,9 +1361,9 @@ def distributed_worker_try_phonemize(text: str, voice: str = "en-US", timeout_se
     return clean((result or {}).get("ipa", "")) if result else ""
 
 
-def distributed_worker_try_tts_raw(text: str, voice_key: str, timeout_seconds: float = 45.0, preferred_user: str = "") -> dict | None:
+def distributed_worker_try_tts_raw(text: str, voice_key: str, timeout_seconds: float = 45.0, preferred_user: str = "", priority: int = 1) -> dict | None:
     voice = clean(voice_key)
-    payload = {"text": str(text or ""), "voice": voice}
+    payload = {"text": str(text or ""), "voice": voice, "_priority": max(1, min(3, int(priority or 1)))}
     if voice.lower().startswith("kokoro_vi:"):
         payload["_no_timeout"] = True
         with DISTRIBUTED_WORKER_CONDITION:

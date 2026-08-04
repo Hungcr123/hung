@@ -104,26 +104,91 @@
         except Exception as exc:
             self.send_json(404, {"ok": False, "error": str(exc)})
         return
+    if path == "/server-data/qm-sound-meta":
+        try:
+            query = parse_qs(parsed.query)
+            descriptor = qm_sound_protocol_descriptor(
+                meaning=clean((query.get("meaning") or [""])[0]),
+                word=clean((query.get("word") or query.get("text") or [""])[0]),
+                voice=clean((query.get("voice") or [""])[0]),
+                rel_path=clean_path_value((query.get("path") or [""])[0]),
+            )
+            self.send_json(200, {
+                "ok": True,
+                "audio_epoch": descriptor["audio_epoch"],
+                "file_rev": descriptor["file_revision"],
+                "url": descriptor["url"],
+            }, extra_headers={"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate"})
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)}, extra_headers={"Cache-Control": "no-store"})
+        return
     if path == "/server-data/qm-sound":
         try:
             query = parse_qs(parsed.query)
+            requested_epoch = max(0, space_w_int((query.get("audio_epoch") or [0])[0], 0))
+            requested_file_revision = clean((query.get("file_rev") or [""])[0])
+            legacy_revision = clean((query.get("v") or query.get("revision") or [""])[0])
+            requested_revision = requested_file_revision or legacy_revision
+            current_epoch = global_audio_cache_epoch()
+            revision_identity = ""
             meaning = clean((query.get("meaning") or [""])[0])
+            word = clean((query.get("word") or query.get("text") or [""])[0])
+            voice = clean((query.get("voice") or [""])[0])
+            rel_path = clean_path_value((query.get("path") or [""])[0])
             if meaning:
-                payload, content_type = read_qmlearn_data_sound_by_text(meaning)
-            else:
-                word = clean((query.get("word") or query.get("text") or [""])[0])
-                voice = clean((query.get("voice") or [""])[0])
-                if word:
-                    payload, content_type = read_qmlearn_data_sound_by_voice_text(word, voice)
-                else:
-                    rel_path = clean_path_value((query.get("path") or [""])[0])
-                    payload, content_type = read_qmlearn_data_sound(rel_path)
+                revision_identity = f"meaning:{meaning.lower()}"
+            elif word:
+                revision_identity = f"word:{word.lower()}:{voice.lower()}"
+            elif rel_path:
+                revision_identity = f"path:{rel_path.lower()}"
+            immutable_cache_key = (
+                f"{revision_identity}|{requested_epoch}|{requested_file_revision}"
+                if revision_identity and requested_epoch and requested_file_revision and requested_file_revision.lower() not in {"missing", "0"}
+                else ""
+            )
+            descriptor = qm_sound_protocol_descriptor(word=word, voice=voice, meaning=meaning, rel_path=rel_path)
+            payload, content_type, current_revision = read_qmlearn_data_sound_file_revisioned(descriptor["path"])
+            revision_matches = bool(
+                requested_epoch == current_epoch
+                and requested_file_revision
+                and requested_file_revision == current_revision
+            )
+            etag_source = f"{revision_identity}|{current_epoch}|{current_revision}"
+            etag = f'"qm-sound-{hashlib.sha1(etag_source.encode("utf-8")).hexdigest()}"' if current_revision else ""
+            if revision_matches and immutable_cache_key:
+                cached_response = qmlearn_http_audio_cache_get_current(
+                    immutable_cache_key,
+                    requested_revision,
+                    current_revision,
+                )
+                if cached_response:
+                    self.send_bytes(
+                        200,
+                        cached_response["data"],
+                        cached_response.get("content_type", "audio/mpeg"),
+                        cache_control="public, max-age=31536000, immutable",
+                        accept_ranges=True,
+                        etag=clean(cached_response.get("etag", etag)),
+                        extra_headers={
+                            "X-Future-Audio-Cache-Epoch": str(current_epoch),
+                            "X-Future-Audio-Revision": current_revision,
+                            "X-Future-Audio-Cache-Source": "server-ram",
+                        },
+                    )
+                    return
+                qmlearn_http_audio_cache_put(immutable_cache_key, payload, content_type, current_revision, etag)
             self.send_bytes(
                 200,
                 payload,
                 content_type,
-                cache_control="public, max-age=31536000, immutable",
+                cache_control="public, max-age=31536000, immutable" if revision_matches else "no-store, no-cache, max-age=0, must-revalidate",
                 accept_ranges=content_type.startswith("audio/"),
+                etag=etag if revision_matches else "",
+                extra_headers={
+                    "X-Future-Audio-Cache-Epoch": str(current_epoch),
+                    "X-Future-Audio-Revision": current_revision,
+                    "X-Future-Audio-Cache-Source": "server-file",
+                } if current_revision else None,
             )
         except Exception as exc:
             self.send_json(404, {"ok": False, "error": str(exc)})

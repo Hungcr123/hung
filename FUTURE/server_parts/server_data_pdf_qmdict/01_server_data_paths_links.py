@@ -476,7 +476,7 @@ def open_lesson_descriptor(username: str, relative_path: str, admin: bool = Fals
     effective = server_data_effective_file_path(display, username=viewer, admin=admin)
     effective_suffix = effective.suffix.lower()
     package_suffixes = {".space_pdf", ".space_picture"}
-    if not effective.is_file() or (
+    if (
         effective_suffix not in package_suffixes
         and effective_suffix != ".pdf"
         and effective_suffix not in IMAGE_FILE_SUFFIXES
@@ -485,6 +485,7 @@ def open_lesson_descriptor(username: str, relative_path: str, admin: bool = Fals
     package = space_pdf_package_path_for_legacy(effective)
     if package is None:
         raise RuntimeError("Portable Space PDF/Picture package is not ready for this lesson.")
+    legacy_source_missing = not effective.is_file() and effective_suffix not in package_suffixes
     is_picture = package.suffix.lower() == ".space_picture"
     manifest = validate_space_picture_package(package, verify_source=True) if is_picture else validate_space_pdf_package(package, verify_source=True)
     resolved_source = resolve_space_picture_source_path(package, manifest) if is_picture else resolve_space_pdf_source_path(package, manifest)
@@ -542,24 +543,34 @@ def open_lesson_descriptor(username: str, relative_path: str, admin: bool = Fals
             if len(SPACE_PACKAGE_METADATA_CACHE) >= 2048:
                 SPACE_PACKAGE_METADATA_CACHE.clear()
             SPACE_PACKAGE_METADATA_CACHE[cache_key] = dict(descriptor)
-    effective_path = clean_path_value(server_data_relative(effective))
+    descriptor_effective = effective if effective.is_file() else package
+    effective_path = clean_path_value(server_data_relative(descriptor_effective))
     display_path = clean_path_value(server_data_relative(display)) or raw_path
     identity_resolver = globals().get("resolve_lesson_identity_contract")
-    identity = identity_resolver(
-        display_path,
-        viewer,
-        admin=admin,
-        requested_lesson_id=clean(requested_lesson_id) or descriptor.get("lesson_id", ""),
-        task_owner=task_owner,
-        strict=True,
-        require_file=True,
-    ) if callable(identity_resolver) else {}
+    descriptor_lesson_id = clean(descriptor.get("lesson_id", ""))
+    requested_id = clean(requested_lesson_id)
+    if requested_id and requested_id != descriptor_lesson_id:
+        raise PermissionError("Lesson ID does not match the selected lesson path.")
+    identity = {}
+    if callable(identity_resolver):
+        identity = identity_resolver(
+            display_path,
+            viewer,
+            admin=admin,
+            requested_lesson_id=requested_id or descriptor_lesson_id,
+            task_owner=task_owner,
+            strict=not legacy_source_missing,
+            require_file=not legacy_source_missing,
+        )
     request_descriptor = {
         **descriptor,
         "display_path": clean_path_value(identity.get("display_path", "")) or display_path,
         "requested_path": clean_path_value(identity.get("requested_path", "")) or display_path,
-        "link_path": clean_path_value(identity.get("link_path", "")) or (display_path if display_path.lower() != effective_path.lower() else ""),
-        "effective_path": clean_path_value(identity.get("effective_path", "")) or effective_path,
+        "link_path": (
+            display_path if legacy_source_missing
+            else clean_path_value(identity.get("link_path", "")) or (display_path if display_path.lower() != effective_path.lower() else "")
+        ),
+        "effective_path": effective_path if legacy_source_missing else clean_path_value(identity.get("effective_path", "")) or effective_path,
         "task_owner": normalize_username(identity.get("task_owner") or task_owner or viewer),
     }
     handle, expires = _space_lesson_handle_issue(viewer, request_descriptor)

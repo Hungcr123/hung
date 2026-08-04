@@ -51,6 +51,9 @@ def load_server_data_manifest_from_disk() -> dict:
 
 
 def schedule_server_data_manifest_metadata_backfill(manifest: dict, delay: float = 1.0) -> bool:
+    with SERVER_DATA_MANIFEST_LOCK:
+        if SERVER_DATA_MANIFEST_STATE.get("build_hold_requires_apply"):
+            return False
     if int((manifest or {}).get("structural_metadata_version", 0) or 0) >= SERVER_DATA_STRUCTURAL_METADATA_VERSION:
         return False
 
@@ -440,6 +443,14 @@ def schedule_server_data_manifest_rebuild(delay: float = 0.8) -> None:
                 rebuild_server_data_manifest(force=True, signature=signature)
                 with SERVER_DATA_MANIFEST_LOCK:
                     SERVER_DATA_MANIFEST_STATE["signature"] = signature
+                    published = bool(SERVER_DATA_MANIFEST_STATE.get("build_hold_publish_in_progress"))
+                    if published:
+                        SERVER_DATA_MANIFEST_STATE["build_hold_publish_in_progress"] = False
+                        SERVER_DATA_MANIFEST_STATE["build_hold_requires_apply"] = False
+                        SERVER_DATA_MANIFEST_STATE["build_hold_full_refresh_pending"] = False
+                        SERVER_DATA_MANIFEST_STATE["pending_paths"] = set()
+                if published:
+                    server_data_manifest_build_pending_persist(False)
             except Exception:
                 mark_server_data_manifest_dirty("scheduled-rebuild-failed")
 
@@ -455,6 +466,20 @@ def schedule_server_data_manifest_startup_verify(delay: float = 20.0) -> None:
         try:
             delta = future_boot_snapshot_manifest_delta_paths()
             changed_paths = [clean_path_value(path) for path in (delta.get("changed_paths") or []) if clean_path_value(path) or path == ""]
+            with SERVER_DATA_MANIFEST_LOCK:
+                staged_restart = bool(SERVER_DATA_MANIFEST_STATE.get("build_hold_requires_apply"))
+                if staged_restart:
+                    if delta.get("fallback") or "" in changed_paths:
+                        SERVER_DATA_MANIFEST_STATE["build_hold_full_refresh_pending"] = True
+                    else:
+                        pending = SERVER_DATA_MANIFEST_STATE.get("pending_paths")
+                        if not isinstance(pending, set):
+                            pending = set()
+                            SERVER_DATA_MANIFEST_STATE["pending_paths"] = pending
+                        pending.update(path for path in changed_paths if path)
+            if staged_restart:
+                server_data_manifest_build_pending_persist(True)
+                return
             if delta.get("fallback") or "" in changed_paths:
                 print(
                     f"Server data startup verify needs full refresh: {clean(delta.get('reason', 'fallback')) or 'fallback'}",
@@ -474,7 +499,306 @@ def schedule_server_data_manifest_startup_verify(delay: float = 20.0) -> None:
     timer.start()
 
 
+SERVER_DATA_BUILD_HOLD_SECONDS = max(60.0, min(900.0, float(os.environ.get("FUTURE_SERVER_DATA_BUILD_HOLD_SECONDS", "300") or 300)))
+SERVER_DATA_BUILD_PENDING_FILE = SERVER_DATA_ROOT / "_future_manifest_build_pending.json"
+
+
+def server_data_manifest_build_pending_persist(dirty: bool = True) -> None:
+    with SERVER_DATA_MANIFEST_LOCK:
+        sessions = SERVER_DATA_MANIFEST_STATE.get("build_sessions") if isinstance(SERVER_DATA_MANIFEST_STATE.get("build_sessions"), dict) else {}
+        pending_paths = sorted({
+            clean_path_value(path)
+            for path in (SERVER_DATA_MANIFEST_STATE.get("pending_paths") or set())
+            if clean_path_value(path)
+        })
+        payload = {
+            "version": 1,
+            "dirty": bool(dirty),
+            "updated_at": utc_timestamp(),
+            "active_builders": [dict(row) for row in sessions.values() if isinstance(row, dict)],
+            "pending_paths": pending_paths,
+            "full_refresh_pending": bool(SERVER_DATA_MANIFEST_STATE.get("build_hold_full_refresh_pending")),
+        }
+    server_database_store_document_now(
+        SERVER_DATA_BUILD_PENDING_FILE,
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        authoritative=True,
+    )
+    try:
+        SERVER_DATA_BUILD_PENDING_FILE.write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        stt_debug_log("server_data_build_pending_marker_write_failed", error=str(exc))
+
+
+def restore_server_data_manifest_build_pending() -> bool:
+    payload = server_database_read_document_json(SERVER_DATA_BUILD_PENDING_FILE, {})
+    if not isinstance(payload, dict) or not payload.get("dirty"):
+        try:
+            payload = json.loads(SERVER_DATA_BUILD_PENDING_FILE.read_text(encoding="utf-8-sig", errors="replace"))
+        except Exception:
+            payload = {}
+    if not isinstance(payload, dict) or not payload.get("dirty"):
+        return False
+    active_builders = [dict(row) for row in (payload.get("active_builders") or []) if isinstance(row, dict)]
+    pending_paths = {
+        clean_path_value(path)
+        for path in (payload.get("pending_paths") or [])
+        if clean_path_value(path)
+    }
+    with SERVER_DATA_MANIFEST_LOCK:
+        SERVER_DATA_MANIFEST_STATE["build_hold_active"] = False
+        SERVER_DATA_MANIFEST_STATE["build_hold_requires_apply"] = bool(active_builders)
+        SERVER_DATA_MANIFEST_STATE["build_hold_full_refresh_pending"] = bool(payload.get("full_refresh_pending"))
+        SERVER_DATA_MANIFEST_STATE["pending_paths"] = set(pending_paths)
+        SERVER_DATA_MANIFEST_STATE["build_sessions"] = {
+            f"recovered-{index}": row for index, row in enumerate(active_builders)
+        }
+    if active_builders:
+        return True
+    # Added 2026-08-04: a completed builder marker is recovered before startup tree warming.
+    if payload.get("full_refresh_pending") or not pending_paths:
+        with SERVER_DATA_MANIFEST_LOCK:
+            previous_manifest = SERVER_DATA_MANIFEST_STATE.get("manifest")
+            previous_folders = previous_manifest.get("folders") if isinstance(previous_manifest, dict) and isinstance(previous_manifest.get("folders"), dict) else {}
+        identity_roots = set(server_data_manifest_allowed_top_names())
+        before_identity = server_data_manifest_identity_snapshot(previous_folders, identity_roots)
+        recovered_manifest = refresh_server_data_manifest_now("startup-builder-recovery")
+        recovered_folders = recovered_manifest.get("folders") if isinstance(recovered_manifest.get("folders"), dict) else {}
+        after_identity = server_data_manifest_identity_snapshot(recovered_folders, identity_roots)
+        changed_identity_paths = {
+            path for path in set(before_identity).union(after_identity)
+            if before_identity.get(path) != after_identity.get(path)
+        }
+        if changed_identity_paths:
+            sync_server_data_lesson_identity_paths(recovered_manifest, changed_identity_paths)
+    else:
+        refresh_server_data_manifest_delta_paths_now(pending_paths, "startup-builder-recovery")
+    with SERVER_DATA_MANIFEST_LOCK:
+        SERVER_DATA_MANIFEST_STATE["pending_paths"] = set()
+        SERVER_DATA_MANIFEST_STATE["build_hold_requires_apply"] = False
+        SERVER_DATA_MANIFEST_STATE["build_hold_full_refresh_pending"] = False
+    server_data_manifest_build_pending_persist(False)
+    return True
+
+
+# Added 2026-07-30: hold manifest publication while a local builder is actively emitting files.
+def server_data_manifest_build_hold_note_activity(reason: str = "builder") -> dict:
+    now = time.monotonic()
+    with SERVER_DATA_MANIFEST_LOCK:
+        state = SERVER_DATA_MANIFEST_STATE
+        first_activity = not bool(state.get("build_hold_requires_apply"))
+        state["build_hold_active"] = True
+        if not float(state.get("build_hold_started_at", 0.0) or 0.0):
+            state["build_hold_started_at"] = now
+        state["build_hold_last_activity_at"] = now
+        state["build_hold_until"] = now + SERVER_DATA_BUILD_HOLD_SECONDS
+        state["build_hold_requires_apply"] = True
+        state["build_hold_requests"] = int(state.get("build_hold_requests", 0) or 0) + 1
+        timer = state.get("build_hold_timer")
+        if timer is not None:
+            timer.cancel()
+
+        def _expire() -> None:
+            with SERVER_DATA_MANIFEST_LOCK:
+                if not state.get("build_hold_active"):
+                    return
+                remaining = float(state.get("build_hold_until", 0.0) or 0.0) - time.monotonic()
+                if remaining > 0.05:
+                    retry = threading.Timer(remaining, _expire)
+                    retry.daemon = True
+                    state["build_hold_timer"] = retry
+                    retry.start()
+                    return
+                state["build_hold_active"] = False
+                state["build_hold_timer"] = None
+                # Five quiet minutes only marks the staged build ready. It does
+                # not publish incomplete builder output without admin approval.
+
+        timer = threading.Timer(SERVER_DATA_BUILD_HOLD_SECONDS, _expire)
+        timer.daemon = True
+        state["build_hold_timer"] = timer
+        timer.start()
+        status = server_data_manifest_build_hold_status_locked(now)
+    if first_activity:
+        server_data_manifest_build_pending_persist(True)
+    return status
+
+
+def server_data_manifest_build_hold_status_locked(now: float | None = None) -> dict:
+    now = time.monotonic() if now is None else float(now)
+    state = SERVER_DATA_MANIFEST_STATE
+    until = float(state.get("build_hold_until", 0.0) or 0.0)
+    pending = state.get("pending_paths") if isinstance(state.get("pending_paths"), set) else set()
+    sessions = state.get("build_sessions") if isinstance(state.get("build_sessions"), dict) else {}
+    return {
+        "active": bool(state.get("build_hold_active")) and until > now,
+        "pending_paths": len(pending),
+        "last_activity_age_ms": int(max(0.0, now - float(state.get("build_hold_last_activity_at", 0.0) or 0.0)) * 1000) if state.get("build_hold_last_activity_at") else 0,
+        "apply_in_ms": int(max(0.0, until - now) * 1000) if until > now else 0,
+        "running": bool(state.get("paths_running")),
+        "apply_requested": bool(state.get("build_hold_apply_requested")),
+        "requires_apply": bool(state.get("build_hold_requires_apply")),
+        "builder_requests": int(state.get("build_hold_requests", 0) or 0),
+        "active_builders": len(sessions),
+        "builders": sorted({clean(row.get("space", "")) for row in sessions.values() if isinstance(row, dict) and clean(row.get("space", ""))}),
+        "full_refresh_pending": bool(state.get("build_hold_full_refresh_pending")),
+        "publish_in_progress": bool(state.get("build_hold_publish_in_progress")),
+    }
+
+
+def server_data_manifest_build_hold_status() -> dict:
+    with SERVER_DATA_MANIFEST_LOCK:
+        return server_data_manifest_build_hold_status_locked()
+
+
+# Added 2026-08-04: builder output paths are accepted only as exact lesson files below Server Data.
+def server_data_manifest_builder_output_path(path_value: object) -> tuple[Path | None, str]:
+    raw = clean(path_value)
+    if not raw:
+        return None, ""
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = server_data_manifest_path(clean_path_value(raw))
+    try:
+        target = candidate.resolve()
+        relative = target.relative_to(SERVER_DATA_ROOT.resolve()).as_posix()
+    except Exception as exc:
+        raise RuntimeError("Builder output must stay inside Server Data.") from exc
+    if target.suffix.lower() not in LESSON_FILE_SUFFIXES:
+        return target, clean_path_value(relative)
+    return target, clean_path_value(relative)
+
+
+# Added 2026-08-04: publish one completed builder file directly into manifest, identity registry, and RAM.
+def publish_server_data_manifest_builder_output(space: str, path_value: object) -> dict:
+    target, relative = server_data_manifest_builder_output_path(path_value)
+    if target is None or not relative or target.suffix.lower() not in LESSON_FILE_SUFFIXES:
+        return {"published": False, "reason": "output_not_exact_lesson_file", "path": relative}
+    if not target.is_file():
+        raise RuntimeError("Completed builder output does not exist.")
+    expected_suffix = {
+        "SPACE_PDF": ".space_pdf",
+        "SPACE_PICTURE": ".space_picture",
+        "SPACE_Q": ".space_q",
+        "SPACE_W": ".space_w",
+        "SPACE_V": ".space_v",
+        "SPACE_P": ".space_p",
+        "SPACE_L": ".space_l",
+        "SPACE_S": ".space_s",
+    }.get(clean(space).upper())
+    if expected_suffix and target.suffix.lower() != expected_suffix:
+        raise RuntimeError(f"Builder output extension does not match {clean(space)}.")
+    clear_lesson_metadata_cache()
+    clear_server_data_list_cache_paths({relative, clean_path_value(relative.rsplit("/", 1)[0])})
+    manifest = refresh_server_data_manifest_delta_paths_now({relative}, f"builder-finish:{clean(space).lower()}")
+    identity_result = sync_server_data_lesson_identity_paths(manifest, {relative})
+    parent = clean_path_value(relative.rsplit("/", 1)[0]) if "/" in relative else ""
+    entry = next((
+        dict(row)
+        for row in ((manifest.get("folders") or {}).get(parent) or [])
+        if isinstance(row, dict) and clean_path_value(row.get("path", "")).casefold() == relative.casefold()
+    ), None)
+    if not entry:
+        raise RuntimeError("Builder output was not accepted into the lesson manifest.")
+    if target.suffix.lower() in {".space_pdf", ".space_picture"} and not clean(entry.get("lesson_id", "")):
+        raise RuntimeError("Published package is missing its lesson ID.")
+    server_data_tree_compact_base(manifest)
+    return {
+        "published": True,
+        "path": relative,
+        "lesson_id": clean(entry.get("lesson_id", "")),
+        "document_id": clean(entry.get("document_id", "")),
+        "identity_registered": max(0, int(identity_result.get("registered", 0) or 0)),
+        "runtime_revision": server_data_manifest_runtime_revision(manifest),
+        "updated_at": clean(manifest.get("updated_at", "")),
+    }
+
+
+def server_data_manifest_builder_session_event(payload: dict | None = None) -> dict:
+    source = payload if isinstance(payload, dict) else {}
+    action = clean(source.get("action", "")).lower() or "start"
+    session_id = clean(source.get("session_id", ""))[:120]
+    space = clean(source.get("space", "")).upper()[:16]
+    output_path = clean(source.get("path", ""))
+    _output_target, output_relative = server_data_manifest_builder_output_path(output_path) if output_path else (None, "")
+    with SERVER_DATA_MANIFEST_LOCK:
+        sessions = SERVER_DATA_MANIFEST_STATE.get("build_sessions")
+        if not isinstance(sessions, dict):
+            sessions = {}
+            SERVER_DATA_MANIFEST_STATE["build_sessions"] = sessions
+        if session_id:
+            if action == "start":
+                sessions[session_id] = {"space": space, "path": output_relative, "started_at": utc_timestamp()}
+            else:
+                row = dict(sessions.get(session_id) or {})
+                row.update({"space": space or row.get("space", ""), "path": output_relative or row.get("path", ""), "status": action, "finished_at": utc_timestamp()})
+                if action in {"finish", "failed"}:
+                    sessions.pop(session_id, None)
+                else:
+                    sessions[session_id] = row
+        status = server_data_manifest_build_hold_status_locked()
+        status["active_builders"] = len(sessions)
+        status["builders"] = sorted({clean(row.get("space", "")) for row in sessions.values() if isinstance(row, dict) and clean(row.get("space", ""))})
+        if action in {"finish", "failed"} and not sessions:
+            SERVER_DATA_MANIFEST_STATE["build_hold_active"] = False
+    if output_path and action == "start":
+        server_data_manifest_build_hold_note_activity(f"builder-session:{action}")
+    publication = {"published": False, "reason": "not_finished", "path": output_relative}
+    if action == "finish":
+        publication = publish_server_data_manifest_builder_output(space, output_path)
+        if publication.get("published"):
+            parent = clean_path_value(output_relative.rsplit("/", 1)[0]) if "/" in output_relative else ""
+            with SERVER_DATA_MANIFEST_LOCK:
+                pending = SERVER_DATA_MANIFEST_STATE.get("pending_paths")
+                if not isinstance(pending, set):
+                    pending = set()
+                    SERVER_DATA_MANIFEST_STATE["pending_paths"] = pending
+                pending.difference_update({output_relative, parent})
+                sessions = SERVER_DATA_MANIFEST_STATE.get("build_sessions") if isinstance(SERVER_DATA_MANIFEST_STATE.get("build_sessions"), dict) else {}
+                clean_finish = not sessions and not pending and not SERVER_DATA_MANIFEST_STATE.get("build_hold_full_refresh_pending")
+                if clean_finish:
+                    SERVER_DATA_MANIFEST_STATE["build_hold_active"] = False
+                    SERVER_DATA_MANIFEST_STATE["build_hold_requires_apply"] = False
+                    SERVER_DATA_MANIFEST_STATE["build_hold_until"] = 0.0
+    status = server_data_manifest_build_hold_status()
+    marker_dirty = bool(status.get("requires_apply") or status.get("active_builders") or status.get("pending_paths") or status.get("full_refresh_pending"))
+    server_data_manifest_build_pending_persist(marker_dirty)
+    return {**status, **publication}
+
+
+def apply_server_data_manifest_build_hold(reason: str = "admin-apply") -> dict:
+    with SERVER_DATA_MANIFEST_LOCK:
+        state = SERVER_DATA_MANIFEST_STATE
+        sessions = state.get("build_sessions") if isinstance(state.get("build_sessions"), dict) else {}
+        if sessions or state.get("build_hold_active"):
+            raise RuntimeError("Builder is still active; finish the build before publishing staged lessons.")
+        state["build_hold_active"] = False
+        state["build_hold_until"] = 0.0
+        state["build_hold_requires_apply"] = False
+        state["build_hold_apply_requested"] = True
+        state["build_hold_publish_in_progress"] = True
+        timer = state.get("build_hold_timer")
+        state["build_hold_timer"] = None
+        pending = set(state.get("pending_paths") or set())
+        full_refresh = bool(state.get("build_hold_full_refresh_pending"))
+    if timer is not None:
+        timer.cancel()
+    if full_refresh:
+        schedule_server_data_manifest_rebuild(0.05)
+    elif pending:
+        schedule_server_data_manifest_paths_refresh(pending, delay=0.05, reason=reason)
+    with SERVER_DATA_MANIFEST_LOCK:
+        state["build_hold_apply_requested"] = False
+        return server_data_manifest_build_hold_status_locked()
+
+
 def schedule_server_data_manifest_paths_refresh(relative_paths: list[str] | tuple[str, ...] | set[str], delay: float = 0.8, reason: str = "paths") -> None:
+    # Added 2026-07-30: builder activity holds publication for five quiet minutes.
+    quiet_seconds = 0.8
+    max_wait_seconds = 2.0
     paths = {clean_path_value(item) for item in relative_paths if clean_path_value(item)}
     if not paths:
         return
@@ -483,23 +807,71 @@ def schedule_server_data_manifest_paths_refresh(relative_paths: list[str] | tupl
         if not isinstance(pending, set):
             pending = set()
             SERVER_DATA_MANIFEST_STATE["pending_paths"] = pending
+        if not pending:
+            SERVER_DATA_MANIFEST_STATE["paths_first_pending_at"] = time.monotonic()
         pending.update(paths)
+        if SERVER_DATA_MANIFEST_STATE.get("build_hold_requires_apply") or (
+            SERVER_DATA_MANIFEST_STATE.get("build_hold_active")
+            and float(SERVER_DATA_MANIFEST_STATE.get("build_hold_until", 0.0) or 0.0) > time.monotonic()
+        ):
+            return
+        SERVER_DATA_MANIFEST_STATE["build_hold_active"] = False
         timer = SERVER_DATA_MANIFEST_STATE.get("paths_timer")
-        if timer is not None and getattr(timer, "is_alive", lambda: False)():
+        if SERVER_DATA_MANIFEST_STATE.get("paths_running") or (
+            timer is not None and getattr(timer, "is_alive", lambda: False)()
+        ):
             return
 
         def _run() -> None:
             with SERVER_DATA_MANIFEST_LOCK:
+                if SERVER_DATA_MANIFEST_STATE.get("build_hold_requires_apply") or (
+                    SERVER_DATA_MANIFEST_STATE.get("build_hold_active")
+                    and float(SERVER_DATA_MANIFEST_STATE.get("build_hold_until", 0.0) or 0.0) > time.monotonic()
+                ):
+                    SERVER_DATA_MANIFEST_STATE["paths_timer"] = None
+                    return
+            with SERVER_DATA_MANIFEST_LOCK:
                 queued = set(SERVER_DATA_MANIFEST_STATE.get("pending_paths") or set())
                 SERVER_DATA_MANIFEST_STATE["pending_paths"] = set()
                 SERVER_DATA_MANIFEST_STATE["paths_timer"] = None
+                SERVER_DATA_MANIFEST_STATE["paths_first_pending_at"] = 0.0
+                SERVER_DATA_MANIFEST_STATE["paths_running"] = True
             if not queued:
+                with SERVER_DATA_MANIFEST_LOCK:
+                    SERVER_DATA_MANIFEST_STATE["paths_running"] = False
                 return
+            retry_paths: set[str] = set()
             try:
                 refresh_server_data_manifest_delta_paths_now(queued, reason)
             except Exception as exc:
                 stt_debug_log("server_data_manifest_paths_refresh_failed", reason=reason, error=str(exc))
-                schedule_server_data_manifest_paths_refresh(queued, delay=1.5, reason=f"{reason}-retry")
+                retry_paths = queued
+            finally:
+                with SERVER_DATA_MANIFEST_LOCK:
+                    pending_after = SERVER_DATA_MANIFEST_STATE.get("pending_paths")
+                    if not isinstance(pending_after, set):
+                        pending_after = set()
+                        SERVER_DATA_MANIFEST_STATE["pending_paths"] = pending_after
+                    pending_after.update(retry_paths)
+                    followup = set(pending_after)
+                    first_pending_at = float(SERVER_DATA_MANIFEST_STATE.get("paths_first_pending_at", 0.0) or 0.0)
+                    SERVER_DATA_MANIFEST_STATE["paths_running"] = False
+                    published = bool(SERVER_DATA_MANIFEST_STATE.get("build_hold_publish_in_progress")) and not retry_paths and not followup
+                    if published:
+                        SERVER_DATA_MANIFEST_STATE["build_hold_publish_in_progress"] = False
+                        SERVER_DATA_MANIFEST_STATE["build_hold_requires_apply"] = False
+                        SERVER_DATA_MANIFEST_STATE["build_hold_full_refresh_pending"] = False
+                if published:
+                    server_data_manifest_build_pending_persist(False)
+                if followup:
+                    elapsed = max(0.0, time.monotonic() - first_pending_at) if first_pending_at else 0.0
+                    schedule_server_data_manifest_paths_refresh(
+                        followup,
+                        delay=(1.5 if retry_paths else quiet_seconds)
+                        if elapsed <= 0
+                        else min(quiet_seconds, max(0.15, max_wait_seconds - elapsed)),
+                        reason=f"{reason}-retry" if retry_paths else "paths-coalesced",
+                    )
 
         timer = threading.Timer(max(0.15, float(delay or 0.8)), _run)
         timer.daemon = True
@@ -615,6 +987,19 @@ class ServerDataNativeWatcher:
         rel = clean_path_value(name)
         if not rel:
             return
+        with SERVER_DATA_MANIFEST_LOCK:
+            if SERVER_DATA_MANIFEST_STATE.get("build_hold_requires_apply"):
+                suffix = Path(rel).suffix.lower()
+                if suffix and suffix not in LESSON_FILE_SUFFIXES:
+                    return
+                parent = clean_path_value(rel.rsplit("/", 1)[0]) if "/" in rel else rel
+                pending = SERVER_DATA_MANIFEST_STATE.get("pending_paths")
+                if not isinstance(pending, set):
+                    pending = set()
+                    SERVER_DATA_MANIFEST_STATE["pending_paths"] = pending
+                if parent:
+                    pending.add(parent)
+                return
         target = self.root / Path(rel)
         try:
             target_is_dir = target.is_dir()
@@ -928,6 +1313,20 @@ def start_server_data_manifest_interval_monitor() -> None:
             try:
                 delta = future_boot_snapshot_manifest_delta_paths()
                 changed_paths = [clean_path_value(path) for path in (delta.get("changed_paths") or []) if clean_path_value(path) or path == ""]
+                with SERVER_DATA_MANIFEST_LOCK:
+                    staged = bool(SERVER_DATA_MANIFEST_STATE.get("build_hold_requires_apply"))
+                    if staged:
+                        if delta.get("fallback") or "" in changed_paths:
+                            SERVER_DATA_MANIFEST_STATE["build_hold_full_refresh_pending"] = True
+                        else:
+                            pending = SERVER_DATA_MANIFEST_STATE.get("pending_paths")
+                            if not isinstance(pending, set):
+                                pending = set()
+                                SERVER_DATA_MANIFEST_STATE["pending_paths"] = pending
+                            pending.update(path for path in changed_paths if path)
+                if staged:
+                    server_data_manifest_build_pending_persist(True)
+                    continue
                 if delta.get("fallback") or "" in changed_paths:
                     refresh_server_data_manifest_now("interval-delta-fallback")
                     print(
@@ -980,6 +1379,8 @@ def start_server_data_manifest_monitor() -> None:
             SERVER_DATA_MANIFEST_STATE["dirty"] = False
             SERVER_DATA_MANIFEST_STATE["signature"] = clean(manifest.get("signature", ""))
         print(f"Server data manifest cache loaded: {SERVER_DATA_MANIFEST_FILE}", flush=True)
+        if restore_server_data_manifest_build_pending():
+            manifest = get_server_data_manifest(force=False)
         start_server_data_manifest_watchdog()
         backfill_scheduled = schedule_server_data_manifest_metadata_backfill(manifest)
         # Warm the currently valid manifest before HTTP starts accepting users.

@@ -231,14 +231,9 @@
           if (typeof questionProgressOverrideFromRecord === "function") {
             const progressOverride = questionProgressOverrideFromRecord(record);
             if (progressOverride) {
-              const progressPaths = [
-                typeof currentLessonStudyPath === "function" ? currentLessonStudyPath() : "",
-                typeof currentQuestionServerPath === "function" ? currentQuestionServerPath() : "",
-                currentLessonSource && currentLessonSource.path,
-                currentLessonSource && currentLessonSource.effective_path,
-                currentLessonSource && currentLessonSource.link_target,
-                currentLessonSource && currentLessonSource.linked_path,
-              ].map((path) => normalizeServerPathValue(path || "")).filter(Boolean);
+              const progressPaths = typeof currentQuestionProgressPaths === "function"
+                ? currentQuestionProgressPaths(record)
+                : [currentLessonSource && currentLessonSource.path].map((path) => normalizeServerPathValue(path || "")).filter(Boolean);
               setLessonProgressOverride(progressPaths, progressOverride, 120000);
               if (typeof rememberLessonVaultProgressPin === "function") {
                 rememberLessonVaultProgressPin(progressPaths, progressOverride, 120000);
@@ -899,7 +894,9 @@
         } else {
           restoreUnlockedPanels();
         }
-        queueSpaceWProgressSave(120);
+        if (!state.deferInitialProgressSave) {
+          queueSpaceWProgressSave(120);
+        }
         try {
           window.__FTG_PENDING_BOOTSTRAP__ = null;
           if (window.opener && window.opener !== window) {
@@ -1257,7 +1254,7 @@
       let webRecordTimer = 0;
       let webRecordMime = "";
 
-      const mobileToolButtons = () => [mobileToolsToggle, chatButton, streamButton, screenButton, webRecordButton, adminScreenButton, paintButton, mobileAnimationButton, speakSkipAdminButton, cursorButton, gameButton, portalButton, vaultButton, cupButton, workerToolbarButton, npcSwitchButton]
+      const mobileToolButtons = () => [mobileToolsToggle, chatButton, streamButton, screenButton, webRecordButton, adminScreenButton, paintButton, mobileAnimationButton, clearAudioCacheButton, speakSkipAdminButton, cursorButton, gameButton, portalButton, vaultButton, cupButton, workerToolbarButton, npcSwitchButton]
         .filter(Boolean);
 
       const eventInsideMobileTools = (event) => {
@@ -2428,15 +2425,16 @@
         vaultButton.addEventListener("click", (event) => {
           event.stopPropagation();
           setMobileToolsOpen(false);
-          let vocabProgressRecord = null;
-          if (vocabModeActive && typeof window.__ftPeekSpaceVProgressBeforeBack === "function") {
-            const peekResult = window.__ftPeekSpaceVProgressBeforeBack({ setOverride: false });
-            vocabProgressRecord = peekResult && peekResult.progress ? peekResult.progress : null;
-          }
+          // 2026-08-03: capture Space_Q before the exit-gate animation can clear runtime state.
           let questionProgressRecord = null;
           if (questionModeActive && typeof saveQuestionProgressNow === "function") {
             const saved = saveQuestionProgressNow();
             questionProgressRecord = saved && typeof saved === "object" ? saved : null;
+          }
+          let vocabProgressRecord = null;
+          if (vocabModeActive && typeof window.__ftPeekSpaceVProgressBeforeBack === "function") {
+            const peekResult = window.__ftPeekSpaceVProgressBeforeBack({ setOverride: false });
+            vocabProgressRecord = peekResult && peekResult.progress ? peekResult.progress : null;
           }
           if (vocabModeActive && typeof window.__ftFlushSpaceVProgressBeforeBack === "function") {
             // Added 2026-07-21: Exit renders from the durable local snapshot; Server 2 sync/outbox must not block navigation.
@@ -3330,6 +3328,20 @@
           void syncLearnerChatVoiceSettings();
         });
       }
+      if (clearAudioCacheButton) {
+        clearAudioCacheButton.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          if (clearAudioCacheButton.disabled || typeof window.__futureClearAudioCache !== "function") return;
+          clearAudioCacheButton.disabled = true;
+          clearAudioCacheButton.classList.add("is-clearing");
+          const result = await window.__futureClearAudioCache();
+          clearAudioCacheButton.classList.remove("is-clearing");
+          clearAudioCacheButton.classList.add(result && result.ok === false ? "is-warning" : "is-cleared");
+          clearAudioCacheButton.disabled = false;
+          showFutureAudioCacheClearNotice(result, "local");
+          window.setTimeout(() => clearAudioCacheButton.classList.remove("is-cleared", "is-warning"), 1800);
+        });
+      }
       if (chatViVoiceSelect) {
         chatViVoiceSelect.addEventListener("change", () => {
           learnerChatViVoice = chatViVoiceSelect.value || "edge:vi-VN-NamMinhNeural";
@@ -3679,7 +3691,9 @@
       }
       if (loadStartButton) {
         loadStartButton.addEventListener("click", () => {
-          void startPreparedLessonNew().catch((error) => {
+          const startOptions = lessonEntryGateFastStartRequested ? { skipAudioPrepare: true } : {};
+          lessonEntryGateFastStartRequested = false;
+          void startPreparedLessonNew(startOptions).catch((error) => {
             setLoadStatus(error && error.message ? error.message : "Could not start a new study.", true);
           });
         });
@@ -4022,6 +4036,18 @@
           void resumeSpaceWAfterVocabulary();
         });
       }
+      if (lessonEntryVocabAlertLearn && vocabPreflightLearn) {
+        lessonEntryVocabAlertLearn.addEventListener("click", () => {
+          vocabPreflightLearn.click();
+          void releaseLessonEntryGateAfterVocabChoice();
+        });
+      }
+      if (lessonEntryVocabAlertSkip && vocabPreflightSkip) {
+        lessonEntryVocabAlertSkip.addEventListener("click", () => {
+          vocabPreflightSkip.click();
+          void releaseLessonEntryGateAfterVocabChoice();
+        });
+      }
       if (vocabPreflightGate) {
         vocabPreflightGate.addEventListener("click", (event) => {
           if (event.target === vocabPreflightGate && !vocabPreflightBusy) {
@@ -4029,10 +4055,46 @@
           }
         });
       }
+      if (vocabPictureFrame) {
+        vocabPictureFrame.addEventListener("click", () => {
+          openVocabImageLightbox();
+        });
+        vocabPictureFrame.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          openVocabImageLightbox();
+        });
+      }
+      if (vocabImageLightboxClose) {
+        vocabImageLightboxClose.addEventListener("click", closeVocabImageLightbox);
+      }
+      if (vocabImageLightboxPrev) {
+        vocabImageLightboxPrev.addEventListener("click", () => stepVocabImageLightbox(-1));
+      }
+      if (vocabImageLightboxNext) {
+        vocabImageLightboxNext.addEventListener("click", () => stepVocabImageLightbox(1));
+      }
+      if (vocabImageLightbox) {
+        vocabImageLightbox.addEventListener("click", (event) => {
+          if (event.target === vocabImageLightbox || (event.target && event.target.classList && event.target.classList.contains("ft-vocab-image-lightbox-backdrop"))) {
+            closeVocabImageLightbox();
+          }
+        });
+      }
       if (qSkipTypeButton) {
         qSkipTypeButton.addEventListener("click", skipQuestionTyping);
       }
       document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && vocabImageLightbox && vocabImageLightbox.classList.contains("is-open")) {
+          event.preventDefault();
+          closeVocabImageLightbox();
+          return;
+        }
+        if (vocabImageLightbox && vocabImageLightbox.classList.contains("is-open") && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          event.preventDefault();
+          stepVocabImageLightbox(event.key === "ArrowLeft" ? -1 : 1);
+          return;
+        }
         if (!qRootCard || !qRootCard.classList.contains("is-typing")) {
           return;
         }

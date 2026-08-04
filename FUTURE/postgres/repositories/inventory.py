@@ -20,13 +20,15 @@ def _sha(row: dict) -> str:
 def _item_public(row, fallback: dict | None = None) -> dict:
     if row is None:
         return dict(fallback or {})
-    return app.server_database_inventory_item_row({
-        "item_id": row[0],
-        "name": row[1],
-        "use_text": row[2],
-        "quantity": row[3],
-        "updated_at_utc": row[4],
-    })
+    # Added 2026-07-30: keep the PostgreSQL repository independent of the retired
+    # local-database document helper that used to format this row.
+    return {
+        "id": app.clean(row[0]),
+        "name": app.clean(row[1])[:160],
+        "use": app.clean(row[2])[:320],
+        "quantity": max(0, app.space_w_int(row[3], 0)),
+        "updated_at": app.clean(row[4]),
+    }
 
 def award_inventory_items(username: str, awards: list[dict] | tuple[dict, ...], now: str) -> dict:
     normalized = app.normalize_username(username)

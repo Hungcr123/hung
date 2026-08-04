@@ -458,14 +458,19 @@ def http_json(server: str, path: str, payload: dict, timeout: float | None = 30.
         except Exception:
             raw = b""
         message = ""
+        migrate_to = ""
         if raw:
             try:
                 parsed_error = json.loads(raw.decode("utf-8", errors="replace") or "{}")
                 if isinstance(parsed_error, dict):
                     message = clean(parsed_error.get("error", ""))
+                    migrate_to = clean(parsed_error.get("migrate_to", ""))
             except Exception:
                 message = clean(raw.decode("utf-8", errors="replace"))
-        raise RuntimeError(f"HTTP {exc.code}: {message or exc.reason or 'Server rejected request.'}") from exc
+        error = RuntimeError(f"HTTP {exc.code}: {message or exc.reason or 'Server rejected request.'}")
+        if migrate_to:
+            setattr(error, "migrate_to", migrate_to)
+        raise error from exc
     parsed = json.loads(data.decode("utf-8", errors="replace") or "{}")
     if not isinstance(parsed, dict):
         raise RuntimeError("Invalid server response.")
@@ -817,6 +822,16 @@ def worker_dispatch_loop(capabilities: list[str], max_jobs_by_kind: dict[str, in
                 time.sleep(0.05)
         except (HTTPError, URLError, TimeoutError, OSError) as exc:
             print(f"{lane_name} connection issue: {exc}", flush=True)
+            time.sleep(3)
+        except RuntimeError as exc:
+            migrate_to = clean(getattr(exc, "migrate_to", ""))
+            if migrate_to:
+                args.server = migrate_to.rstrip("/")
+                print(f"Switching worker polling to LAN broker {args.server}", flush=True)
+                active_until = 0.0
+                no_job_since = time.time()
+                continue
+            report_worker_log(args.server, base_payload, f"{lane_name} worker loop error", error=str(exc))
             time.sleep(3)
         except Exception as exc:
             error = f"{exc}\n{traceback.format_exc()}"

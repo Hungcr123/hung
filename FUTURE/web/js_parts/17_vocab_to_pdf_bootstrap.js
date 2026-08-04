@@ -453,6 +453,1102 @@
       };
       window.setTimeout(installIsolatedCompletionDomProbe, 0);
 
+      let lessonEntryGateSequenceToken = 0;
+      let lessonEntryGateSequenceState = null;
+      let lessonEntryGateClockTimer = 0;
+      let lessonEntryGateSealTimer = 0;
+      let lessonEntryGateAutoContinueTimer = 0;
+      let lessonEntryGateDeferredServerBrowserClose = false;
+      let lessonEntryGateFastStartRequested = false;
+      let lessonEntryPdfProgressFrame = 0;
+      let lessonEntryPdfProgressPayload = null;
+      const LESSON_ENTRY_PRIMARY_SEAL_MS = 1050;
+
+      // Added 2026-08-02: keeps the primary-gate lesson choices hidden outside the manual Space entry decision.
+      const hideLessonEntryGateActions = () => {
+        [lessonEntryGateOpenButton, lessonEntryGateContinueButton, lessonEntryGateTrainButton, lessonEntryGateExitButton].forEach((button) => {
+          if (button) button.hidden = true;
+        });
+      };
+
+      // Added 2026-08-02: cancels the PDF gate's one-second default Continue choice.
+      const clearLessonEntryGateAutoContinue = () => {
+        if (lessonEntryGateAutoContinueTimer) {
+          window.clearTimeout(lessonEntryGateAutoContinueTimer);
+          lessonEntryGateAutoContinueTimer = 0;
+        }
+      };
+
+      // Added 2026-08-03: stops circuit-board animation while the heavy primary doors are physically moving.
+      const setLessonEntryPrimaryGateMoving = (moving = false) => {
+        if (lessonEntryGateFrame) lessonEntryGateFrame.classList.toggle("is-primary-moving", Boolean(moving));
+      };
+
+      // Added 2026-08-02: freezes Lesson Vault motion/timers while the gate owns the frame budget.
+      const freezeLessonVaultForEntryGate = () => {
+        document.documentElement.classList.add("ft-lesson-entry-motion-freeze");
+        if (typeof clearLearningStatsMotionCycle === "function") clearLearningStatsMotionCycle();
+        if (!serverBrowser) return;
+        serverBrowser.querySelectorAll("*").forEach((node) => {
+          ["_futureStatBurstTimer", "_futureFileLogoMotionTimer", "_futureMotionBurstTimer"].forEach((key) => {
+            if (node[key]) window.clearTimeout(node[key]);
+            node[key] = 0;
+          });
+          node.classList.remove("is-stat-burst", "is-logo-burst", "is-motion-burst", "is-task-focus-burst");
+        });
+      };
+
+      // Added 2026-08-02: restores Lesson Vault motion only after the gate has fully left the viewport.
+      const unfreezeLessonVaultAfterEntryGate = () => {
+        document.documentElement.classList.remove("ft-lesson-entry-motion-freeze");
+        if (typeof scheduleLearningStatsMotionCycle === "function") scheduleLearningStatsMotionCycle(900);
+      };
+
+      const updateLessonEntryGateClock = () => {
+        if (!lessonEntryGateClock) {
+          return;
+        }
+        const now = new Date();
+        lessonEntryGateClock.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()]
+          .map((value) => String(value).padStart(2, "0"))
+          .join(":");
+      };
+
+      const formatLessonEntryStreamBytes = (bytes = 0) => {
+        const value = Math.max(0, Number(bytes || 0) || 0);
+        if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(value >= 10 * 1024 * 1024 ? 1 : 2)} MB`;
+        if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+        return `${Math.round(value)} B`;
+      };
+
+      // Updated 2026-08-03: network bytes paint synchronously; local milestones stay frame-coalesced.
+      const renderLessonEntryPdfProgress = () => {
+        lessonEntryPdfProgressFrame = 0;
+        const progress = lessonEntryPdfProgressPayload;
+        const state = lessonEntryGateSequenceState;
+        if (!progress || !state || !state.pdfProgressEnabled || !lessonEntryPdfStream) return;
+        const loaded = Math.max(0, Number(progress.loaded || 0) || 0);
+        const total = Math.max(0, Number(progress.total || 0) || 0);
+        const done = Boolean(progress.done);
+        const explicitOverall = Number(progress.overallPercent);
+        const percent = Number.isFinite(explicitOverall)
+          ? Math.max(0, Math.min(100, Math.round(explicitOverall)))
+          : (total > 0
+            ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100)))
+            : (done ? 100 : Math.max(0, Math.min(99, Math.round(Number(progress.percent || 0) || 0)))));
+        const chunkIndex = Math.max(0, Math.floor(Number(progress.chunkIndex || 0) || 0));
+        const chunkCount = Math.max(0, Math.floor(Number(progress.chunkCount || 0) || 0));
+        lessonEntryPdfStream.hidden = false;
+        lessonEntryPdfStream.style.setProperty("--ft-entry-pdf-progress", `${percent}%`);
+        if (lessonEntryPdfStreamGraph) {
+          lessonEntryPdfStreamGraph.style.setProperty("--ft-entry-pdf-progress", `${percent}%`);
+        }
+        if (lessonEntryPdfStreamProgressRing) {
+          const circumference = 2 * Math.PI * 110;
+          lessonEntryPdfStreamProgressRing.style.strokeDasharray = `${circumference} ${circumference}`;
+          lessonEntryPdfStreamProgressRing.style.strokeDashoffset = String(circumference - ((percent / 100) * circumference));
+        }
+        lessonEntryPdfStream.classList.toggle("is-ready", done);
+        if (lessonEntryPdfStreamPhase) lessonEntryPdfStreamPhase.textContent = clean(progress.phase || (done ? "PDF CACHE READY" : "PDF CHUNK STREAM"));
+        if (lessonEntryPdfStreamPercent) lessonEntryPdfStreamPercent.textContent = `${percent}%`;
+        if (lessonEntryPdfStreamFill) lessonEntryPdfStreamFill.style.width = `${percent}%`;
+        if (lessonEntryPdfStreamChunk) {
+          const chunkPercent = Number.isFinite(Number(progress.chunkPercent)) ? ` · ${Math.round(Math.max(0, Math.min(100, Number(progress.chunkPercent))))}%` : "";
+          lessonEntryPdfStreamChunk.textContent = chunkCount
+            ? `${progress.cached ? "CACHE" : "CHUNK"} ${Math.min(chunkCount, Math.max(1, chunkIndex))}/${chunkCount}${chunkPercent}`
+            : clean(progress.chunkLabel || "READING METADATA");
+        }
+        if (lessonEntryPdfStreamBytes) {
+          lessonEntryPdfStreamBytes.textContent = total > 0
+            ? `${formatLessonEntryStreamBytes(loaded)} / ${formatLessonEntryStreamBytes(total)}`
+            : `${formatLessonEntryStreamBytes(loaded)} / --`;
+        }
+      };
+
+      const updateLessonEntryPdfProgress = (progress = {}) => {
+        const state = lessonEntryGateSequenceState;
+        const next = progress && typeof progress === "object" ? { ...progress } : {};
+        const sourceSurface = clean(next.surface).toLowerCase() === "pdf file";
+        if (!state) return false;
+        // A real foreground PDF stream is authoritative even if the media-choice
+        // state was lost during the Vault -> PDF handoff. Recover only while gate 1 is visible.
+        if (!state.pdfProgressEnabled) {
+          if (!sourceSurface || !lessonEntryGate || lessonEntryGate.hidden) return false;
+          state.pdfProgressEnabled = true;
+          state.pdfProgressMode = "network";
+          state.pdfOverallProgress = 0;
+          state.pdfSourceComplete = false;
+          state.pdfProgressPhaseLocked = false;
+          if (lessonEntryGateFrame) lessonEntryGateFrame.classList.add("is-pdf-stream-active");
+        }
+        if (state.pdfProgressPhaseLocked && next.surface) return false;
+        if (!Number.isFinite(Number(next.overallPercent)) && next.surface) {
+          const loaded = Math.max(0, Number(next.loaded || 0) || 0);
+          const total = Math.max(0, Number(next.total || 0) || 0);
+          const isSourceFile = clean(next.surface).toLowerCase() === "pdf file";
+          const rawPercent = total > 0
+            ? Math.max(0, Math.min(100, (loaded / total) * 100))
+            : Math.max(0, Number(next.percent || 0) || 0);
+          // Network mode reports the complete source transfer; local mode is reset separately after it.
+          if (isSourceFile) {
+            if (state.pdfProgressMode === "local") return false;
+            next.overallPercent = rawPercent;
+            if (next.done) {
+              next.overallPercent = 100;
+              state.pdfSourceComplete = true;
+            }
+          } else {
+            if (!state.pdfSourceComplete || state.pdfProgressMode !== "local") return false;
+            next.overallPercent = rawPercent;
+          }
+          next.phase = isSourceFile ? (rawPercent >= 100 ? "PDF SOURCE CACHED" : "PDF CHUNK STREAM") : "PDF PAGE CACHE";
+        }
+        if (Number.isFinite(Number(next.overallPercent))) {
+          next.overallPercent = Math.max(Number(state.pdfOverallProgress || 0), Math.min(100, Number(next.overallPercent)));
+          state.pdfOverallProgress = next.overallPercent;
+        }
+        if (Array.isArray(window.__ftLessonEntryPdfOverallProbe) && Number.isFinite(Number(next.overallPercent))) {
+          const value = Math.round(Number(next.overallPercent));
+          if (window.__ftLessonEntryPdfOverallProbe.at(-1) !== value) window.__ftLessonEntryPdfOverallProbe.push(value);
+        }
+        lessonEntryPdfProgressPayload = { ...(lessonEntryPdfProgressPayload || {}), ...next };
+        if (sourceSurface) {
+          if (lessonEntryPdfProgressFrame) {
+            window.cancelAnimationFrame(lessonEntryPdfProgressFrame);
+            lessonEntryPdfProgressFrame = 0;
+          }
+          renderLessonEntryPdfProgress();
+          return true;
+        }
+        if (!lessonEntryPdfProgressFrame) lessonEntryPdfProgressFrame = window.requestAnimationFrame(renderLessonEntryPdfProgress);
+        return true;
+      };
+
+      // Added 2026-08-02: starts a separate monotonic 0-100 local-render pass after network reaches 100%.
+      const beginLessonEntryPdfLocalProgress = () => {
+        const state = lessonEntryGateSequenceState;
+        if (!state || !state.pdfProgressEnabled || !state.pdfSourceComplete) return false;
+        state.pdfProgressMode = "local";
+        state.pdfOverallProgress = 0;
+        state.pdfProgressPhaseLocked = false;
+        lessonEntryPdfProgressPayload = null;
+        return updateLessonEntryPdfProgress({
+          overallPercent: 0,
+          phase: "LOCAL PDF RENDER",
+          chunkLabel: "LOCAL PIPELINE",
+          loaded: 0,
+          total: 0,
+          done: false,
+        });
+      };
+      window.__ftBeginLessonEntryPdfLocalProgress = beginLessonEntryPdfLocalProgress;
+
+      const resetLessonEntryPdfProgress = () => {
+        lessonEntryPdfProgressPayload = null;
+        if (lessonEntryPdfProgressFrame) window.cancelAnimationFrame(lessonEntryPdfProgressFrame);
+        lessonEntryPdfProgressFrame = 0;
+        if (lessonEntryPdfStream) {
+          lessonEntryPdfStream.hidden = true;
+          lessonEntryPdfStream.classList.remove("is-ready");
+          lessonEntryPdfStream.style.setProperty("--ft-entry-pdf-progress", "0%");
+        }
+        if (lessonEntryPdfStreamGraph) {
+          lessonEntryPdfStreamGraph.style.setProperty("--ft-entry-pdf-progress", "0%");
+        }
+        if (lessonEntryPdfStreamProgressRing) {
+          const circumference = 2 * Math.PI * 110;
+          lessonEntryPdfStreamProgressRing.style.strokeDasharray = `${circumference} ${circumference}`;
+          lessonEntryPdfStreamProgressRing.style.strokeDashoffset = String(circumference);
+        }
+        if (lessonEntryGateFrame) lessonEntryGateFrame.classList.remove("is-pdf-stream-active");
+      };
+      window.__ftUpdateLessonEntryPdfProgress = updateLessonEntryPdfProgress;
+      window.__ftLessonEntryPdfProgressActive = () => Boolean(
+        lessonEntryGateSequenceState && lessonEntryGateSequenceState.pdfProgressEnabled
+      );
+
+      // Added 2026-08-02: seals Lesson Vault behind a full-screen two-stage gate while the selected lesson becomes ready.
+      const beginLessonEntryGateTransition = (entry = {}, options = {}) => {
+        if (!lessonEntryGate || !lessonEntryGateFrame) {
+          return 0;
+        }
+        const token = ++lessonEntryGateSequenceToken;
+        if (lessonEntryGateClockTimer) {
+          window.clearInterval(lessonEntryGateClockTimer);
+          lessonEntryGateClockTimer = 0;
+        }
+        if (lessonEntryGateSealTimer) {
+          window.clearTimeout(lessonEntryGateSealTimer);
+          lessonEntryGateSealTimer = 0;
+        }
+        lessonEntryGateDeferredServerBrowserClose = false;
+        lessonEntryGateFastStartRequested = false;
+        resetLessonEntryPdfProgress();
+        hideLessonEntryGateActions();
+        freezeLessonVaultForEntryGate();
+        lessonEntryGate.hidden = false;
+        lessonEntryGate.setAttribute("aria-hidden", "false");
+        lessonEntryGate.classList.remove("is-fading", "is-error");
+        lessonEntryGateFrame.classList.remove("is-primary-sealed", "is-primary-open", "is-secondary-ready", "is-secondary-open", "is-primary-moving");
+        setLessonEntryPrimaryGateMoving(true);
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "SEALING LESSON VAULT";
+        if (lessonEntryGateTitle) lessonEntryGateTitle.textContent = clean(entry.name || entry.title || "Preparing lesson channel");
+        if (lessonEntryGate2Status) lessonEntryGate2Status.textContent = "LOCKED";
+        if (lessonEntryGate2Led) {
+          lessonEntryGate2Led.style.background = "#ef4444";
+          lessonEntryGate2Led.style.boxShadow = "0 0 10px #ef4444";
+        }
+        if (lessonEntryPrimaryLed) {
+          lessonEntryPrimaryLed.style.background = "#ef4444";
+          lessonEntryPrimaryLed.style.boxShadow = "0 0 10px #ef4444";
+        }
+        updateLessonEntryGateClock();
+        lessonEntryGateClockTimer = window.setInterval(updateLessonEntryGateClock, 1000);
+        lessonEntryGateSequenceState = { token, startedAt: Date.now(), primarySealComplete: false };
+        clearLessonEntryGateAutoContinue();
+        window.__ftLessonEntryGateActivationToken = token;
+        window.__ftLessonEntryGateActivationBlocked = true;
+        lessonEntryGateSealTimer = window.setTimeout(() => {
+          lessonEntryGateSealTimer = 0;
+          const activeState = lessonEntryGateSequenceState;
+          if (!activeState || activeState.token !== token) return;
+          activeState.primarySealComplete = true;
+          setLessonEntryPrimaryGateMoving(false);
+          if (lessonEntryGateDeferredServerBrowserClose) {
+            lessonEntryGateDeferredServerBrowserClose = false;
+            closeServerBrowser();
+          }
+        }, LESSON_ENTRY_PRIMARY_SEAL_MS);
+        void lessonEntryGateFrame.offsetWidth;
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            if (lessonEntryGateSequenceState && lessonEntryGateSequenceState.token === token) {
+              lessonEntryGateFrame.classList.add("is-primary-sealed");
+            }
+          });
+        });
+        return token;
+      };
+
+      // Added 2026-08-02: completes the secondary opening after any vocabulary decision has resolved.
+      const openLessonEntrySecondaryGate = async (token = 0) => {
+        if (!token || !lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        lessonEntryGateFrame.classList.add("is-secondary-open");
+        await delay(950);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        lessonEntryGate.classList.add("is-fading");
+        await delay(360);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        lessonEntryGate.hidden = true;
+        lessonEntryGate.setAttribute("aria-hidden", "true");
+        lessonEntryGate.classList.remove("is-fading");
+        lessonEntryGateFrame.classList.remove("is-primary-sealed", "is-primary-open", "is-secondary-ready", "is-secondary-open", "is-primary-moving", "is-vocab-alert");
+        if (lessonEntryVocabAlert) lessonEntryVocabAlert.hidden = true;
+        unfreezeLessonVaultAfterEntryGate();
+        lessonEntryGateSequenceState = null;
+        resetLessonEntryPdfProgress();
+        lessonEntryGateDeferredServerBrowserClose = false;
+        if (lessonEntryGateClockTimer) {
+          window.clearInterval(lessonEntryGateClockTimer);
+          lessonEntryGateClockTimer = 0;
+        }
+        window.__ftLessonEntryGateActivationBlocked = false;
+        window.dispatchEvent(new CustomEvent("ft:lesson-entry-gate-open", { detail: { token, opened: true } }));
+        return true;
+      };
+
+      window.__ftRunAfterLessonEntryGateOpen = (callback) => {
+        if (typeof callback !== "function") return false;
+        if (!window.__ftLessonEntryGateActivationBlocked) {
+          callback();
+          return true;
+        }
+        const token = Number(window.__ftLessonEntryGateActivationToken || 0);
+        window.addEventListener("ft:lesson-entry-gate-open", (event) => {
+          const detail = event && event.detail && typeof event.detail === "object" ? event.detail : {};
+          if (detail.opened && Number(detail.token || 0) === token) callback();
+        }, { once: true });
+        return false;
+      };
+
+      // Added 2026-08-02: records whether preflight can release gate 2 or must show the vocabulary route card.
+      const settleLessonEntryGateVocabPreflight = (hasAlert = false) => {
+        const state = lessonEntryGateSequenceState;
+        if (!state || !state.awaitingVocabPreflight) return false;
+        state.vocabPreflightResolved = true;
+        state.vocabAlertPending = Boolean(hasAlert);
+        return true;
+      };
+
+      const finishLessonEntryGateTransition = async (token = 0, label = "") => {
+        const state = lessonEntryGateSequenceState;
+        if (!token || !state || state.token !== token || !lessonEntryGate || !lessonEntryGateFrame) {
+          return false;
+        }
+        const markChoiceTrace = typeof state.choiceTraceMark === "function" ? state.choiceTraceMark : () => {};
+        markChoiceTrace("gate-transition-start");
+        const sealMs = LESSON_ENTRY_PRIMARY_SEAL_MS;
+        const elapsed = Date.now() - Number(state.startedAt || 0);
+        if (elapsed < sealMs) await delay(sealMs - elapsed);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        lessonEntryGateSequenceState.awaitingDecision = false;
+        hideLessonEntryGateActions();
+        const mediaGate = Boolean(state.mediaChoice);
+        if (mediaGate && state.pdfProgressEnabled) {
+          state.pdfProgressPhaseLocked = true;
+          updateLessonEntryPdfProgress({ overallPercent: 100, phase: "LOCAL VIEWER READY", done: true });
+          await delay(140);
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        }
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "PRIMARY GATE SECURED";
+        if (lessonEntryGateTitle) lessonEntryGateTitle.textContent = clean(label || "Synchronizing lesson channel");
+        if (lessonEntryPrimaryLed) {
+          lessonEntryPrimaryLed.style.background = "#22c55e";
+          lessonEntryPrimaryLed.style.boxShadow = "0 0 10px #22c55e";
+        }
+        lessonEntryGateFrame.classList.add("is-secondary-ready");
+        setLessonEntryPrimaryGateMoving(true);
+        lessonEntryGateFrame.classList.add("is-primary-open");
+        await delay(1000);
+        markChoiceTrace("primary-open");
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        setLessonEntryPrimaryGateMoving(false);
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "SYNCHRONIZING INNER GATE";
+        if (lessonEntryGate2Status) lessonEntryGate2Status.textContent = "SYNC...";
+        await delay(mediaGate ? 0 : 800);
+        markChoiceTrace("inner-sync-complete");
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "LESSON CHANNEL ACTIVE";
+        if (lessonEntryGate2Status) lessonEntryGate2Status.textContent = "ACTIVE";
+        if (lessonEntryGate2Led) {
+          lessonEntryGate2Led.style.background = "#22c55e";
+          lessonEntryGate2Led.style.boxShadow = "0 0 10px #22c55e";
+        }
+        await delay(mediaGate ? 0 : 400);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        if (state.awaitingVocabPreflight) {
+          markChoiceTrace("preflight-wait-start");
+          for (let attempt = 0; attempt < 240 && !state.vocabPreflightResolved; attempt += 1) await delay(50);
+          markChoiceTrace("preflight-wait-end", { resolved: Boolean(state.vocabPreflightResolved) });
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+          if (state.vocabAlertPending) {
+            if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "VOCABULARY ROUTE AVAILABLE";
+            if (lessonEntryGate2Status) lessonEntryGate2Status.textContent = "ACTION REQUIRED";
+            if (state.choiceTrace) console.info("[FTG][EntryChoice]", state.choiceTrace);
+            return true;
+          }
+        }
+        markChoiceTrace("secondary-release");
+        if (state.choiceTrace) console.info("[FTG][EntryChoice]", state.choiceTrace);
+        return openLessonEntrySecondaryGate(token);
+      };
+
+      // Added 2026-08-02: mirrors the prepared Space actions onto gate 1 after background loading finishes.
+      const syncLessonEntryGateActions = () => {
+        const state = lessonEntryGateSequenceState;
+        if (lessonEntryGateExitButton) {
+          lessonEntryGateExitButton.hidden = false;
+          lessonEntryGateExitButton.disabled = false;
+        }
+        if (state && state.mediaChoice) {
+          const resumePage = Math.max(0, Math.floor(Number(state.mediaChoice.resumePage || 0) || 0));
+          const isPdfChoice = state.mediaChoice.kind === "pdf";
+          if (lessonEntryGateOpenButton) {
+            lessonEntryGateOpenButton.hidden = false;
+            lessonEntryGateOpenButton.disabled = false;
+            lessonEntryGateOpenButton.title = isPdfChoice ? "Continue // Open saved page" : "New // Open page 1";
+            lessonEntryGateOpenButton.setAttribute("aria-label", lessonEntryGateOpenButton.title);
+          }
+          if (lessonEntryGateContinueButton) {
+            lessonEntryGateContinueButton.hidden = isPdfChoice || !resumePage;
+            lessonEntryGateContinueButton.disabled = isPdfChoice || !resumePage;
+            lessonEntryGateContinueButton.title = resumePage ? `Continue // Open saved page ${resumePage}` : "No saved page";
+            lessonEntryGateContinueButton.setAttribute("aria-label", lessonEntryGateContinueButton.title);
+          }
+          if (lessonEntryGateTrainButton) {
+            lessonEntryGateTrainButton.hidden = true;
+            lessonEntryGateTrainButton.disabled = true;
+          }
+          return resumePage ? 2 : 1;
+        }
+        const mappings = [
+          [lessonEntryGateOpenButton, loadStartButton, "Open New Run"],
+          [lessonEntryGateContinueButton, loadReviewButton, "Continue Previous"],
+          [lessonEntryGateTrainButton, loadReviewTrainButton, "REVIEW TRAIN"],
+        ];
+        let visible = 0;
+        mappings.forEach(([gateButton, sourceButton, label]) => {
+          if (!gateButton) return;
+          const available = Boolean(sourceButton && !sourceButton.hidden && !sourceButton.disabled);
+          gateButton.hidden = !available;
+          gateButton.disabled = !available;
+          gateButton.setAttribute("aria-label", label);
+          gateButton.title = label;
+          if (gateButton === lessonEntryGateTrainButton) gateButton.textContent = label;
+          if (available) visible += 1;
+        });
+        return visible;
+      };
+      window.__ftSyncLessonEntryGateActions = () => {
+        const state = lessonEntryGateSequenceState;
+        return state && state.awaitingDecision ? syncLessonEntryGateActions() : 0;
+      };
+
+      // Added 2026-08-02: pauses a prepared Space behind sealed gate 1 until the learner chooses Open or Continue.
+      const armLessonEntryGateDecision = async (token = 0, label = "") => {
+        const state = lessonEntryGateSequenceState;
+        if (!token || !state || state.token !== token) return false;
+        const elapsed = Date.now() - Number(state.startedAt || 0);
+        if (elapsed < LESSON_ENTRY_PRIMARY_SEAL_MS) await delay(LESSON_ENTRY_PRIMARY_SEAL_MS - elapsed);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        state.awaitingDecision = true;
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "LESSON READY // SELECT ACCESS";
+        if (lessonEntryGateTitle) lessonEntryGateTitle.textContent = clean(label || "Prepared lesson");
+        if (lessonEntryPrimaryLed) {
+          lessonEntryPrimaryLed.style.background = "#22c55e";
+          lessonEntryPrimaryLed.style.boxShadow = "0 0 10px #22c55e";
+        }
+        for (let attempt = 0; attempt < 160; attempt += 1) {
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token || !state.awaitingDecision) return false;
+          if (syncLessonEntryGateActions()) return true;
+          await delay(50);
+        }
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "LESSON PREPARATION DELAYED";
+        return false;
+      };
+
+      // Added 2026-08-02: starts the selected prepared run before releasing the two gate layers.
+      const lessonEntryChoiceNeedsVocabPreflight = (sourceButton = null, payload = null) => {
+        if (!payload || !shouldRunSpaceWVocabPreflight(payload)) return false;
+        if (sourceButton === loadReviewTrainButton) return false;
+        return true;
+      };
+
+      const activateLessonEntryGateChoice = async (sourceButton = null) => {
+        const state = lessonEntryGateSequenceState;
+        if (!state || !state.awaitingDecision || !sourceButton || sourceButton.hidden || sourceButton.disabled) return false;
+        const traceStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const trace = {
+          action: sourceButton === loadReviewButton ? "continue" : (sourceButton === loadReviewTrainButton ? "review-train" : "new-study"),
+          startedAt: Date.now(),
+          stages: [],
+        };
+        const mark = (stage, detail = {}) => {
+          const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+          trace.stages.push({ stage, ms: Math.round((now - traceStartedAt) * 100) / 100, ...detail });
+          window.__ftLessonEntryChoiceTrace = trace;
+        };
+        state.choiceTrace = trace;
+        state.choiceTraceMark = mark;
+        mark("choice-click");
+        state.awaitingDecision = false;
+        hideLessonEntryGateActions();
+        const preflightPayload = pendingQuestionPayload || pendingParagraphPayload || (pendingLessonNodes.length ? { nodes: pendingLessonNodes, effects: pendingLessonEffects } : null);
+        state.awaitingVocabPreflight = lessonEntryChoiceNeedsVocabPreflight(sourceButton, preflightPayload);
+        state.vocabPreflightResolved = !state.awaitingVocabPreflight;
+        state.vocabAlertPending = false;
+        mark("preflight-policy", { awaiting: state.awaitingVocabPreflight });
+        lessonEntryGateFastStartRequested = sourceButton === loadStartButton;
+        sourceButton.click();
+        mark("source-dispatched");
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          if (!loadGate || loadGate.classList.contains("is-hidden")) break;
+          await delay(50);
+        }
+        mark("runtime-ready", { loadHidden: Boolean(!loadGate || loadGate.classList.contains("is-hidden")) });
+        lessonEntryGateFastStartRequested = false;
+        return finishLessonEntryGateTransition(state.token, currentLessonSource.title || currentLessonSource.name || "Lesson ready");
+      };
+
+      const activateLessonEntryMediaChoice = async (mode = "new") => {
+        const state = lessonEntryGateSequenceState;
+        const choice = state && state.mediaChoice;
+        if (!state || !state.awaitingDecision || !choice || typeof choice.open !== "function") return false;
+        clearLessonEntryGateAutoContinue();
+        state.awaitingDecision = false;
+        hideLessonEntryGateActions();
+        state.pdfProgressEnabled = choice.kind === "pdf";
+        if (state.pdfProgressEnabled) {
+          state.pdfOverallProgress = 0;
+          state.pdfSourceComplete = false;
+          state.pdfProgressMode = "network";
+          state.pdfProgressPhaseLocked = false;
+          lessonEntryGateFrame.classList.add("is-pdf-stream-active");
+          updateLessonEntryPdfProgress({ phase: "PDF METADATA", chunkLabel: "NEGOTIATING SOURCE", loaded: 0, total: 0, percent: 0 });
+        }
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = mode === "continue" ? "RESTORING SAVED PAGE" : "OPENING PAGE 1";
+        try {
+          await choice.open(mode);
+          return finishLessonEntryGateTransition(state.token, choice.label || "Document ready");
+        } catch (error) {
+          return cancelLessonEntryGateTransition(state.token, error && error.message ? error.message : "Could not open document");
+        }
+      };
+
+      const armLessonEntryMediaGateDecision = async (token = 0, options = {}) => {
+        const state = lessonEntryGateSequenceState;
+        if (!token || !state || state.token !== token || typeof options.open !== "function") return false;
+        clearLessonEntryGateAutoContinue();
+        state.mediaChoice = {
+          resumePage: Math.max(0, Math.floor(Number(options.resumePage || 0) || 0)),
+          label: clean(options.label || "Document ready"),
+          kind: clean(options.kind || "").toLowerCase(),
+          open: options.open,
+        };
+        const armed = await armLessonEntryGateDecision(token, options.label || "Document ready");
+        if (armed && state.mediaChoice.kind === "pdf") {
+          lessonEntryGateAutoContinueTimer = window.setTimeout(() => {
+            lessonEntryGateAutoContinueTimer = 0;
+            const active = lessonEntryGateSequenceState;
+            if (active && active.token === token && active.awaitingDecision && active.mediaChoice && active.mediaChoice.kind === "pdf") {
+              void activateLessonEntryMediaChoice("continue");
+            }
+          }, 1000);
+        }
+        return armed;
+      };
+
+      // 2026-08-03: cancel a pending entry by reopening only gate 1 over the restored Vault.
+      const exitPendingLessonEntryGate = async () => {
+        const state = lessonEntryGateSequenceState;
+        if (!state || !state.awaitingDecision || !lessonEntryGate || !lessonEntryGateFrame) return false;
+        clearLessonEntryGateAutoContinue();
+        const token = state.token;
+        state.awaitingDecision = false;
+        hideLessonEntryGateActions();
+        if (typeof cancelLessonAudioPrepare === "function") cancelLessonAudioPrepare();
+        if (typeof stopActiveAudio === "function") stopActiveAudio();
+        pendingVocabularyPayload = null;
+        pendingQuestionPayload = null;
+        pendingParagraphPayload = null;
+        pendingLessonNodes = [];
+        pendingLessonEffects = {};
+        if (loadGate) {
+          loadGate.classList.add("is-hidden");
+          loadGate.classList.remove("is-file-ready");
+        }
+        if (clean(params.get("ft_gate_probe"))) {
+          if (serverBrowser) serverBrowser.hidden = false;
+          if (typeof syncServerWorkspaceOpenState === "function") syncServerWorkspaceOpenState();
+        } else if (typeof openServerBrowser === "function") {
+          openServerBrowser();
+        }
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "RETURNING TO LESSON VAULT";
+        if (lessonEntryGateTitle) lessonEntryGateTitle.textContent = "ENTRY CANCELLED";
+        lessonEntryGateFrame.classList.remove("is-secondary-ready", "is-secondary-open", "is-vocab-alert");
+        setLessonEntryPrimaryGateMoving(true);
+        lessonEntryGateFrame.classList.add("is-primary-open");
+        window.__ftLessonEntryGateExitChoiceResult = { primaryOpened: true, secondaryOpened: false };
+        await delay(1000);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        setLessonEntryPrimaryGateMoving(false);
+        lessonEntryGate.classList.add("is-fading");
+        await delay(360);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        lessonEntryGate.hidden = true;
+        lessonEntryGate.setAttribute("aria-hidden", "true");
+        lessonEntryGate.classList.remove("is-fading");
+        lessonEntryGateFrame.classList.remove("is-primary-sealed", "is-primary-open", "is-secondary-ready", "is-secondary-open", "is-primary-moving", "is-vocab-alert");
+        unfreezeLessonVaultAfterEntryGate();
+        lessonEntryGateSequenceState = null;
+        resetLessonEntryPdfProgress();
+        lessonEntryGateDeferredServerBrowserClose = false;
+        window.__ftLessonEntryGateActivationBlocked = false;
+        window.dispatchEvent(new CustomEvent("ft:lesson-entry-gate-open", { detail: { token, opened: false } }));
+        if (lessonEntryGateClockTimer) window.clearInterval(lessonEntryGateClockTimer);
+        lessonEntryGateClockTimer = 0;
+        return true;
+      };
+
+      // Added 2026-08-02: opens gate 2 only after the selected vocabulary route has begun rendering.
+      const releaseLessonEntryGateAfterVocabChoice = async () => {
+        const state = lessonEntryGateSequenceState;
+        if (!state || !state.vocabAlertPending) return false;
+        state.vocabAlertPending = false;
+        if (lessonEntryVocabAlert) lessonEntryVocabAlert.hidden = true;
+        lessonEntryGateFrame.classList.remove("is-vocab-alert");
+        for (let attempt = 0; attempt < 160; attempt += 1) {
+          if (vocabModeActive || questionModeActive || paragraphModeActive || (loadGate && loadGate.classList.contains("is-hidden"))) break;
+          await delay(50);
+        }
+        return openLessonEntrySecondaryGate(state.token);
+      };
+
+      if (lessonEntryGateOpenButton) lessonEntryGateOpenButton.addEventListener("click", () => void (
+        lessonEntryGateSequenceState && lessonEntryGateSequenceState.mediaChoice
+          ? activateLessonEntryMediaChoice(lessonEntryGateSequenceState.mediaChoice.kind === "pdf" ? "continue" : "new")
+          : activateLessonEntryGateChoice(loadStartButton)
+      ));
+      if (lessonEntryGateContinueButton) lessonEntryGateContinueButton.addEventListener("click", () => void (
+        lessonEntryGateSequenceState && lessonEntryGateSequenceState.mediaChoice
+          ? activateLessonEntryMediaChoice("continue")
+          : activateLessonEntryGateChoice(loadReviewButton)
+      ));
+      if (lessonEntryGateTrainButton) lessonEntryGateTrainButton.addEventListener("click", () => void activateLessonEntryGateChoice(loadReviewTrainButton));
+      if (lessonEntryGateExitButton) lessonEntryGateExitButton.addEventListener("click", () => void exitPendingLessonEntryGate());
+
+      const cancelLessonEntryGateTransition = async (token = 0, message = "") => {
+        if (!token || !lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token || !lessonEntryGate) {
+          return false;
+        }
+        clearLessonEntryGateAutoContinue();
+        lessonEntryGate.classList.add("is-error");
+        hideLessonEntryGateActions();
+        freezeLessonVaultForEntryGate();
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "LESSON CHANNEL INTERRUPTED";
+        if (lessonEntryGateTitle) lessonEntryGateTitle.textContent = clean(message || "Returning to Lesson Vault");
+        if (lessonEntryGateFrame) lessonEntryGateFrame.classList.add("is-primary-open", "is-secondary-open");
+        await delay(320);
+        if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return false;
+        lessonEntryGate.classList.add("is-fading");
+        await delay(360);
+        lessonEntryGate.hidden = true;
+        lessonEntryGate.setAttribute("aria-hidden", "true");
+        lessonEntryGate.classList.remove("is-fading", "is-error");
+        lessonEntryGateSequenceState = null;
+        window.__ftLessonEntryGateActivationBlocked = false;
+        window.dispatchEvent(new CustomEvent("ft:lesson-entry-gate-open", { detail: { token, opened: false } }));
+        lessonEntryGateDeferredServerBrowserClose = false;
+        lessonEntryGateFastStartRequested = false;
+        unfreezeLessonVaultAfterEntryGate();
+        if (lessonEntryGateSealTimer) {
+          window.clearTimeout(lessonEntryGateSealTimer);
+          lessonEntryGateSealTimer = 0;
+        }
+        if (lessonEntryGateClockTimer) {
+          window.clearInterval(lessonEntryGateClockTimer);
+          lessonEntryGateClockTimer = 0;
+        }
+        return true;
+      };
+
+      // Added 2026-08-02: reverses the two-stage gate before handing an active Space back to Lesson Vault.
+      const beginLessonExitGateTransition = (onPrimarySealed = null, label = "") => {
+        if (!lessonEntryGate || !lessonEntryGateFrame || lessonEntryGateSequenceState) return false;
+        const token = ++lessonEntryGateSequenceToken;
+        if (lessonEntryGateClockTimer) window.clearInterval(lessonEntryGateClockTimer);
+        if (lessonEntryGateSealTimer) window.clearTimeout(lessonEntryGateSealTimer);
+        lessonEntryGateClockTimer = 0;
+        lessonEntryGateSealTimer = 0;
+        lessonEntryGateDeferredServerBrowserClose = false;
+        lessonEntryGateFastStartRequested = false;
+        hideLessonEntryGateActions();
+        freezeLessonVaultForEntryGate();
+        lessonEntryGate.hidden = false;
+        lessonEntryGate.setAttribute("aria-hidden", "false");
+        lessonEntryGate.classList.remove("is-fading", "is-error");
+        lessonEntryGateFrame.classList.remove("is-primary-sealed", "is-primary-open", "is-secondary-ready", "is-secondary-open", "is-primary-moving");
+        lessonEntryGateFrame.classList.add("is-secondary-ready", "is-secondary-open");
+        if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "CLOSING LESSON CHANNEL";
+        if (lessonEntryGateTitle) lessonEntryGateTitle.textContent = clean(label || "Returning to Lesson Vault");
+        if (lessonEntryGate2Status) lessonEntryGate2Status.textContent = "LOCKING...";
+        if (lessonEntryGate2Led) {
+          lessonEntryGate2Led.style.background = "#ef4444";
+          lessonEntryGate2Led.style.boxShadow = "0 0 10px #ef4444";
+        }
+        if (lessonEntryPrimaryLed) {
+          lessonEntryPrimaryLed.style.background = "#ef4444";
+          lessonEntryPrimaryLed.style.boxShadow = "0 0 10px #ef4444";
+        }
+        updateLessonEntryGateClock();
+        lessonEntryGateClockTimer = window.setInterval(updateLessonEntryGateClock, 1000);
+        lessonEntryGateSequenceState = { token, startedAt: Date.now(), mode: "exit", primarySealComplete: false };
+        void lessonEntryGateFrame.offsetWidth;
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+          if (lessonEntryGateSequenceState && lessonEntryGateSequenceState.token === token) {
+            lessonEntryGateFrame.classList.remove("is-secondary-open");
+          }
+        }));
+        void (async () => {
+          await delay(950);
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return;
+          if (lessonEntryGate2Status) lessonEntryGate2Status.textContent = "SEALED";
+          setLessonEntryPrimaryGateMoving(true);
+          lessonEntryGateFrame.classList.add("is-primary-sealed");
+          await delay(LESSON_ENTRY_PRIMARY_SEAL_MS);
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return;
+          setLessonEntryPrimaryGateMoving(false);
+          lessonEntryGateSequenceState.primarySealComplete = true;
+          if (typeof onPrimarySealed === "function") onPrimarySealed();
+          await delay(120);
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return;
+          lessonEntryGateFrame.classList.remove("is-secondary-ready", "is-secondary-open");
+          setLessonEntryPrimaryGateMoving(true);
+          lessonEntryGateFrame.classList.add("is-primary-open");
+          if (lessonEntryGateKicker) lessonEntryGateKicker.textContent = "LESSON VAULT RESTORED";
+          await delay(1000);
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return;
+          setLessonEntryPrimaryGateMoving(false);
+          lessonEntryGate.classList.add("is-fading");
+          await delay(360);
+          if (!lessonEntryGateSequenceState || lessonEntryGateSequenceState.token !== token) return;
+          lessonEntryGate.hidden = true;
+          lessonEntryGate.setAttribute("aria-hidden", "true");
+          lessonEntryGate.classList.remove("is-fading");
+          lessonEntryGateFrame.classList.remove("is-primary-sealed", "is-primary-open", "is-secondary-ready", "is-secondary-open", "is-primary-moving");
+          unfreezeLessonVaultAfterEntryGate();
+          lessonEntryGateSequenceState = null;
+          if (lessonEntryGateClockTimer) window.clearInterval(lessonEntryGateClockTimer);
+          lessonEntryGateClockTimer = 0;
+        })();
+        return true;
+      };
+
+      const lessonEntryGateProbeMode = clean(params.get("ft_gate_probe"));
+      if (lessonEntryGateProbeMode === "1" || lessonEntryGateProbeMode === "visual") {
+        window.__ftLessonEntryGateProbe = {
+          begin: (label = "DOM gate probe") => beginLessonEntryGateTransition({ name: label }, { force: true }),
+          finish: (token, label = "DOM lesson ready") => finishLessonEntryGateTransition(token, label),
+          cancel: (token, message = "DOM probe cancelled") => cancelLessonEntryGateTransition(token, message),
+          deferVaultClose: () => {
+            if (!serverBrowser) return false;
+            serverBrowser.hidden = false;
+            closeServerBrowser();
+            return !serverBrowser.hidden;
+          },
+          armDecision: (token) => {
+            if (loadStartButton) {
+              loadStartButton.hidden = false;
+              loadStartButton.disabled = false;
+            }
+            if (loadReviewButton) {
+              loadReviewButton.hidden = false;
+              loadReviewButton.disabled = false;
+            }
+            return armLessonEntryGateDecision(token, "Space_Q prepared");
+          },
+          armDecisionDelayedContinue: (token) => {
+            if (loadStartButton) {
+              loadStartButton.hidden = false;
+              loadStartButton.disabled = false;
+            }
+            if (loadReviewButton) {
+              loadReviewButton.hidden = true;
+              loadReviewButton.disabled = true;
+            }
+            const armed = armLessonEntryGateDecision(token, "Space_W delayed progress");
+            window.setTimeout(() => {
+              if (loadReviewButton) {
+                loadReviewButton.hidden = false;
+                loadReviewButton.disabled = false;
+              }
+              if (typeof window.__ftSyncLessonEntryGateActions === "function") window.__ftSyncLessonEntryGateActions();
+            }, 250);
+            return armed;
+          },
+          paragraphPreloadSpaces: async () => {
+            const payload = { progress: { state: { currentIndex: 0, childIndex: 1 } } };
+            const rows = await Promise.all(["Space_P", "Space_L", "Space_S"].map((space) => (
+              readPreloadedServerProgress({ serverProgressPromise: Promise.resolve({ space, payload }) }, "Space_P")
+            )));
+            return rows.map((row) => Boolean(row && row.ok));
+          },
+          paragraphChildResume: () => ["Space_P", "Space_L", "Space_S"].map((space) => (
+            resolveSpaceRunNavigation({ state: { childIndex: 1 } }, space).resumeAvailable
+          )),
+          snapshotCheckpointContract: () => ({
+            compact: lessonProgressSnapshotHasFullCheckpoint({ progress: { current: 3, total: 8, percent: 37.5 } }),
+            full: lessonProgressSnapshotHasFullCheckpoint({ progress: { state: { currentIndex: 3 } } }),
+          }),
+          spaceQResumeContract: () => {
+            const normalized = normalizeQuestionProgressRecord({
+              identity: "ftg-lesson-probe",
+              activeRun: true,
+              runId: "space-q-probe-run",
+              nodeIndex: 2,
+              nodeCount: 8,
+              state: { currentIndex: 2, questionIndex: 1, activeRun: true },
+            });
+            const navigation = resolveSpaceRunNavigation(normalized, "Space_Q");
+            const resume = normalizeQuestionResumeState(normalized && normalized.state, 8);
+            return {
+              activeRun: Boolean(normalized && normalized.activeRun),
+              resumeAvailable: Boolean(navigation && navigation.resumeAvailable),
+              currentIndex: Number(resume && resume.currentIndex),
+              questionIndex: Number(resume && resume.questionIndex),
+              runId: clean(resume && resume.runId),
+            };
+          },
+          spaceQProgressPathsContract: () => {
+            const previousSource = currentLessonSource;
+            currentLessonSource = {
+              source: "server",
+              path: "common/probe.Space_Q",
+              effective_path: "common/effective-probe.Space_Q",
+              lesson_id: "ftg-lesson-probe",
+              file_id: "ftg-lesson-probe",
+            };
+            try {
+              return currentQuestionProgressPaths({
+                identity: "ftg-lesson-probe",
+                state: { lessonSource: { ...currentLessonSource } },
+              });
+            } finally {
+              currentLessonSource = previousSource;
+            }
+          },
+          spaceQTaskProgressContract: () => {
+            if (!serverTaskListNode || typeof renderLessonTaskPanel !== "function" || typeof patchLessonTaskPanelProgress !== "function") {
+              return { available: false };
+            }
+            const previousPayload = currentTaskPayload;
+            const probeTask = {
+              id: "space-q-task-progress-probe",
+              lesson_id: "ftg-lesson-probe",
+              file_id: "ftg-lesson-probe",
+              path: "common/probe.Space_Q",
+              extension: ".space_q",
+              title: "Space_Q task progress probe",
+              available: true,
+              study: {
+                total_nodes: 48,
+                progress_text: "0/48",
+                progress_percent: 0,
+                progress: { space: "Space_Q", done: 0, total: 48, text: "0/48", percent: 0, activeRun: true, runId: "probe-run" },
+              },
+            };
+            try {
+              renderLessonTaskPanel({ task_owner: clean(currentAuthUsername || "probe"), tasks: [probeTask], space_tasks: [], admin: false });
+              patchLessonTaskPanelProgress(
+                ["space:space_q:id:ftg-lesson-probe", "common/probe.Space_Q"],
+                { space: "Space_Q", done: 2, total: 48, text: "2/48", percent: 4, activeRun: true, runId: "probe-run" },
+              );
+              const card = serverTaskListNode.querySelector('[data-task-id="space-q-task-progress-probe"]');
+              return {
+                available: true,
+                progressText: clean(card && card.dataset.progressText || ""),
+                progressPercent: clean(card && card.dataset.progressPercent || ""),
+                visibleText: clean(card && card.querySelector(".ft-task-progress") && card.querySelector(".ft-task-progress").textContent || ""),
+              };
+            } finally {
+              if (previousPayload && typeof previousPayload === "object") {
+                renderLessonTaskPanel(previousPayload);
+              } else {
+                currentTaskPayload = previousPayload;
+                serverTaskListNode.textContent = "";
+              }
+            }
+          },
+          armMediaDecision: (token, resumePage = 7, sourceDownloadOptions = null) => {
+            window.__ftLessonEntryMediaProbe = { choice: "", page: 0, activated: false };
+            window.__ftLessonEntryPdfProgressProbe = [];
+            window.__ftLessonEntryPdfOverallProbe = [];
+            window.__ftRunAfterLessonEntryGateOpen(() => {
+              window.__ftLessonEntryMediaProbe.activated = true;
+            });
+            return armLessonEntryMediaGateDecision(token, {
+              resumePage,
+              label: "PDF media choice",
+              kind: "pdf",
+              open: async (mode) => {
+                window.__ftLessonEntryMediaProbe.choice = mode;
+                window.__ftLessonEntryMediaProbe.page = mode === "continue" ? resumePage : 1;
+                if (sourceDownloadOptions && typeof sourceDownloadOptions === "object") {
+                  const bytes = Math.max(1, Math.floor(Number(sourceDownloadOptions.bytes || 0) || (5 * 1024 * 1024)));
+                  const key = clean(sourceDownloadOptions.key || `pdf-gate-probe-${bytes}`);
+                  const previous = { mode: pdfState.mode, path: pdfState.path, size: pdfState.size, page: pdfState.page };
+                  try {
+                    pdfState.mode = "pdf";
+                    pdfState.path = "probe.pdf";
+                    pdfState.size = bytes;
+                    pdfState.page = 1;
+                    const query = new URLSearchParams({ path: "probe.pdf" });
+                    const result = await downloadPdfSourceFileByChunks(key, query, { path: "probe.pdf", size: bytes }, {
+                      trackProgress: true,
+                      isCurrent: () => true,
+                    });
+                    window.__ftLessonEntryMediaProbe.bytes = Number(result && result.bytes || 0) || 0;
+                    beginLessonEntryPdfLocalProgress();
+                    setPdfPageLoadProgress({ overallPercent: 100, phase: "LOCAL PAGE READY", done: true });
+                    return;
+                  } finally {
+                    pdfState.mode = previous.mode;
+                    pdfState.path = previous.path;
+                    pdfState.size = previous.size;
+                    pdfState.page = previous.page;
+                  }
+                }
+                setPdfPageLoadProgress({ loaded: 1000, total: 1000, done: true, surface: "PDF page", phase: "PDF PAGE CACHE" });
+                for (const progress of [
+                  { loaded: 370, total: 1000, chunkIndex: 2, chunkCount: 6, chunkPercent: 37 },
+                  { loaded: 820, total: 1000, chunkIndex: 5, chunkCount: 6, chunkPercent: 82 },
+                  { loaded: 1000, total: 1000, chunkIndex: 6, chunkCount: 6, chunkPercent: 100, done: true },
+                ]) {
+                  setPdfPageLoadProgress({ ...progress, surface: "PDF file", phase: progress.done ? "PDF CACHE READY" : "PDF CHUNK STREAM" });
+                  await delay(150);
+                  const streamRect = lessonEntryPdfStream ? lessonEntryPdfStream.getBoundingClientRect() : null;
+                  window.__ftLessonEntryPdfProgressProbe.push({
+                    percent: clean(lessonEntryPdfStreamPercent && lessonEntryPdfStreamPercent.textContent),
+                    chunk: clean(lessonEntryPdfStreamChunk && lessonEntryPdfStreamChunk.textContent),
+                    graphProgress: clean(lessonEntryPdfStreamGraph && lessonEntryPdfStreamGraph.style.getPropertyValue("--ft-entry-pdf-progress")),
+                    ringOffset: clean(lessonEntryPdfStreamProgressRing && lessonEntryPdfStreamProgressRing.style.strokeDashoffset),
+                    hidden: Boolean(lessonEntryPdfStream && lessonEntryPdfStream.hidden),
+                    withinViewport: Boolean(streamRect && streamRect.left >= 0 && streamRect.right <= window.innerWidth && streamRect.top >= 0 && streamRect.bottom <= window.innerHeight),
+                  });
+                }
+                beginLessonEntryPdfLocalProgress();
+                await delay(80);
+                setPdfPageLoadProgress({ overallPercent: 100, phase: "LOCAL PAGE READY", done: true });
+                await delay(80);
+              },
+            });
+          },
+          previewPdfProgress: (percent = 64) => {
+            const state = lessonEntryGateSequenceState;
+            if (!state) return false;
+            state.pdfProgressEnabled = true;
+            lessonEntryGateFrame.classList.add("is-pdf-stream-active");
+            const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent || 0) || 0)));
+            return updateLessonEntryPdfProgress({
+              phase: "PDF CHUNK STREAM",
+              overallPercent: safePercent,
+              loaded: safePercent * 1024 * 1024,
+              total: 100 * 1024 * 1024,
+              chunkIndex: Math.max(1, Math.ceil(safePercent / 10)),
+              chunkCount: 10,
+              done: safePercent >= 100,
+            });
+          },
+          recoverPdfProgressState: (percent = 37) => {
+            const state = lessonEntryGateSequenceState;
+            if (!state || !lessonEntryGate || lessonEntryGate.hidden) return false;
+            state.pdfProgressEnabled = false;
+            state.pdfProgressMode = "";
+            state.pdfOverallProgress = 0;
+            const safePercent = Math.max(1, Math.min(99, Math.round(Number(percent || 0) || 0)));
+            return updateLessonEntryPdfProgress({
+              surface: "PDF file",
+              phase: "PDF CHUNK STREAM",
+              loaded: safePercent * 1024,
+              total: 100 * 1024,
+              chunkIndex: 1,
+              chunkCount: 15,
+              chunkPercent: safePercent,
+              done: false,
+            });
+          },
+          xhrProgress: async (path = "/ft-gate-xhr-progress-probe") => {
+            const events = [];
+            const result = await fetchAuthBlob(path, {
+              sameOriginOnly: true,
+              progressTransport: "xhr",
+              onProgress: (progress) => events.push(Math.max(0, Number(progress && progress.loaded || 0) || 0)),
+            });
+            return { bytes: Number(result && result.blob && result.blob.size || 0) || 0, events };
+          },
+          pdfCacheTimeout: async () => {
+            const startedAt = window.performance.now();
+            const result = await withPdfCacheTimeout(new Promise(() => {}), 1000, "timeout");
+            return { result, elapsedMs: Math.round(window.performance.now() - startedAt) };
+          },
+          pdfSourceDownload: async (options = {}) => {
+            const bytes = Math.max(1, Math.floor(Number(options.bytes || 0) || (5 * 1024 * 1024)));
+            const key = clean(options.key || `pdf-probe-${bytes}`);
+            const previous = {
+              mode: pdfState.mode,
+              path: pdfState.path,
+              size: pdfState.size,
+              page: pdfState.page,
+            };
+            try {
+              pdfState.mode = "pdf";
+              pdfState.path = "probe.pdf";
+              pdfState.size = bytes;
+              pdfState.page = 1;
+              const query = new URLSearchParams({ path: "probe.pdf" });
+              const result = await downloadPdfSourceFileByChunks(key, query, { path: "probe.pdf", size: bytes }, {
+                trackProgress: options.trackProgress !== false,
+                isCurrent: () => true,
+              });
+              return {
+                bytes: Number(result && result.bytes || 0) || 0,
+                chunks: Number(result && result.chunks || 0) || 0,
+                trace: Array.isArray(window.__ftPdfSourceNetworkTrace) ? window.__ftPdfSourceNetworkTrace.slice() : [],
+              };
+            } finally {
+              pdfState.mode = previous.mode;
+              pdfState.path = previous.path;
+              pdfState.size = previous.size;
+              pdfState.page = previous.page;
+            }
+          },
+          pdfSourceWarmDownload: async (options = {}) => {
+            const bytes = Math.max(1, Math.floor(Number(options.bytes || 0) || (5 * 1024 * 1024)));
+            const key = clean(options.key || `pdf-warm-probe-${bytes}`);
+            const previous = {
+              mode: pdfState.mode,
+              path: pdfState.path,
+              size: pdfState.size,
+              page: pdfState.page,
+              lessonId: pdfState.lessonId,
+            };
+            try {
+              pdfState.mode = "pdf";
+              pdfState.path = "common/PDF/Probe/real.space_pdf";
+              pdfState.size = bytes;
+              pdfState.page = 1;
+              pdfState.lessonId = "ftg-probe-stable-lesson";
+              const result = await warmPdfSourceFileCache({
+                path: "_assets/pdf/probe/real.pdf",
+                size: bytes,
+                lesson_id: pdfState.lessonId,
+              }, { trackProgress: true });
+              return {
+                bytes: Number(result && result.bytes || 0) || 0,
+                trace: Array.isArray(window.__ftPdfSourceNetworkTrace) ? window.__ftPdfSourceNetworkTrace.slice() : [],
+              };
+            } finally {
+              pdfState.mode = previous.mode;
+              pdfState.path = previous.path;
+              pdfState.size = previous.size;
+              pdfState.page = previous.page;
+              pdfState.lessonId = previous.lessonId;
+            }
+          },
+          vocabAlert: (token) => {
+            const state = lessonEntryGateSequenceState;
+            if (!state || state.token !== token) return false;
+            state.awaitingVocabPreflight = true;
+            state.vocabPreflightResolved = false;
+            state.vocabAlertPending = false;
+            lessonEntryGateFrame.classList.add("is-secondary-ready", "is-primary-open");
+            return showLessonEntryVocabAlert({ new_count: 48, pending_count: 2, files_needed: 2 }, "preflight");
+          },
+          exit: (label = "Space exit DOM gate") => beginLessonExitGateTransition(() => {
+            window.__ftLessonExitGateProbeResult = {
+              primarySealed: lessonEntryGateFrame.classList.contains("is-primary-sealed"),
+              secondaryClosed: !lessonEntryGateFrame.classList.contains("is-secondary-open"),
+            };
+          }, label),
+        };
+        if (clean(params.get("ft_xhr_probe")) === "1") {
+          const output = document.createElement("output");
+          output.id = "ft-entry-xhr-progress-probe-output";
+          output.hidden = true;
+          document.body.appendChild(output);
+          window.setTimeout(async () => {
+            try {
+              output.textContent = JSON.stringify(await window.__ftLessonEntryGateProbe.xhrProgress());
+            } catch (error) {
+              output.textContent = JSON.stringify({ error: error && error.message ? error.message : String(error) });
+            }
+          }, 0);
+        }
+        if (lessonEntryGateProbeMode === "visual") {
+          window.setTimeout(() => {
+            const token = window.__ftLessonEntryGateProbe.begin("Lesson Vault // Space_Q");
+            const pdfPreview = Math.max(0, Math.min(100, Number(params.get("ft_pdf_preview") || 0) || 0));
+            if (pdfPreview > 0) {
+              window.setTimeout(() => window.__ftLessonEntryGateProbe.previewPdfProgress(pdfPreview), 1150);
+              return;
+            }
+            window.setTimeout(() => {
+              void window.__ftLessonEntryGateProbe.finish(token, "Question channel ready");
+            }, 1300);
+          }, 250);
+        }
+      }
+
       const enterLessonPayloadNow = (payload, selectedVoiceValue = "", options = {}) => {
         hideActiveLessonSurfaceForLoad("Opening selected lesson...");
         installIsolatedCompletionDomProbe();
@@ -866,13 +1962,38 @@
 
       // Exit leaves an active Space; callers must flush the latest progress before this clears runtime state.
       const returnToServerFileSelection = (options = {}) => {
+        // 2026-08-03: capture the route/progress identity before the exit gate can
+        // clear Space runtime state. The post-animation callback must not infer it again.
+        const capturedReturnLessonPath = normalizeServerPathValue(options.returnLessonPath || currentLessonStudyPath());
+        const capturedReturnLessonTree = normalizeServerPathValue(
+          options.returnLessonTree
+          || (capturedReturnLessonPath ? serverParentPathForFile(capturedReturnLessonPath) : (serverBrowserPath || getStoredServerPath() || ""))
+        );
+        const capturedReturnTaskOwner = clean(options.returnTaskOwner || serverTaskOwnerContext || currentAuthUsername || "");
         const capturedQuestionProgressRecord = options.questionProgressRecord && typeof options.questionProgressRecord === "object"
           ? options.questionProgressRecord
           : (questionModeActive && typeof saveQuestionProgressNow === "function" ? saveQuestionProgressNow() : null);
+        if (!options.skipLessonExitGate) {
+          if (typeof stopPdfAiAssistRuntimeAudio === "function") {
+            stopPdfAiAssistRuntimeAudio();
+          }
+          const exitLabel = clean(currentLessonSource.title || currentLessonSource.name || "Returning to Lesson Vault");
+          const started = beginLessonExitGateTransition(() => {
+            returnToServerFileSelection({
+              ...options,
+              skipLessonExitGate: true,
+              returnLessonPath: capturedReturnLessonPath,
+              returnLessonTree: capturedReturnLessonTree,
+              returnTaskOwner: capturedReturnTaskOwner,
+              questionProgressRecord: capturedQuestionProgressRecord,
+            });
+          }, exitLabel);
+          if (started) return;
+        }
         const completedBeforeReturn = Boolean(lessonCompletionSent);
-        const returnLessonPath = currentLessonStudyPath();
-        const returnLessonTree = normalizeServerPathValue(returnLessonPath ? serverParentPathForFile(returnLessonPath) : (serverBrowserPath || getStoredServerPath() || ""));
-        const returnTaskOwner = clean(serverTaskOwnerContext || currentAuthUsername || "");
+        const returnLessonPath = capturedReturnLessonPath;
+        const returnLessonTree = capturedReturnLessonTree;
+        const returnTaskOwner = capturedReturnTaskOwner;
         const vocabProgressRecordForReturn = options.vocabProgressRecord && typeof options.vocabProgressRecord === "object"
           ? options.vocabProgressRecord
           : (vocabModeActive && currentVocabProgressCache.savedProgress && typeof currentVocabProgressCache.savedProgress === "object"
@@ -922,6 +2043,8 @@
           setLessonProgressOverride(returnProgressPaths, spaceWProgressOverrideForReturn, 120000);
           rememberLessonVaultProgressPin(returnProgressPaths, spaceWProgressOverrideForReturn, 120000);
         }
+        // The group Exit can run after the mode flag is cleared by the gate;
+        // retain the last durable client checkpoint as the local handoff source.
         const questionSavedRecordForReturn = questionProgressRecordForReturn
           || (currentQuestionProgressCache && currentQuestionProgressCache.savedProgress && typeof currentQuestionProgressCache.savedProgress === "object"
             ? currentQuestionProgressCache.savedProgress
@@ -937,6 +2060,9 @@
           setLessonProgressOverride(returnProgressPaths, paragraphProgressOverrideForReturn, 120000);
           rememberLessonVaultProgressPin(returnProgressPaths, paragraphProgressOverrideForReturn, 120000);
         }
+        // The exit gate can clear mode flags before this callback runs. Preserve
+        // the captured Space_Q checkpoint instead of manufacturing a stale
+        // Space_W fallback from the now-neutral runtime state.
         const localProgressOverrideForReturn = questionSavedRecordForReturn && questionProgressOverrideForReturn
           ? questionProgressOverrideForReturn
           : (paragraphProgressRecordForReturn && paragraphProgressOverrideForReturn
@@ -952,6 +2078,16 @@
           id: ++taskNoticeReturnTriggerId,
           completedReturn: completedBeforeReturn,
         };
+        const refreshTree = returnLessonTree || serverBrowserPath || getStoredServerPath() || "";
+        // Added 2026-07-31: route first so optional Space cleanup cannot strand Exit inside the lesson.
+        if (refreshTree) {
+          updateFutureAppRoute("lesson_vault", {
+            tree: refreshTree,
+            task_owner: returnTaskOwner,
+            replace: true,
+          });
+          setServerBrowserPanel("vault");
+        }
         if (paragraphModeActive) {
           resetParagraphMode();
         }
@@ -990,7 +2126,7 @@
         vocabModeActive = false;
         setVocabKeyboardLock(false);
         vocabItems = [];
-        clearVocabAudioCache();
+        vocabAudioCacheToken += 1;
         vocabQueue = [];
         vocabBatch = [];
         vocabRoundQueue = [];
@@ -1026,30 +2162,23 @@
           serverBrowserFocusedFilePath = normalizeServerPathValue(returnLessonPath);
           rememberServerFile(returnLessonPath);
         }
-            const refreshTree = returnLessonTree || serverBrowserPath || getStoredServerPath() || "";
-            if (refreshTree) {
-              const forceFreshProgress = Boolean(options.forceFreshProgress || completedBeforeReturn);
-              const hasReturnFolderCache = typeof getCachedServerBrowserListRow === "function"
-                && !forceFreshProgress
-                && Boolean(getCachedServerBrowserListRow(refreshTree, returnTaskOwner, { allowStale: true }));
-            updateFutureAppRoute("lesson_vault", {
-              tree: refreshTree,
-              task_owner: returnTaskOwner,
-              replace: true,
-            });
-            setServerBrowserPanel("vault");
-            // Back performs one route/load. A cached origin folder stays entirely local; a direct-open cache miss fetches it once.
-              void loadServerDataPath(refreshTree, false, returnTaskOwner, {
-                silent: true,
-                fresh: forceFreshProgress,
-              hydrateTaskBoardNow: false,
+        if (refreshTree) {
+          const forceFreshProgress = Boolean(options.forceFreshProgress);
+          const hasReturnFolderCache = typeof getCachedServerBrowserListRow === "function"
+            && !forceFreshProgress
+            && Boolean(getCachedServerBrowserListRow(refreshTree, returnTaskOwner, { allowStale: true }));
+          // Back performs one route/load. A cached origin folder stays entirely local; a direct-open cache miss fetches it once.
+          void loadServerDataPath(refreshTree, false, returnTaskOwner, {
+            silent: true,
+            fresh: forceFreshProgress,
+            hydrateTaskBoardNow: false,
             skipTaskBoardHydrate: true,
-              skipRouteLeaveFlush: true,
-              skipBackgroundVerify: true,
-              skipChildPrefetch: true,
-              localCacheOnly: hasReturnFolderCache,
-                source: forceFreshProgress ? "space_v_exit_progress_refresh" : (hasReturnFolderCache ? "space_v_group_back_cache" : "space_v_group_back_cache_miss"),
-            })
+            skipRouteLeaveFlush: true,
+            skipBackgroundVerify: true,
+            skipChildPrefetch: true,
+            localCacheOnly: hasReturnFolderCache,
+            source: forceFreshProgress ? "space_v_exit_progress_refresh" : (hasReturnFolderCache ? "space_v_group_back_cache" : "space_v_group_back_cache_miss"),
+          })
             .then((payload) => {
               if (localProgressOverrideForReturn) {
                 setLessonProgressOverride(returnProgressPaths, localProgressOverrideForReturn, SPACE_V_LOCAL_PROGRESS_PROTECT_MS, { force: true });
@@ -1058,11 +2187,11 @@
               if (typeof selectServerLessonVaultEntryFromPayload === "function") {
                 selectServerLessonVaultEntryFromPayload(payload || { entries: serverCurrentEntries || [] }, returnProgressPaths, {
                   progress: localProgressOverrideForReturn,
-                    retryMs: 160,
-                    skipProgressPrefetch: true,
-                    skipFileStats: true,
-                    rememberFile: false,
-                    updateRoute: false,
+                  retryMs: 160,
+                  skipProgressPrefetch: true,
+                  skipFileStats: true,
+                  rememberFile: false,
+                  updateRoute: false,
                 });
               }
               pinVisibleLessonVaultProgressRing(returnProgressPaths, localProgressOverrideForReturn, { retryMs: 160 });
@@ -1087,8 +2216,17 @@
           if (!localProgressOverrideForReturn) {
             clearLessonProgressOverride(returnProgressPaths);
           }
+          // Added 2026-08-03: a partial Space_Q Exit must re-read the canonical task board too;
+          // local path pins cover the fast paint, while this closes alias/cache mismatches.
           if (returnTaskOwner && (completedBeforeReturn || questionSavedRecordForReturn)) {
             await loadLessonTasks(returnTaskOwner, { fresh: true }).catch(() => {});
+            // Updated 2026-08-03: the fresh task response can finish after the
+            // Exit fast-paint and replace it with an older automatic-task row.
+            // Reapply the exact saved checkpoint after that response settles.
+            if (localProgressOverrideForReturn) {
+              setLessonProgressOverride(returnProgressPaths, localProgressOverrideForReturn, SPACE_V_LOCAL_PROGRESS_PROTECT_MS, { force: true });
+              rememberLessonVaultProgressPin(returnProgressPaths, localProgressOverrideForReturn, SPACE_V_LOCAL_PROGRESS_PROTECT_MS);
+            }
             if (typeof selectServerLessonVaultEntryFromPayload === "function") {
               selectServerLessonVaultEntryFromPayload({ entries: serverCurrentEntries || [] }, returnProgressPaths, {
                 progress: localProgressOverrideForReturn,
@@ -1509,6 +2647,10 @@
       };
 
       const closeServerBrowser = () => {
+        if (lessonEntryGateSequenceState && !lessonEntryGateSequenceState.primarySealComplete) {
+          lessonEntryGateDeferredServerBrowserClose = true;
+          return;
+        }
         if (typeof window.__ftClearSpaceWOverlaysForRouteLeave === "function") {
           window.__ftClearSpaceWOverlaysForRouteLeave();
         }
@@ -1614,6 +2756,9 @@
       var pdfAiRegionNoticeLoadToken = 0;
       var pdfAiRegionQuestionLoadToken = 0;
       var pdfAiQuestionAudio = null;
+      // Added 2026-08-02: fence delayed AI audio so page/lesson navigation cannot restart it after cleanup.
+      var pdfAiQuestionAudioToken = 0;
+      var pdfAiQuestionFeedbackAudio = null;
       var pdfAiNoticeFireballState = null;
       var pdfAiNoticeFireballTypeTimer = 0;
       var pdfAiNoticeFireballMoveTimer = 0;
@@ -1622,6 +2767,7 @@
       var pdfAiNoticeFireballHoverTimer = 0;
       var pdfAiNoticeFireballDrag = null;
       var pdfAiNoticeVoiceAudio = null;
+      var pdfAiNoticeAudioToken = 0;
       var pdfAiNoticeVoicePlayedKeys = new Set();
       var pdfAiNoticeFireballSeenKeys = new Set();
       const SPACE_PICTURE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".jfif", ".webp", ".bmp", ".gif", ".tif", ".tiff"]);
@@ -1707,12 +2853,21 @@
       var pdfScanSourcePopover = null;
       var pdfPinnedRegionVisible = false;
       var pdfPinnedRegionDrag = null;
-      const PDF_PAGE_RENDER_VERSION = "pdfjs-local-quality";
+      // Updated 2026-08-03: Q2 is the default, so old Q1 page PNGs must not be reused.
+      // Updated 2026-08-03: restore Q1 PDF.js rendering for every PDF page.
+      const PDF_PAGE_RENDER_VERSION = "pdfjs-local-q1-20260803";
       const PDF_PAGE_PERSISTENT_CACHE = "future-space-pdf-pages-v1";
       const PDF_FILE_PERSISTENT_CACHE = "future-space-pdf-files-v1";
+      // Added 2026-08-03: keep enough bytes per Range request to avoid turning
+      // a large source PDF into dozens of sequential auth/handle round trips.
+      // The server still flushes small blocks so XHR progress remains smooth.
       const PDF_FILE_CHUNK_BYTES = 2 * 1024 * 1024;
-      const PDF_FILE_FULL_CACHE_MAX_BYTES = 64 * 1024 * 1024;
+      // Updated 2026-08-03: multi-chunk PDFs stay chunked on every reopen instead
+      // of being collapsed into one full-file Cache API blob that jumps to 100%.
+      const PDF_FILE_FULL_CACHE_MAX_BYTES = PDF_FILE_CHUNK_BYTES;
       const PDF_FILE_CACHE_READ_TIMEOUT_MS = 6000;
+      // Added 2026-08-03: cache persistence must never hold the foreground PDF network pass.
+      const PDF_FILE_CACHE_WRITE_TIMEOUT_MS = 4000;
       const PDF_LOCAL_IMAGE_CACHE = "future-space-pdf-local-images-v1";
       const PDFJS_MODULE_URL = "/future-assets/vendor/pdfjs/pdf.min.mjs";
       const PDFJS_WORKER_URL = "/future-assets/vendor/pdfjs/pdf.worker.min.mjs";

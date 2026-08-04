@@ -10,6 +10,7 @@
     const killOtherServersButton = document.getElementById("kill-other-servers");
     const cleanCloseAllRuntimeButton = document.getElementById("clean-close-all-runtime");
     const frontendUpdateClientsButton = document.getElementById("frontend-update-clients");
+    const frontendClearAudioCacheButton = document.getElementById("frontend-clear-audio-cache");
     const closeServerButton = document.getElementById("dashboard-close-server");
     const endpointNode = document.getElementById("endpoint");
     const queueStatusNode = document.getElementById("queue-status");
@@ -41,15 +42,26 @@
     const cpuGuardApply = document.getElementById("cpu-guard-apply");
     const qmdictReload = document.getElementById("qmdict-reload");
     const spaceVRepair = document.getElementById("space-v-repair");
-    const qmdictWordAudioRefresh = document.getElementById("qmdict-word-audio-refresh");
-    const qmdictMeaningAudioRefresh = document.getElementById("qmdict-meaning-audio-refresh");
-    const qmdictWordAudioRetry = document.getElementById("qmdict-word-audio-retry");
+    const qmdictWordAudioForce = document.getElementById("qmdict-word-audio-force");
+    const qmdictWordAudioMissing = document.getElementById("qmdict-word-audio-missing");
+    const qmdictWordAudioResume = document.getElementById("qmdict-word-audio-resume");
+    const qmdictWordAudioCancel = document.getElementById("qmdict-word-audio-cancel");
+    const qmdictMeaningAudioForce = document.getElementById("qmdict-meaning-audio-force");
+    const qmdictMeaningAudioMissing = document.getElementById("qmdict-meaning-audio-missing");
+    const qmdictMeaningAudioResume = document.getElementById("qmdict-meaning-audio-resume");
+    const qmdictMeaningAudioCancel = document.getElementById("qmdict-meaning-audio-cancel");
     const qmdictReloadState = document.getElementById("qmdict-reload-state");
     const serverDataManifestRefresh = document.getElementById("server-data-manifest-refresh");
     const serverDataManifestState = document.getElementById("server-data-manifest-state");
-    const qmdictAudioProgress = document.getElementById("qmdict-audio-progress");
-    const qmdictAudioProgressFill = document.getElementById("qmdict-audio-progress-fill");
-    const qmdictAudioProgressCopy = document.getElementById("qmdict-audio-progress-copy");
+    const spaceVPictureFolderInput = document.getElementById("space-v-picture-folder-input");
+    const spaceVPictureFolderSave = document.getElementById("space-v-picture-folder-save");
+    const spaceVPictureFolderState = document.getElementById("space-v-picture-folder-state");
+    const qmdictWordAudioProgress = document.getElementById("qmdict-word-audio-progress");
+    const qmdictWordAudioProgressFill = document.getElementById("qmdict-word-audio-progress-fill");
+    const qmdictWordAudioProgressCopy = document.getElementById("qmdict-word-audio-progress-copy");
+    const qmdictMeaningAudioProgress = document.getElementById("qmdict-meaning-audio-progress");
+    const qmdictMeaningAudioProgressFill = document.getElementById("qmdict-meaning-audio-progress-fill");
+    const qmdictMeaningAudioProgressCopy = document.getElementById("qmdict-meaning-audio-progress-copy");
     const cloudflareHostnameInput = document.getElementById("cloudflare-hostname-input");
     const cloudflareTunnelNameInput = document.getElementById("cloudflare-tunnel-name-input");
     const hostedClientSecretInput = document.getElementById("hosted-client-secret-input");
@@ -950,6 +962,16 @@
       }});
     }};
     const render = (state) => {{
+      const buildHold = state && state.manifest_build_hold ? state.manifest_build_hold : {{}};
+      if (serverDataManifestRefresh) {{
+        serverDataManifestRefresh.disabled = Boolean(buildHold.active_builders || buildHold.publish_in_progress || buildHold.active);
+      }}
+      if (serverDataManifestState && (buildHold.requires_apply || Number(buildHold.pending_paths || 0) > 0)) {{
+        const count = Number(buildHold.pending_paths || 0).toLocaleString();
+        serverDataManifestState.textContent = buildHold.active
+          ? `Builder active: ${{count}} pending paths; active users stay on the previous manifest.`
+          : `Ready to apply ${{count}} staged builder paths.`;
+      }}
       renderDashboardWarmLog(state || {{}});
       renderDistributedWorkers(state.distributed_workers || {{}});
       renderSecurityPoll(state.security_poll || {{}}, state.security_alerts || []);
@@ -1613,6 +1635,11 @@
       const wordAudioRefreshed = Number(wordAudio && wordAudio.refreshed || 0) || 0;
       const wordAudioFailed = Number(wordAudio && wordAudio.failed || 0) || 0;
       const wordAudioWorkers = Number(wordAudio && wordAudio.workers || 0) || 0;
+      const wordPhase = String(wordAudio && wordAudio.phase || "");
+      const wordScanTotal = Number(wordAudio && wordAudio.scan_total || 0) || 0;
+      const wordScanDone = Number(wordAudio && wordAudio.scan_done || 0) || 0;
+      const wordPriorityTotal = Number(wordAudio && wordAudio.priority_total || 0) || 0;
+      const wordPriorityDone = Number(wordAudio && wordAudio.priority_done || 0) || 0;
       const wordAudioLast = String(wordAudio && wordAudio.last_word || "");
       const wordAudioVoice = String(wordAudio && wordAudio.last_voice || "");
       const repairRunning = Boolean(repair && repair.running);
@@ -1638,8 +1665,10 @@
       const activeDone = phase === "scanning" ? scanDone : phase === "cleaning" ? cleanupDone : done;
       const audioPercent = activeTotal > 0 ? Math.max(0, Math.min(100, Math.round((activeDone / activeTotal) * 100))) : (running ? 1 : 0);
       const repairPercent = repairTotal > 0 ? Math.max(0, Math.min(100, Math.round((repairDone / repairTotal) * 100))) : (repairRunning ? 1 : 0);
-      const wordAudioPercent = wordAudioTotal > 0 ? Math.max(0, Math.min(100, Math.round((wordAudioDone / wordAudioTotal) * 100))) : (wordAudioRunning ? 1 : 0);
-      const percent = wordAudioRunning ? wordAudioPercent : repairRunning ? repairPercent : audioPercent;
+      const wordActiveTotal = ["prioritizing", "scanning"].includes(wordPhase) ? wordScanTotal : wordAudioTotal;
+      const wordActiveDone = ["prioritizing", "scanning"].includes(wordPhase) ? wordScanDone : wordAudioDone;
+      const wordAudioPercent = wordActiveTotal > 0 ? Math.max(0, Math.min(100, Math.round((wordActiveDone / wordActiveTotal) * 100))) : (wordAudioRunning ? 1 : 0);
+      const percent = repairRunning ? repairPercent : audioPercent;
       const runningCopy = scheduled
         ? " | audio scan scheduled..."
         : phase === "scanning"
@@ -1655,41 +1684,46 @@
           ? ` | Space_V repaired ${{repairDone}}/${{repairTotal}} | audio ${{repairAudioChanged}} | failed ${{repairFailed}}`
           : "";
       const wordAudioCopy = wordAudioRunning
-        ? ` | refreshing UK/US audio ${{wordAudioDone}}/${{wordAudioTotal || "..."}}`
+        ? wordPhase === "prioritizing"
+          ? ` | OCR priority scan ${{wordScanDone}}/${{wordScanTotal || "..."}} tokens | matched ${{Math.floor(wordPriorityTotal / 2)}} words`
+          : wordPhase === "scanning"
+            ? ` | checking UK/US files ${{wordScanDone}}/${{wordScanTotal || "..."}}`
+            : ` | refreshing UK/US audio ${{wordAudioDone}}/${{wordAudioTotal || "..."}} | OCR priority ${{wordPriorityDone}}/${{wordPriorityTotal || 0}}`
         : wordAudioTotal
           ? ` | UK/US audio refreshed ${{wordAudioRefreshed}}/${{wordAudioTotal}} | failed ${{wordAudioFailed}}`
           : "";
       qmdictReloadState.textContent = `QmDict ${{entries || "unknown"}} entries${{loadedAt ? ` | loaded ${{loadedAt}}` : ""}}${{wordAudioCopy}}${{running || scheduled ? runningCopy : ""}}${{repairCopy}}`;
-      if (qmdictAudioProgress) {{
-        const shouldShow = wordAudioRunning || wordAudioTotal > 0 || String(wordAudio && wordAudio.completed_at || "") || repairRunning || running || scheduled || repairTotal > 0 || total > 0 || String(audio && audio.completed_at || "");
-        qmdictAudioProgress.hidden = !shouldShow;
-        qmdictAudioProgress.classList.toggle("is-running", wordAudioRunning || repairRunning || running || scheduled);
-        qmdictAudioProgress.style.setProperty("--qmdict-audio-progress", `${{percent}}%`);
+      const wordLastCopy = wordAudioLast ? ` | ${{wordAudioLast}}${{wordAudioVoice ? ` (${{wordAudioVoice}})` : ""}}` : "";
+      if (qmdictWordAudioProgress) {{
+        qmdictWordAudioProgress.hidden = !(wordAudioRunning || wordAudioTotal > 0 || String(wordAudio && wordAudio.completed_at || ""));
+        qmdictWordAudioProgress.classList.toggle("is-running", wordAudioRunning);
       }}
-      if (qmdictAudioProgressFill) {{
-        qmdictAudioProgressFill.style.width = `${{percent}}%`;
-      }}
-      if (qmdictAudioProgressCopy) {{
-        const last = String(audio && audio.last_meaning || "");
-        const wordLastCopy = wordAudioLast ? ` | ${{wordAudioLast}}${{wordAudioVoice ? ` (${{wordAudioVoice}})` : ""}}` : "";
-        const status = wordAudioRunning
-          ? `Refreshing QmDict UK/US audio: ${{wordAudioDone}}/${{wordAudioTotal || "..."}} (${{percent}}%) | workers ${{wordAudioWorkers || "..."}} | refreshed ${{wordAudioRefreshed}} | failed ${{wordAudioFailed}}${{wordLastCopy}}`
+      if (qmdictWordAudioProgressFill) qmdictWordAudioProgressFill.style.width = `${{wordAudioPercent}}%`;
+      if (qmdictWordAudioProgressCopy) {{
+        qmdictWordAudioProgressCopy.textContent = wordAudioRunning
+          ? wordPhase === "prioritizing"
+            ? `OCR priority scan: ${{wordScanDone}}/${{wordScanTotal || "..."}} tokens (${{wordAudioPercent}}%) | matched ${{Math.floor(wordPriorityTotal / 2)}} words`
+            : wordPhase === "scanning"
+              ? `Checking UK/US files: ${{wordScanDone}}/${{wordScanTotal || "..."}} (${{wordAudioPercent}}%) | missing ${{wordAudioTotal}}`
+              : `UK/US session: ${{wordAudioDone}}/${{wordAudioTotal || "..."}} (${{wordAudioPercent}}%) | OCR priority ${{wordPriorityDone}}/${{wordPriorityTotal || 0}} | SOT slots ${{wordAudioWorkers || "..."}} | refreshed ${{wordAudioRefreshed}} | failed ${{wordAudioFailed}}${{wordLastCopy}}`
           : wordAudioTotal > 0
-            ? `QmDict UK/US audio ready: refreshed ${{wordAudioRefreshed}}/${{wordAudioTotal}} | failed ${{wordAudioFailed}}${{wordLastCopy}}`
-            : scheduled
-          ? "QmDict reloaded. Audio scan will start in the background."
-          : repairRunning
-            ? `Repairing Space_V audio links: ${{repairDone}}/${{repairTotal || "..."}} | changed ${{repairChanged}} | audio ${{repairAudioChanged}} | failed ${{repairFailed}}`
-          : running
+            ? `UK/US session finished: refreshed ${{wordAudioRefreshed}}/${{wordAudioTotal}} | failed ${{wordAudioFailed}}${{wordLastCopy}}`
+            : "UK/US audio refresh is idle.";
+      }}
+      if (qmdictMeaningAudioProgress) {{
+        qmdictMeaningAudioProgress.hidden = !(running || scheduled || total > 0 || scanTotal > 0 || String(audio && audio.completed_at || ""));
+        qmdictMeaningAudioProgress.classList.toggle("is-running", running || scheduled);
+      }}
+      if (qmdictMeaningAudioProgressFill) qmdictMeaningAudioProgressFill.style.width = `${{audioPercent}}%`;
+      if (qmdictMeaningAudioProgressCopy) {{
+        const last = String(audio && audio.last_meaning || "");
+        qmdictMeaningAudioProgressCopy.textContent = running
           ? phase === "scanning"
-            ? `Checking local audio: ${{scanDone}}/${{scanTotal || "..."}} (${{percent}}%) | cached ${{cached}} | missing ${{missing}}${{last ? ` | ${{last}}` : ""}}`
-            : phase === "cleaning"
-              ? `Cleaning orphan Vietnamese audio: ${{cleanupDone}}/${{cleanupTotal || "..."}} (${{percent}}%) | deleted ${{cleanupDeleted}}`
-              : `Downloading missing audio: ${{done}}/${{total || "..."}} (${{percent}}%) | workers ${{workers || "..."}} | scanned ${{scanDone}} | cached ${{cached}} | missing ${{missing}} | downloaded ${{downloaded}} | failed ${{failed}}${{last ? ` | ${{last}}` : ""}}`
+            ? `Vietnamese check: ${{scanDone}}/${{scanTotal || "..."}} (${{audioPercent}}%) | cached ${{cached}} | missing ${{missing}}${{last ? ` | ${{last}}` : ""}}`
+            : `Vietnamese session: ${{done}}/${{total || "..."}} (${{audioPercent}}%) | workers ${{workers || "..."}} | cached ${{cached}} | downloaded ${{downloaded}} | failed ${{failed}}${{last ? ` | ${{last}}` : ""}}`
           : scanTotal > 0
-            ? `Vietnamese audio ready: scanned ${{scanTotal}} | cached ${{cached}} | missing ${{missing}} | downloaded ${{downloaded}} | failed ${{failed}} | deleted orphan ${{cleanupDeleted}}`
+            ? `Vietnamese session finished: scanned ${{scanTotal}} | cached ${{cached}} | downloaded ${{downloaded}} | failed ${{failed}}`
             : "Vietnamese audio refresh is idle.";
-        qmdictAudioProgressCopy.textContent = status;
       }}
       if (wordAudioRunning || running || scheduled || repairRunning) {{
         scheduleQmDictStatusPoll();
@@ -1707,8 +1741,35 @@
         if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
       }}
     }};
+    const renderSpaceVPictureSettings = (payload = {{}}) => {{
+      const folder = String(payload.folder || "");
+      if (spaceVPictureFolderInput && document.activeElement !== spaceVPictureFolderInput) {{
+        spaceVPictureFolderInput.value = folder;
+      }}
+      if (spaceVPictureFolderState) {{
+        const indexed = Math.max(0, Number(payload.matched_words || payload.indexed_files || 0) || 0);
+        const duplicate = Math.max(0, Number(payload.duplicate_words || 0) || 0);
+        const ignored = Math.max(0, Number(payload.ignored_files || 0) || 0);
+        spaceVPictureFolderState.textContent = payload.exists
+          ? `Local index ready: ${{indexed.toLocaleString()}} words | duplicates ${{duplicate.toLocaleString()}} | ignored ${{ignored.toLocaleString()}}.`
+          : `Picture folder does not exist: ${{folder || "not configured"}}`;
+      }}
+    }};
+    const loadSpaceVPictureSettings = async () => {{
+      try {{
+        const response = await fetch("/dashboard/space-v-picture-settings?ts=" + Date.now(), {{ cache: "no-store" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) {{
+          throw new Error(payload.error || "Could not load the Space_V picture folder.");
+        }}
+        renderSpaceVPictureSettings(payload);
+      }} catch (error) {{
+        if (spaceVPictureFolderState) spaceVPictureFolderState.textContent = String(error && error.message ? error.message : error);
+      }}
+    }};
     const loadSettings = async () => {{
       try {{
+        void loadSpaceVPictureSettings();
         const response = await fetch("/settings?ts=" + Date.now(), {{ cache: "no-store" }});
         const payload = await response.json().catch(() => ({{}}));
         if (!response.ok || payload.ok === false) {{
@@ -1940,12 +2001,42 @@
         }}
       }});
     }}
+    if (frontendClearAudioCacheButton) {{
+      frontendClearAudioCacheButton.addEventListener("click", async () => {{
+        frontendClearAudioCacheButton.disabled = true;
+        const previousLabel = frontendClearAudioCacheButton.textContent;
+        frontendClearAudioCacheButton.textContent = "Clearing...";
+        setTextIfChanged(messageNode, "Broadcasting audio-cache clear command to connected clients...");
+        try {{
+          const response = await fetch("/frontend-version/bump", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{
+              reason: "dashboard_audio_cache_clear",
+              command: "clear-audio-cache",
+            }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not clear connected client audio caches.");
+          }}
+          setTextIfChanged(messageNode, "Audio-cache clear command sent to connected clients.");
+        }} catch (error) {{
+          setTextIfChanged(messageNode, String(error && error.message ? error.message : error));
+        }} finally {{
+          frontendClearAudioCacheButton.disabled = false;
+          frontendClearAudioCacheButton.textContent = previousLabel || "Clear audio cache";
+        }}
+      }});
+    }}
     const startQmDictWordAudioRefresh = async (mode = "all", button = null) => {{
       if (button) button.disabled = true;
       if (qmdictReloadState) {{
-        qmdictReloadState.textContent = mode === "failed"
-          ? "Retrying failed QmDict UK/US audio..."
-          : "Refreshing all QmDict UK/US audio...";
+        qmdictReloadState.textContent = mode === "resume"
+          ? "Resuming the previous UK/US audio session..."
+          : mode === "missing"
+            ? "Checking and downloading missing UK/US audio..."
+            : "Force reloading all UK/US audio...";
       }}
       try {{
         const response = await fetch("/qmdict/word-audio-refresh", {{
@@ -1965,22 +2056,40 @@
         if (button) button.disabled = false;
       }}
     }};
-    const startQmDictMeaningAudioRefresh = async (button = null) => {{
+    const startQmDictMeaningAudioRefresh = async (mode = "missing", button = null) => {{
       if (button) button.disabled = true;
       if (qmdictReloadState) {{
-        qmdictReloadState.textContent = "Refreshing QmDict Vietnamese SOT audio...";
+        qmdictReloadState.textContent = mode === "resume"
+          ? "Resuming the previous Vietnamese audio session..."
+          : mode === "force"
+            ? "Force reloading all Vietnamese audio..."
+            : "Checking and downloading missing Vietnamese audio...";
       }}
       try {{
         const response = await fetch("/qmdict/meaning-audio-refresh", {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{ mode: "dashboard-vietnamese-sot-refresh" }}),
+          body: JSON.stringify({{ mode }}),
         }});
         const payload = await response.json().catch(() => ({{}}));
         if (!response.ok || payload.ok === false) {{
           throw new Error(payload.error || "Could not start Vietnamese SOT audio refresh.");
         }}
         renderQmDictStatus({{}}, payload.audio_refresh || {{}}, {{}}, payload.qmdict_word_audio_refresh || {{}});
+        scheduleQmDictStatusPoll();
+      }} catch (error) {{
+        if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        if (button) button.disabled = false;
+      }}
+    }};
+    const cancelQmDictAudioRefresh = async (kind, button = null) => {{
+      if (button) button.disabled = true;
+      try {{
+        const response = await fetch(`/qmdict/${{kind}}-audio-refresh/cancel`, {{ method: "POST", headers: {{ "Content-Type": "application/json" }}, body: "{{}}" }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || "Could not stop the audio session.");
+        if (qmdictReloadState) qmdictReloadState.textContent = "Stopping audio session; its checkpoint is being saved...";
         scheduleQmDictStatusPoll();
       }} catch (error) {{
         if (qmdictReloadState) qmdictReloadState.textContent = String(error && error.message ? error.message : error);
@@ -2032,24 +2141,45 @@
         }}
       }});
     }}
-    if (qmdictMeaningAudioRefresh) {{
-      qmdictMeaningAudioRefresh.addEventListener("click", () => void startQmDictMeaningAudioRefresh(qmdictMeaningAudioRefresh));
-    }}
-    if (qmdictWordAudioRefresh) {{
-      qmdictWordAudioRefresh.addEventListener("click", () => void startQmDictWordAudioRefresh("all", qmdictWordAudioRefresh));
-    }}
-    if (qmdictWordAudioRetry) {{
-      qmdictWordAudioRetry.addEventListener("click", () => void startQmDictWordAudioRefresh("failed", qmdictWordAudioRetry));
+    if (qmdictWordAudioForce) qmdictWordAudioForce.addEventListener("click", () => void startQmDictWordAudioRefresh("force", qmdictWordAudioForce));
+    if (qmdictWordAudioMissing) qmdictWordAudioMissing.addEventListener("click", () => void startQmDictWordAudioRefresh("missing", qmdictWordAudioMissing));
+    if (qmdictWordAudioResume) qmdictWordAudioResume.addEventListener("click", () => void startQmDictWordAudioRefresh("resume", qmdictWordAudioResume));
+    if (qmdictWordAudioCancel) qmdictWordAudioCancel.addEventListener("click", () => void cancelQmDictAudioRefresh("word", qmdictWordAudioCancel));
+    if (qmdictMeaningAudioForce) qmdictMeaningAudioForce.addEventListener("click", () => void startQmDictMeaningAudioRefresh("force", qmdictMeaningAudioForce));
+    if (qmdictMeaningAudioMissing) qmdictMeaningAudioMissing.addEventListener("click", () => void startQmDictMeaningAudioRefresh("missing", qmdictMeaningAudioMissing));
+    if (qmdictMeaningAudioResume) qmdictMeaningAudioResume.addEventListener("click", () => void startQmDictMeaningAudioRefresh("resume", qmdictMeaningAudioResume));
+    if (qmdictMeaningAudioCancel) qmdictMeaningAudioCancel.addEventListener("click", () => void cancelQmDictAudioRefresh("meaning", qmdictMeaningAudioCancel));
+    if (spaceVPictureFolderSave) {{
+      spaceVPictureFolderSave.addEventListener("click", async () => {{
+        spaceVPictureFolderSave.disabled = true;
+        if (spaceVPictureFolderState) spaceVPictureFolderState.textContent = "Saving and rebuilding the local picture index...";
+        try {{
+          const response = await fetch("/dashboard/space-v-picture-settings", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ folder: String(spaceVPictureFolderInput && spaceVPictureFolderInput.value || "").trim() }}),
+          }});
+          const payload = await response.json().catch(() => ({{}}));
+          if (!response.ok || payload.ok === false) {{
+            throw new Error(payload.error || "Could not save the Space_V picture folder.");
+          }}
+          renderSpaceVPictureSettings(payload);
+        }} catch (error) {{
+          if (spaceVPictureFolderState) spaceVPictureFolderState.textContent = String(error && error.message ? error.message : error);
+        }} finally {{
+          spaceVPictureFolderSave.disabled = false;
+        }}
+      }});
     }}
     if (serverDataManifestRefresh) {{
       serverDataManifestRefresh.addEventListener("click", async () => {{
         serverDataManifestRefresh.disabled = true;
-        if (serverDataManifestState) serverDataManifestState.textContent = "Refreshing Lesson Vault manifest...";
+        if (serverDataManifestState) serverDataManifestState.textContent = "Applying staged Lesson Vault updates...";
         try {{
           const response = await fetch("/server-data/manifest-refresh", {{
             method: "POST",
             headers: {{ "Content-Type": "application/json" }},
-            body: JSON.stringify({{}}),
+            body: JSON.stringify({{ apply_pending: true }}),
           }});
           const payload = await response.json().catch(() => ({{}}));
           if (!response.ok || payload.ok === false) {{

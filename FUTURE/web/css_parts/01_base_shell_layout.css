@@ -3827,6 +3827,7 @@
     html.ft-space-p-mode .ft-web-record-button,
     html.ft-space-p-mode .ft-paint-button,
     html.ft-space-p-mode .ft-mobile-animation-button,
+    html.ft-space-p-mode .ft-clear-audio-cache-button,
     html.ft-space-p-mode .ft-speak-admin-button,
     html.ft-space-p-mode .ft-cursor-button,
     html.ft-space-p-mode .ft-game-button,
@@ -3867,6 +3868,7 @@
     html.ft-space-pdf-mode .ft-web-record-button,
     html.ft-space-pdf-mode .ft-paint-button,
     html.ft-space-pdf-mode .ft-mobile-animation-button,
+    html.ft-space-pdf-mode .ft-clear-audio-cache-button,
     html.ft-space-pdf-mode .ft-speak-admin-button,
     html.ft-space-pdf-mode .ft-cursor-button,
     html.ft-space-pdf-mode .ft-game-button,
@@ -3895,6 +3897,7 @@
     html.ft-space-p-mode .ft-admin-screen-button,
     html.ft-space-p-mode .ft-paint-button,
     html.ft-space-p-mode .ft-mobile-animation-button,
+    html.ft-space-p-mode .ft-clear-audio-cache-button,
     html.ft-space-p-mode .ft-speak-admin-button,
     html.ft-space-p-mode .ft-cursor-button,
     html.ft-space-p-mode .ft-game-button,
@@ -3909,6 +3912,7 @@
     html.ft-space-pdf-mode .ft-admin-screen-button,
     html.ft-space-pdf-mode .ft-paint-button,
     html.ft-space-pdf-mode .ft-mobile-animation-button,
+    html.ft-space-pdf-mode .ft-clear-audio-cache-button,
     html.ft-space-pdf-mode .ft-speak-admin-button,
     html.ft-space-pdf-mode .ft-cursor-button,
     html.ft-space-pdf-mode .ft-game-button,
@@ -3984,6 +3988,7 @@
     .ft-admin-screen-button,
     .ft-paint-button,
     .ft-mobile-animation-button,
+    .ft-clear-audio-cache-button,
     .ft-speak-admin-button,
     .ft-cursor-button,
     .ft-game-button,
@@ -4128,8 +4133,8 @@
     }
 
     .ft-mobile-animation-button {
-      right: 412px;
-      --ft-tool-fly-x: 300px;
+      right: 462px;
+      --ft-tool-fly-x: 350px;
       transition-delay: 140ms;
       --motion-accent: #46f0d7;
       --motion-core: #6cf0a4;
@@ -4181,8 +4186,8 @@
     }
 
     .ft-speak-admin-button {
-      right: 462px;
-      --ft-tool-fly-x: 350px;
+      right: 512px;
+      --ft-tool-fly-x: 400px;
       transition-delay: 175ms;
       color: #d86cff;
       background:
@@ -4192,26 +4197,26 @@
     }
 
     .ft-cursor-button {
-      right: 462px;
-      --ft-tool-fly-x: 350px;
+      right: 512px;
+      --ft-tool-fly-x: 400px;
       transition-delay: 175ms;
     }
 
     .ft-game-button {
-      right: 462px;
-      --ft-tool-fly-x: 350px;
+      right: 512px;
+      --ft-tool-fly-x: 400px;
       transition-delay: 175ms;
     }
 
     html.ft-admin-tools-visible .ft-game-button {
-      right: 512px;
-      --ft-tool-fly-x: 400px;
+      right: 562px;
+      --ft-tool-fly-x: 450px;
       transition-delay: 210ms;
     }
 
     .ft-portal-button {
-      right: 512px;
-      --ft-tool-fly-x: 400px;
+      right: 562px;
+      --ft-tool-fly-x: 450px;
       transition-delay: 210ms;
       color: #ff9c45;
       background:
@@ -4233,26 +4238,26 @@
     }
 
     html.ft-admin-tools-visible .ft-portal-button {
-      right: 562px;
-      --ft-tool-fly-x: 450px;
+      right: 612px;
+      --ft-tool-fly-x: 500px;
       transition-delay: 245ms;
     }
 
     .ft-vault-button {
-      right: 562px;
-      --ft-tool-fly-x: 450px;
+      right: 612px;
+      --ft-tool-fly-x: 500px;
       transition-delay: 245ms;
     }
 
     html.ft-admin-tools-visible .ft-vault-button {
-      right: 612px;
-      --ft-tool-fly-x: 500px;
+      right: 662px;
+      --ft-tool-fly-x: 550px;
       transition-delay: 280ms;
     }
 
     .ft-cup-button {
-      right: 612px;
-      --ft-tool-fly-x: 500px;
+      right: 662px;
+      --ft-tool-fly-x: 550px;
       transition-delay: 280ms;
       color: #ffd166;
       background:
@@ -4261,14 +4266,14 @@
     }
 
     html.ft-admin-tools-visible .ft-cup-button {
-      right: 662px;
-      --ft-tool-fly-x: 550px;
+      right: 712px;
+      --ft-tool-fly-x: 600px;
       transition-delay: 315ms;
     }
 
     .ft-npc-switch-button {
-      right: 712px;
-      --ft-tool-fly-x: 600px;
+      right: 762px;
+      --ft-tool-fly-x: 650px;
       transition-delay: 315ms;
       color: #7effeb;
       overflow: hidden;
@@ -4279,14 +4284,84 @@
     }
 
     html.ft-admin-tools-visible .ft-npc-switch-button {
-      right: 762px;
-      --ft-tool-fly-x: 650px;
+      right: 812px;
+      --ft-tool-fly-x: 700px;
       transition-delay: 350ms;
     }
 
+    .ft-clear-audio-cache-button {
+      right: 412px;
+      --ft-tool-fly-x: 300px;
+      transition-delay: 140ms;
+      color: #ffd6ad;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 48% 28%, rgba(255, 171, 100, 0.24), transparent 58%),
+        linear-gradient(135deg, rgba(239, 141, 77, 0.2), rgba(216, 108, 255, 0.11)),
+        rgba(3, 13, 14, 0.78);
+      box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.3),
+        0 0 24px rgba(239, 141, 77, 0.12),
+        inset 0 0 18px rgba(255, 171, 100, 0.1);
+    }
+
+    .ft-clear-audio-cache-button::before {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 11px;
+      border: 1px solid rgba(255, 190, 96, 0.48);
+      border-left-color: rgba(216, 108, 255, 0.72);
+      box-shadow: inset 0 0 12px rgba(239, 141, 77, 0.14);
+      animation: ftClearAudioCacheRing 3.2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .ft-clear-audio-cache-button::after {
+      content: "";
+      position: absolute;
+      width: 34px;
+      height: 2px;
+      left: -22px;
+      top: 11px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.92), rgba(255, 171, 100, 0.72), transparent);
+      transform: rotate(-35deg);
+      opacity: 0;
+      animation: ftClearAudioCacheSweep 4.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .ft-clear-audio-cache-button > svg {
+      position: relative;
+      z-index: 1;
+      width: 23px;
+      height: 23px;
+    }
+
+    .ft-clear-audio-cache-button.is-clearing {
+      color: #fff6e6;
+      border-color: rgba(255, 209, 102, 0.9);
+      box-shadow: 0 0 34px rgba(255, 171, 100, 0.34), inset 0 0 20px rgba(255, 209, 102, 0.16);
+    }
+
+    .ft-clear-audio-cache-button.is-clearing::before {
+      animation: ftClearAudioCacheRing 0.9s linear infinite;
+    }
+
+    .ft-clear-audio-cache-button.is-cleared {
+      color: #9dffcc;
+      border-color: rgba(108, 240, 164, 0.82);
+    }
+
+    .ft-clear-audio-cache-button.is-warning {
+      color: #ffd166;
+      border-color: rgba(255, 209, 102, 0.84);
+    }
+
     .ft-worker-toolbar-button {
-      right: 662px;
-      --ft-tool-fly-x: 550px;
+      right: 712px;
+      --ft-tool-fly-x: 600px;
       transition-delay: 315ms;
       color: #ffcf73;
       background:
@@ -4296,75 +4371,75 @@
     }
 
     html.ft-admin-tools-visible .ft-worker-toolbar-button {
-      right: 712px;
-      --ft-tool-fly-x: 600px;
+      right: 762px;
+      --ft-tool-fly-x: 650px;
       transition-delay: 350ms;
     }
 
     /* Added 2026-07-09: compacts Group tools after removing deprecated Motion/Worker buttons. */
     .ft-cursor-button {
-      right: 462px;
-      --ft-tool-fly-x: 350px;
+      right: 512px;
+      --ft-tool-fly-x: 400px;
       transition-delay: 175ms;
     }
 
     .ft-game-button {
-      right: 462px;
-      --ft-tool-fly-x: 350px;
+      right: 512px;
+      --ft-tool-fly-x: 400px;
       transition-delay: 210ms;
     }
 
     .ft-portal-button {
-      right: 512px;
-      --ft-tool-fly-x: 400px;
+      right: 562px;
+      --ft-tool-fly-x: 450px;
       transition-delay: 245ms;
     }
 
     .ft-vault-button {
-      right: 562px;
-      --ft-tool-fly-x: 450px;
+      right: 612px;
+      --ft-tool-fly-x: 500px;
       transition-delay: 280ms;
     }
 
     .ft-cup-button {
-      right: 612px;
-      --ft-tool-fly-x: 500px;
-      transition-delay: 315ms;
-    }
-
-    html.ft-admin-tools-visible .ft-game-button {
-      right: 512px;
-      --ft-tool-fly-x: 400px;
-      transition-delay: 210ms;
-    }
-
-    html.ft-admin-tools-visible .ft-portal-button {
-      right: 562px;
-      --ft-tool-fly-x: 450px;
-      transition-delay: 245ms;
-    }
-
-    html.ft-admin-tools-visible .ft-vault-button {
-      right: 612px;
-      --ft-tool-fly-x: 500px;
-      transition-delay: 280ms;
-    }
-
-    html.ft-admin-tools-visible .ft-cup-button {
       right: 662px;
       --ft-tool-fly-x: 550px;
       transition-delay: 315ms;
     }
 
-    html.ft-admin-tools-visible .ft-npc-switch-button {
+    html.ft-admin-tools-visible .ft-game-button {
+      right: 562px;
+      --ft-tool-fly-x: 450px;
+      transition-delay: 210ms;
+    }
+
+    html.ft-admin-tools-visible .ft-portal-button {
+      right: 612px;
+      --ft-tool-fly-x: 500px;
+      transition-delay: 245ms;
+    }
+
+    html.ft-admin-tools-visible .ft-vault-button {
+      right: 662px;
+      --ft-tool-fly-x: 550px;
+      transition-delay: 280ms;
+    }
+
+    html.ft-admin-tools-visible .ft-cup-button {
       right: 712px;
       --ft-tool-fly-x: 600px;
+      transition-delay: 315ms;
+    }
+
+    html.ft-admin-tools-visible .ft-npc-switch-button {
+      right: 762px;
+      --ft-tool-fly-x: 650px;
       transition-delay: 350ms;
     }
 
     html.ft-admin-tools-visible .ft-admin-screen-button {
-      right: 762px;
-      --ft-tool-fly-x: 650px;
+      right: 812px;
+      --ft-tool-fly-x: 700px;
       transition-delay: 385ms;
     }
 
@@ -4615,6 +4690,60 @@
       100% { transform: translateX(74px) rotate(-32deg); opacity: 0; }
     }
 
+    @keyframes ftClearAudioCacheRing {
+      0%, 100% { transform: rotate(0deg) scale(0.94); opacity: 0.56; }
+      50% { transform: rotate(180deg) scale(1.03); opacity: 0.96; }
+    }
+
+    @keyframes ftClearAudioCacheSweep {
+      0%, 68% { transform: translateX(0) rotate(-35deg); opacity: 0; }
+      76% { opacity: 0.88; }
+      100% { transform: translateX(82px) rotate(-35deg); opacity: 0; }
+    }
+
+    .future-audio-cache-notice {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 1200;
+      min-width: min(360px, calc(100vw - 32px));
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 190, 96, 0.54);
+      border-radius: 18px;
+      color: #fff8eb;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(255, 190, 96, 0.18), transparent 34%),
+        linear-gradient(135deg, rgba(32, 18, 21, 0.96), rgba(19, 15, 34, 0.96));
+      box-shadow: 0 18px 54px rgba(0, 0, 0, 0.46), 0 0 30px rgba(239, 141, 77, 0.18);
+      backdrop-filter: blur(16px);
+      opacity: 0;
+      transform: translateY(18px) scale(0.96);
+      transition: opacity 280ms ease, transform 320ms cubic-bezier(.2, .8, .2, 1);
+      pointer-events: none;
+    }
+
+    .future-audio-cache-notice.is-visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .future-audio-cache-notice.is-warning { border-color: rgba(255, 209, 102, 0.72); }
+    .future-audio-cache-notice b { display: block; font-size: 14px; letter-spacing: 0.02em; }
+    .future-audio-cache-notice small { display: block; margin-top: 3px; color: rgba(255, 239, 218, 0.76); font-size: 11px; }
+    .future-audio-cache-notice-orb {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 190, 96, 0.72);
+      border-left-color: rgba(216, 108, 255, 0.82);
+      box-shadow: inset 0 0 12px rgba(255, 190, 96, 0.18), 0 0 18px rgba(239, 141, 77, 0.22);
+      animation: ftClearAudioCacheRing 1.2s ease-in-out 2;
+    }
+
     .ft-chat-button.is-visible,
     .ft-stream-button.is-visible,
     .ft-screen-button.is-visible,
@@ -4622,6 +4751,7 @@
     .ft-admin-screen-button.is-visible,
     .ft-paint-button.is-visible,
     .ft-mobile-animation-button.is-visible,
+    .ft-clear-audio-cache-button.is-visible,
     .ft-speak-admin-button.is-visible,
     .ft-cursor-button.is-visible,
     .ft-game-button.is-visible,
@@ -4640,6 +4770,7 @@
     html.ft-mobile-tools-open .ft-admin-screen-button.is-visible,
     html.ft-mobile-tools-open .ft-paint-button.is-visible,
     html.ft-mobile-tools-open .ft-mobile-animation-button.is-visible,
+    html.ft-mobile-tools-open .ft-clear-audio-cache-button.is-visible,
     html.ft-mobile-tools-open .ft-speak-admin-button.is-visible,
     html.ft-mobile-tools-open .ft-cursor-button.is-visible,
     html.ft-mobile-tools-open .ft-game-button.is-visible,
@@ -4782,6 +4913,7 @@
     html.ft-mobile-tools-open .ft-admin-screen-button.is-visible,
     html.ft-mobile-tools-open .ft-paint-button.is-visible,
     html.ft-mobile-tools-open .ft-mobile-animation-button.is-visible,
+    html.ft-mobile-tools-open .ft-clear-audio-cache-button.is-visible,
     html.ft-mobile-tools-open .ft-speak-admin-button.is-visible,
     html.ft-mobile-tools-open .ft-cursor-button.is-visible,
     html.ft-mobile-tools-open .ft-game-button.is-visible,
@@ -4834,6 +4966,8 @@
     .ft-paint-button:focus-visible,
     .ft-mobile-animation-button:hover,
     .ft-mobile-animation-button:focus-visible,
+    .ft-clear-audio-cache-button:hover,
+    .ft-clear-audio-cache-button:focus-visible,
     .ft-speak-admin-button:hover,
     .ft-speak-admin-button:focus-visible,
     .ft-cursor-button:hover,

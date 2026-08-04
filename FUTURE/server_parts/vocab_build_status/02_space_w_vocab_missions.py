@@ -1,7 +1,7 @@
 # Loaded by FUTURE.server_parts.10_vocab_build_status into the shared Future server runtime namespace.
 # This is a nested transitional split; do not import directly yet.
 
-def space_w_vocab_context(relative_path: str, username: str) -> dict:
+def space_w_vocab_context(relative_path: str, username: str, lesson_id: str = "") -> dict:
     username = normalize_username(username)
     raw_path = clean_path_value(relative_path)
     if not raw_path:
@@ -20,25 +20,62 @@ def space_w_vocab_context(relative_path: str, username: str) -> dict:
         ".space_l": "Space_L",
     }.get(suffix, "Space_W")
     stat = target.stat()
+    meta = lesson_vocab_meta_for_id(lesson_id)
+    current_signature = qmdict_source_signature_key()
+    current_signature_text = f"{int(current_signature[0])}:{int(current_signature[1])}"
+    if (
+        not lesson_vocab_meta_is_current(meta, None)
+        or clean(meta.get("vocab_validated_signature", "")) != current_signature_text
+        or clean(meta.get("vocab_extractor_version", "")) != VOCAB_FILE_META_EXTRACTOR_VERSION
+    ):
+        meta = lesson_file_vocab_meta_cached_for_target(target)
+        if not meta:
+            meta = lesson_file_vocab_meta_for_target(target)
+    lesson_id = clean(meta.get("lesson_id", "")) if isinstance(meta, dict) else ""
+    source_identity = lesson_id or str(target).lower()
     source_cache_key = (
-        "lesson-vocab-source-v1",
-        str(target).lower(),
-        int(stat.st_mtime_ns),
-        int(stat.st_size),
+        "lesson-vocab-source-v2",
+        source_identity,
+        0 if lesson_id else int(stat.st_mtime_ns),
+        0 if lesson_id else int(stat.st_size),
         *qmdict_source_signature_key(),
     )
     with QMDICT_VOCAB_BASE_CACHE_LOCK:
         base = QMDICT_VOCAB_BASE_CACHE.get(source_cache_key)
 
     def build_source_base() -> dict:
-        payload, _structure_path = load_future_lesson_document(target)
-        text = lesson_english_text(payload)
-        entries = resolve_vocab_entries_for_text(text)
-        source_title = lesson_payload_title(payload, target.stem) or target.stem
+        signature = qmdict_source_signature_key()
+        signature_text = f"{int(signature[0])}:{int(signature[1])}"
+        valid_keys = list(meta.get("vocab_valid_word_keys") or []) if isinstance(meta, dict) else []
+        meta_validated = isinstance(meta, dict) and clean(meta.get("vocab_validated_signature", "")) == signature_text
+        entries = []
+        if meta_validated:
+            from types import SimpleNamespace  # noqa: PLC0415
+
+            summary_maps = qmdict_registry_summary_maps()
+            for key in valid_keys:
+                detail = summary_maps.get(vocab_key(key)) if isinstance(summary_maps, dict) else None
+                if not isinstance(detail, dict) or not detail:
+                    continue
+                entries.append(SimpleNamespace(
+                    word=clean(detail.get("word", "")) or clean(key),
+                    meaning=clean(detail.get("meaning", "")),
+                    pron=clean(detail.get("pron", "") or detail.get("pron_uk", "") or detail.get("pron_us", "")),
+                    word_type=clean(detail.get("type", "")),
+                    lookup_status="QmDict shared file index",
+                ))
+        if not meta_validated or (valid_keys and not entries):
+            payload, _structure_path = load_future_lesson_document(target)
+            text = lesson_english_text(payload)
+            entries = resolve_vocab_entries_for_text(text)
+            source_title = lesson_payload_title(payload, target.stem) or target.stem
+        else:
+            source_title = clean(meta.get("vocab_source_title", "")) or target.stem
         source_rel = server_data_relative(target)
-        digest = hashlib.sha1(f"{source_rel}|{space_label.lower()}|words-only-v2".encode("utf-8", "replace")).hexdigest()[:12]
+        digest = hashlib.sha1(f"{source_identity}|{space_label.lower()}|words-only-v3".encode("utf-8", "replace")).hexdigest()[:12]
         mission_name = f"{safe_name_segment(source_title, f'{space_label} Vocabulary', 42)} {digest}"
         result = {
+            "lesson_id": lesson_id,
             "source_path": source_rel,
             "source_title": source_title,
             "mission_id": mission_name,
@@ -236,18 +273,47 @@ def start_space_w_vocab_build_job(relative_path: str, username: str) -> dict:
     return get_vocab_build_job(job_id, username)
 
 
-def scan_space_w_vocabulary(relative_path: str, username: str, include_words: bool = True) -> dict:
+def scan_space_w_vocabulary(relative_path: str, username: str, include_words: bool = True, lesson_id: str = "") -> dict:
     # Added 2026-07-21: scans are read-only and share QmDict/text caches instead of serializing on SERVER_DATA_LOCK.
     normalized_user = normalize_username(username)
     raw_path = clean_path_value(relative_path)
     requested_target = safe_server_data_path(raw_path, normalized_user, admin=is_admin_user(normalized_user))
     target = server_data_effective_file_path(requested_target, username=normalized_user, admin=is_admin_user(normalized_user))
     stat = target.stat()
+    shared_meta = lesson_vocab_meta_for_id(lesson_id)
+    shared_meta_current = lesson_vocab_meta_is_current(shared_meta, None)
+    if not shared_meta_current:
+        shared_meta = lesson_file_vocab_meta_cached_for_target(target)
+        shared_meta_current = lesson_vocab_meta_is_current(shared_meta, stat)
+    if not shared_meta_current:
+        repair = schedule_lesson_vocab_meta_repair(target, lesson_id=lesson_id)
+        return {
+            "source_path": server_data_relative(target),
+            "source_title": target.stem,
+            "space": {
+                ".space_w": "Space_W",
+                ".space_q": "Space_Q",
+                ".space_p": "Space_P",
+                ".space_s": "Space_S",
+                ".space_l": "Space_L",
+            }.get(target.suffix.lower(), "Space_W"),
+            "lesson_id": clean(lesson_id),
+            "new_count": 0,
+            "learned_total": 0,
+            "files_needed": 0,
+            "pending_count": 0,
+            "pending_files": [],
+            "index_pending": True,
+            "repair_scheduled": bool(repair.get("scheduled")),
+            "repair_single_flight": bool(repair.get("single_flight")),
+        }
+    lesson_id = clean(shared_meta.get("lesson_id", "")) or clean(lesson_id)
     generation_reader = globals().get("server_database_user_generation")
     registry_generation = int(generation_reader("registry", normalized_user) or 0) if callable(generation_reader) else 0
     scan_key = (
         normalized_user.lower(),
         str(target).lower(),
+        clean(lesson_id),
         int(stat.st_mtime_ns),
         int(stat.st_size),
         *qmdict_source_signature_key(),
@@ -262,19 +328,20 @@ def scan_space_w_vocabulary(relative_path: str, username: str, include_words: bo
             return dict(cached["result"])
 
     def compute_scan() -> dict:
-        ctx = space_w_vocab_context(raw_path, normalized_user)
+        ctx = space_w_vocab_context(raw_path, normalized_user, lesson_id=lesson_id)
         pending = mission_file_records(
             ctx["mission_root"],
             normalized_user,
             learned_keys=ctx.get("learned_keys", set()),
             require_unlearned=True,
-        )
+        ) if include_words else []
         new_entries = ctx["new_entries"]
         result = {
             "source_path": ctx["source_path"],
             "source_title": ctx["source_title"],
             "space": ctx.get("space", "Space_W"),
             "mission_id": ctx["mission_id"],
+            "lesson_id": lesson_id,
             "new_count": len(new_entries),
             "learned_total": ctx["learned_total"],
             "files_needed": math.ceil(len(new_entries) / VOCAB_MISSION_CHUNK_SIZE) if new_entries else 0,

@@ -23,7 +23,10 @@ from FUTURE.server2.future_distributed_worker_client import CLIENT_VERSION, clea
 
 DEFAULT_SERVER_URL = ""
 DEFAULT_WORKER_TOKEN = ""
-DEFAULT_PORT = 8877
+# Added 2026-07-31: workers use the LAN-only broker port; 8877 remains the
+# learner/web listener and is kept only as a legacy fallback during migration.
+DEFAULT_PORT = 8890
+LEGACY_PORT = 8877
 HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 FutureWorkerAuto/2026.07 Safari/537.36"
 LAST_SERVER_URL = ""
 SINGLE_INSTANCE_LOCK_HANDLE = None
@@ -200,6 +203,9 @@ def acquire_single_instance_lock() -> bool:
 # Added 2026-07-07: lets the local worker dashboard send notes/log snippets to Server 2.
 def post_worker_log_to_server(message: str) -> dict:
     server_url = normalize_server_url(worker_auto_config_value("SERVER_URL", DEFAULT_SERVER_URL) or read_saved_server() or LAST_SERVER_URL)
+    allow_legacy = clean(os.environ.get("FUTURE_WORKER_ALLOW_LEGACY_WEB", "")).lower() in {"1", "true", "yes", "on"}
+    if not worker_server_url_allowed(server_url, allow_legacy=allow_legacy):
+        raise RuntimeError("Worker logs are restricted to the private LAN broker.")
     token = worker_auto_config_value("WORKER_TOKEN", DEFAULT_WORKER_TOKEN)
     if not server_url:
         raise RuntimeError("No Server 2 URL is known yet.")
@@ -246,9 +252,34 @@ def normalize_server_url(url: str) -> str:
     return raw
 
 
-def url_healthy(url: str, timeout: float = 0.45) -> bool:
+def worker_server_url_allowed(url: str, *, allow_legacy: bool = False) -> bool:
+    """Added 2026-07-31: keep worker traffic on the private LAN broker."""
     target = normalize_server_url(url)
     if not target:
+        return False
+    try:
+        parsed = urlsplit(target)
+        if parsed.scheme.lower() != "http" or not parsed.hostname:
+            return False
+        port = parsed.port
+        if port != DEFAULT_PORT and not (allow_legacy and port == LEGACY_PORT):
+            return False
+        hostname = parsed.hostname.strip("[]")
+        if hostname.lower() == "localhost":
+            return True
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            address = ipaddress.ip_address(socket.gethostbyname(hostname))
+        return bool(address.is_private or address.is_loopback)
+    except Exception:
+        return False
+
+
+def url_healthy(url: str, timeout: float = 0.45) -> bool:
+    target = normalize_server_url(url)
+    allow_legacy = clean(os.environ.get("FUTURE_WORKER_ALLOW_LEGACY_WEB", "")).lower() in {"1", "true", "yes", "on"}
+    if not target or not worker_server_url_allowed(target, allow_legacy=allow_legacy):
         return False
     try:
         request = Request(target + "/health", headers={"User-Agent": HTTP_USER_AGENT, "Accept": "application/json,text/plain,*/*"})
@@ -291,9 +322,11 @@ def discover_server_url(log=None) -> str:
     candidates = [
         clean(os.environ.get("FUTURE_SERVER_URL", "")),
         clean(DEFAULT_SERVER_URL),
-        read_saved_server(),
         f"http://127.0.0.1:{DEFAULT_PORT}",
     ]
+    saved_server = read_saved_server()
+    if worker_server_url_allowed(saved_server):
+        candidates.append(saved_server)
     lan_candidates = []
     local_ips = local_ipv4_addresses()
     if log:
@@ -342,6 +375,17 @@ def discover_server_url(log=None) -> str:
                         log(f"Found Future Server 2: {url}")
                     LAST_SERVER_URL = url
                     return url
+    # Legacy web polling is opt-in only while old installations are migrated.
+    if clean(os.environ.get("FUTURE_WORKER_ALLOW_LEGACY_WEB", "")).lower() in {"1", "true", "yes", "on"}:
+        legacy = f"http://127.0.0.1:{LEGACY_PORT}"
+        if worker_server_url_allowed(saved_server, allow_legacy=True) and urlsplit(saved_server).port == LEGACY_PORT:
+            legacy = saved_server
+        if legacy not in seen and url_healthy(legacy):
+            save_server(legacy)
+            LAST_SERVER_URL = legacy
+            if log:
+                log(f"Found migration-only legacy Future Server 2: {legacy}.")
+            return legacy
     if log:
         log("No Future Server 2 found on localhost or current Wi-Fi range.")
     return ""
@@ -370,7 +414,7 @@ def run_worker_forever(log=print) -> int:
     while True:
         server_url = discover_server_url(log)
         if not server_url:
-            log("Retrying discovery in 5 seconds. Check server is running, same Wi-Fi/Ethernet LAN, and firewall allows port 8877.")
+            log(f"Retrying discovery in 5 seconds. Check Server 2 LAN broker port {DEFAULT_PORT} and firewall.")
             time.sleep(5)
             continue
         globals()["LAST_SERVER_URL"] = server_url
@@ -427,6 +471,7 @@ def run_dashboard() -> int:
         """
         QWidget { background: #101418; color: #eef7f2; font-family: Segoe UI; }
         QLabel#title { font-size: 20px; font-weight: 800; color: #ff9f35; }
+        QLabel#serverUrl { color: #70d6ff; font-weight: 800; padding: 2px 0; }
         QLabel#status { color: #ffbf5a; font-weight: 700; padding: 6px 0; }
         QTextEdit { background: #070a0d; border: 1px solid #2b3b45; border-radius: 8px; padding: 8px; color: #d8fff1; }
         QPushButton { background: #1b2a31; border: 1px solid #3d5b65; border-radius: 7px; padding: 8px 12px; font-weight: 700; }
@@ -439,6 +484,10 @@ def run_dashboard() -> int:
     title = QLabel("QM-Tech Future Worker")
     title.setObjectName("title")
     layout.addWidget(title)
+    server_url_label = QLabel(f"LAN broker: {normalize_server_url(DEFAULT_SERVER_URL) or f'auto-discovery port {DEFAULT_PORT}'}")
+    server_url_label.setObjectName("serverUrl")
+    server_url_label.setWordWrap(True)
+    layout.addWidget(server_url_label)
     status = QLabel("Starting...")
     status.setObjectName("status")
     status.setWordWrap(True)
@@ -502,6 +551,10 @@ def run_dashboard() -> int:
         if "Found Future Server 2" in text or "Connecting worker" in text or "job " in text or " | " in text:
             status.setText(text)
             status.setStyleSheet("color: #6cf0a4; font-weight: 800; padding: 6px 0;")
+            if "Found Future Server 2: " in text:
+                server_url_label.setText("Connected LAN broker: " + text.split("Found Future Server 2: ", 1)[1].strip())
+            elif "Connecting worker" in text and " to " in text:
+                server_url_label.setText("Connected LAN broker: " + text.rsplit(" to ", 1)[1].strip())
         elif "No Future Server 2" in text or "Retrying discovery" in text or "failed" in text.lower() or "crashed" in text.lower():
             status.setText(text)
             status.setStyleSheet("color: #ff7a90; font-weight: 800; padding: 6px 0;")

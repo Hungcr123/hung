@@ -284,6 +284,7 @@
             payload = self.read_json_body()
             text = sanitize_pdf_voice_text(payload.get("text", ""), limit=1400)
             voice = clean(payload.get("voice", "")) or "kokoro:am_adam"
+            client_source = clean(payload.get("client_source", payload.get("clientSource", ""))).lower()
             if not re.match(r"^(kokoro|kokoro_vi|sot|edge|microsoft):[A-Za-z0-9._:\-]+$", voice):
                 voice = "kokoro:am_adam"
             if not text:
@@ -292,9 +293,25 @@
             if cached_audio:
                 self.send_json(200, {"ok": True, "text": text, **cached_audio})
                 return
-            if not enforce_user_heavy_quota_response(self, username, "tts"):
+            interactive_lesson_audio = client_source in {"lesson_audio", "space_v_audio", "space_w_audio"} and len(text) <= 240
+            if not interactive_lesson_audio and not enforce_user_heavy_quota_response(self, username, "tts"):
                 return
-            audio_payload = chat_synthesize_message_audio_queued(text, voice)
+            try:
+                audio_payload = chat_synthesize_message_audio_queued(
+                    text,
+                    voice,
+                    source="interactive_lesson_audio" if interactive_lesson_audio else "runtime_voice",
+                )
+            except Exception as generation_exc:
+                self.send_json(503, {
+                    "ok": False,
+                    "error": str(generation_exc),
+                    "reason": "tts_all_generation_failed",
+                    "worker_attempted": True,
+                    "server_fallback_attempted": True,
+                    "browser_fallback_allowed": True,
+                })
+                return
             self.send_json(200, {"ok": True, "text": text, **audio_payload})
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})

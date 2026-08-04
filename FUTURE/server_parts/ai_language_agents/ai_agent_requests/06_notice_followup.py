@@ -27,7 +27,7 @@ def build_ai_agent_notice(username: str, message: str, context: dict | None = No
     audio_payload: dict = {}
     audio_error = ""
     try:
-        audio_payload = chat_synthesize_message_audio_queued(audio_text, voice)
+        audio_payload = chat_synthesize_message_audio_queued(audio_text, voice, source="ai_notice_followup")
     except Exception as exc:
         audio_error = str(exc)
     now = utc_timestamp()

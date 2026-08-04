@@ -388,6 +388,79 @@ def read_qmlearn_data_sound_file(target: Path) -> tuple[bytes, str]:
     return data, "audio/mpeg"
 
 
+# Added 2026-07-30: read bytes and revision as one stable observation so a
+# replacement cannot pair an old payload with a new immutable URL revision.
+def read_qmlearn_data_sound_file_revisioned(target: Path, attempts: int = 3) -> tuple[bytes, str, str]:
+    target = Path(target)
+    for _ in range(max(1, int(attempts or 1))):
+        try:
+            _cache_key, before = qmlearn_sound_cache_key(target)
+            data, content_type = read_qmlearn_data_sound_file(target)
+            _cache_key, after = qmlearn_sound_cache_key(target)
+        except Exception:
+            raise
+        if before == after:
+            revision = f"{after[0]:x}-{after[1]:x}"
+            return data, content_type, revision
+    raise RuntimeError("Audio QMLearn dang duoc thay trong luc doc.")
+
+
+# Added 2026-07-30: serve immutable revision URLs from bounded RAM after the first stable file observation.
+def qmlearn_http_audio_cache_get(cache_key: object = "") -> dict | None:
+    key = clean(cache_key)
+    if not key:
+        return None
+    with QMLEARN_HTTP_AUDIO_CACHE_LOCK:
+        row = QMLEARN_HTTP_AUDIO_CACHE.get(key)
+        if not isinstance(row, dict) or not isinstance(row.get("data"), bytes):
+            return None
+        row["at"] = time.time()
+        return row
+
+
+# Added 2026-07-31: stale revision URLs must never revive overwritten audio from Server 2 RAM.
+def qmlearn_http_audio_cache_get_current(
+    cache_key: object,
+    requested_revision: object,
+    current_revision: object,
+) -> dict | None:
+    requested = clean(requested_revision)
+    current = clean(current_revision)
+    if not requested or requested != current:
+        return None
+    row = qmlearn_http_audio_cache_get(cache_key)
+    if not row or clean(row.get("revision")) != current:
+        return None
+    return row
+
+
+# Added 2026-07-30: bound immutable audio RAM by both item count and payload bytes.
+def qmlearn_http_audio_cache_put(cache_key: object, data: bytes, content_type: str, revision: str, etag: str) -> None:
+    key = clean(cache_key)
+    payload = bytes(data or b"")
+    if not key or not payload:
+        return
+    now = time.time()
+    with QMLEARN_HTTP_AUDIO_CACHE_LOCK:
+        QMLEARN_HTTP_AUDIO_CACHE[key] = {
+            "data": payload,
+            "content_type": clean(content_type) or "audio/mpeg",
+            "revision": clean(revision),
+            "etag": clean(etag),
+            "size": len(payload),
+            "at": now,
+        }
+        total = sum(int(row.get("size", 0) or 0) for row in QMLEARN_HTTP_AUDIO_CACHE.values() if isinstance(row, dict))
+        if total <= QMLEARN_HTTP_AUDIO_CACHE_MAX_BYTES and len(QMLEARN_HTTP_AUDIO_CACHE) <= QMLEARN_HTTP_AUDIO_CACHE_MAX_ITEMS:
+            return
+        for old_key, row in sorted(QMLEARN_HTTP_AUDIO_CACHE.items(), key=lambda item: float(item[1].get("at", 0) or 0)):
+            if total <= QMLEARN_HTTP_AUDIO_CACHE_MAX_BYTES and len(QMLEARN_HTTP_AUDIO_CACHE) <= QMLEARN_HTTP_AUDIO_CACHE_MAX_ITEMS:
+                break
+            QMLEARN_HTTP_AUDIO_CACHE.pop(old_key, None)
+            if isinstance(row, dict):
+                total -= int(row.get("size", 0) or 0)
+
+
 VOCAB_MISSION_PENDING_DIR = "Immediate Mission"
 VOCAB_MISSION_ARCHIVE_DIR = "Learned Vocabulary"
 VOCAB_REGISTRY_FILE = "_future_learned_vocabulary.json"

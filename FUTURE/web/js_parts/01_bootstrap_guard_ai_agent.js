@@ -345,6 +345,7 @@
       const adminScreenButton = document.getElementById("ft-admin-screen-button");
       const paintButton = document.getElementById("ft-paint-button");
       const mobileAnimationButton = document.getElementById("ft-mobile-animation-button");
+      const clearAudioCacheButton = document.getElementById("ft-clear-audio-cache-button");
       const cursorButton = document.getElementById("ft-cursor-button");
       const speakSkipAdminButton = document.getElementById("ft-speak-admin-button");
       const gameButton = document.getElementById("ft-game-button");
@@ -871,8 +872,18 @@
       const vocabDetailWord = document.getElementById("ft-vocab-detail-word");
       const vocabDetailList = document.getElementById("ft-vocab-detail-list");
       const vocabPicturePanel = document.getElementById("ft-vocab-picture-panel");
+      const vocabPictureFrame = document.getElementById("ft-vocab-picture-frame");
       const vocabPictureImg = document.getElementById("ft-vocab-picture-img");
       const vocabPictureCaption = document.getElementById("ft-vocab-picture-caption");
+      const vocabImageLightbox = document.getElementById("ft-vocab-image-lightbox");
+      const vocabImageLightboxClose = document.getElementById("ft-vocab-image-lightbox-close");
+      const vocabImageLightboxImg = document.getElementById("ft-vocab-image-lightbox-img");
+      const vocabImageLightboxPrev = document.getElementById("ft-vocab-image-lightbox-prev");
+      const vocabImageLightboxNext = document.getElementById("ft-vocab-image-lightbox-next");
+      const vocabImageLightboxPage = document.getElementById("ft-vocab-image-lightbox-page");
+      const vocabImageLightboxWord = document.getElementById("ft-vocab-image-lightbox-word");
+      const vocabImageLightboxMeaning = document.getElementById("ft-vocab-image-lightbox-meaning");
+      const vocabImageLightboxCaption = document.getElementById("ft-vocab-image-lightbox-caption");
       const vocabSideConnector = document.getElementById("ft-vocab-side-connector");
       const vocabDetailPath = document.getElementById("ft-vocab-detail-path");
       const vocabPicturePath = document.getElementById("ft-vocab-picture-path");
@@ -885,6 +896,12 @@
       const vocabPreflightLearn = document.getElementById("ft-vocab-preflight-learn");
       const vocabPreflightSkip = document.getElementById("ft-vocab-preflight-skip");
       const vocabPreflightStatus = document.getElementById("ft-vocab-preflight-status");
+      const lessonEntryVocabAlert = document.getElementById("ft-entry-vocab-alert");
+      const lessonEntryVocabAlertCount = document.getElementById("ft-entry-vocab-alert-count");
+      const lessonEntryVocabAlertPacks = document.getElementById("ft-entry-vocab-alert-packs");
+      const lessonEntryVocabAlertDetail = document.getElementById("ft-entry-vocab-alert-detail");
+      const lessonEntryVocabAlertLearn = document.getElementById("ft-entry-vocab-alert-learn");
+      const lessonEntryVocabAlertSkip = document.getElementById("ft-entry-vocab-alert-skip");
       const mobileTabs = document.getElementById("ft-mobile-tabs");
       const mobileTabButtons = Array.from(document.querySelectorAll(".ft-mobile-tab[data-panel]"));
       const connectorNode = document.getElementById("ft-connector");
@@ -961,6 +978,26 @@
       const loadEnterNowButton = document.getElementById("ft-load-enter-now");
       const fileInput = document.getElementById("ft-file-input");
       const loadStatus = document.getElementById("ft-load-status");
+      const lessonEntryGate = document.getElementById("ft-lesson-entry-gate");
+      const lessonEntryGateFrame = document.getElementById("ft-entry-gate-frame");
+      const lessonEntryGateKicker = document.getElementById("ft-entry-gate-kicker");
+      const lessonEntryGateTitle = document.getElementById("ft-entry-gate-title");
+      const lessonEntryGate2Status = document.getElementById("ft-entry-gate2-status");
+      const lessonEntryGate2Led = document.getElementById("ft-entry-gate2-led");
+      const lessonEntryPrimaryLed = document.getElementById("ft-entry-primary-led");
+       const lessonEntryGateClock = document.getElementById("ft-entry-gate-clock");
+       const lessonEntryPdfStream = document.getElementById("ft-entry-pdf-stream");
+       const lessonEntryPdfStreamPhase = document.getElementById("ft-entry-pdf-stream-phase");
+       const lessonEntryPdfStreamPercent = document.getElementById("ft-entry-pdf-stream-percent");
+       const lessonEntryPdfStreamGraph = document.getElementById("ft-entry-pdf-stream-graph");
+       const lessonEntryPdfStreamProgressRing = document.getElementById("ft-entry-pdf-stream-progress-ring");
+       const lessonEntryPdfStreamFill = document.getElementById("ft-entry-pdf-stream-fill");
+       const lessonEntryPdfStreamChunk = document.getElementById("ft-entry-pdf-stream-chunk");
+       const lessonEntryPdfStreamBytes = document.getElementById("ft-entry-pdf-stream-bytes");
+       const lessonEntryGateOpenButton = document.getElementById("ft-entry-gate-open");
+      const lessonEntryGateContinueButton = document.getElementById("ft-entry-gate-continue");
+      const lessonEntryGateTrainButton = document.getElementById("ft-entry-gate-train");
+      const lessonEntryGateExitButton = document.getElementById("ft-entry-gate-exit");
       const topLoading = document.getElementById("ft-top-loading");
       const topLoadingText = document.getElementById("ft-top-loading-text");
       const serverOpenButton = document.getElementById("ft-server-open");
@@ -1704,10 +1741,41 @@
         const SPEAK_PREFIX = "future_pdf_speak_payload:";
         const blobUrlByKey = new Map();
         const pendingAudioByKey = new Map();
+        const revisionedQmSoundUrlBySemanticKey = new Map();
         const mediaOriginalSrc = new WeakMap();
+        const audioFetchControllers = new Set();
         let dbPromise = null;
+        let audioDb = null;
+        let audioCacheGeneration = 0;
+        let forceNetworkReloadGeneration = -1;
+        const audioCacheTrace = [];
+        const recordAudioCacheTrace = (event = {}) => {
+          audioCacheTrace.push({ at: new Date().toISOString(), generation: audioCacheGeneration, ...event });
+          if (audioCacheTrace.length > 200) audioCacheTrace.splice(0, audioCacheTrace.length - 200);
+          window.__futureAudioCacheTrace = audioCacheTrace;
+          try {
+            document.documentElement.dataset.futureAudioEpoch = String(globalAudioCacheEpoch || 0);
+            document.documentElement.dataset.futureAudioGeneration = String(audioCacheGeneration);
+            document.documentElement.dataset.futureAudioTrace = JSON.stringify(audioCacheTrace.slice(-30));
+          } catch (error) {}
+        };
+        const LAST_SEEN_AUDIO_CACHE_EPOCH_KEY = "last_seen_audio_cache_epoch";
+        let globalAudioCacheEpoch = 0;
+        try { globalAudioCacheEpoch = Math.max(0, Number(localStorage.getItem(LAST_SEEN_AUDIO_CACHE_EPOCH_KEY) || 0) || 0); } catch (error) {}
         const localClean = (value) => String(value == null ? "" : value).replace(/\s+/g, " ").trim();
-        const canonicalAudioUrl = (value = "") => {
+        // Added 2026-07-30: shares one current-revision lookup across every player in the active tab.
+        const qmSoundSemanticKey = (url) => {
+          if (!url || url.pathname.toLowerCase() !== "/server-data/qm-sound") {
+            return "";
+          }
+          return Array.from(url.searchParams.entries())
+            .filter(([name]) => !["v", "revision", "rev", "audio_epoch", "file_rev", "ts", "cache"].includes(localClean(name).toLowerCase()))
+            .sort((a, b) => `${a[0]}=${a[1]}`.localeCompare(`${b[0]}=${b[1]}`))
+            .map(([name, value]) => `${name}=${value}`)
+            .join("&");
+        };
+        // Added 2026-07-31: sync callers may reuse an already-resolved protocol URL; network resolution remains async.
+        const revisionSafeAudioUrl = (value = "") => {
           const raw = localClean(value);
           if (!raw || raw.startsWith("blob:") || raw.startsWith("data:")) {
             return "";
@@ -1715,11 +1783,22 @@
           try {
             const url = new URL(raw, window.location.href);
             url.hash = "";
+            if (url.pathname.toLowerCase() === "/server-data/qm-sound") {
+              const epoch = Math.max(0, Number(url.searchParams.get("audio_epoch") || 0) || 0);
+              const revision = localClean(url.searchParams.get("file_rev") || "");
+              if (!epoch || !revision || revision.toLowerCase() === "missing" || revision === "0") {
+                const mapped = revisionedQmSoundUrlBySemanticKey.get(qmSoundSemanticKey(url));
+                if (mapped) {
+                  return mapped;
+                }
+              }
+            }
             return url.href;
           } catch (error) {
             return "";
           }
         };
+        const canonicalAudioUrl = revisionSafeAudioUrl;
         const stableHash = async (value = "") => {
           const text = String(value == null ? "" : value);
           try {
@@ -1741,22 +1820,26 @@
             parsed.hash = "";
             const path = parsed.pathname.toLowerCase();
             if (path === "/server-data/qm-sound") {
+              const epoch = Math.max(0, Number(parsed.searchParams.get("audio_epoch") || 0) || 0);
+              const revision = localClean(parsed.searchParams.get("file_rev") || "");
+              if (!epoch || !revision || revision.toLowerCase() === "missing" || revision === "0") {
+                return "";
+              }
               const semanticParams = Array.from(parsed.searchParams.entries())
-                .filter(([name]) => !["v", "ts", "cache", "version"].includes(localClean(name).toLowerCase()))
+                .filter(([name]) => !["v", "revision", "rev", "ts", "cache"].includes(localClean(name).toLowerCase()))
                 .sort((a, b) => `${a[0]}=${a[1]}`.localeCompare(`${b[0]}=${b[1]}`));
-              return `media-audio:v1:qm-sound:${await stableHash(JSON.stringify(semanticParams))}`;
+              return `media-audio:v3:qm-sound:${await stableHash(JSON.stringify({ semanticParams, epoch, revision }))}`;
             }
             if (parsed.searchParams.has("path")) {
               const relPath = localClean(parsed.searchParams.get("path") || "").replace(/\\/g, "/").toLowerCase();
+              const revision = localClean(parsed.searchParams.get("v") || parsed.searchParams.get("revision") || parsed.searchParams.get("rev") || "");
               if (relPath) {
-                return `media-audio:v1:path:${relPath}`;
+                return `media-audio:v2:path:${relPath}:${revision}`;
               }
             }
-            parsed.searchParams.delete("v");
             parsed.searchParams.delete("ts");
             parsed.searchParams.delete("cache");
-            parsed.searchParams.delete("version");
-            return `media-audio:v1:url:${await stableHash(parsed.href)}`;
+            return `media-audio:v2:url:${await stableHash(parsed.href)}`;
           } catch (error) {
             return `media-audio:v1:url:${await stableHash(href)}`;
           }
@@ -1780,8 +1863,21 @@
                 db.createObjectStore(AUDIO_META_STORE, { keyPath: "key" });
               }
             };
-            request.onsuccess = () => resolve(request.result || null);
-          });
+            request.onsuccess = () => {
+              audioDb = request.result || null;
+              if (audioDb) {
+                audioDb.onversionchange = () => {
+                  try { audioDb.close(); } catch (error) {}
+                  if (audioDb === request.result) audioDb = null;
+                  dbPromise = null;
+                };
+                audioDb.onclose = () => {
+                  if (audioDb === request.result) audioDb = null;
+                };
+              }
+              resolve(audioDb);
+            };
+           });
           return dbPromise;
         };
         const readAudioRecord = async (key = "") => {
@@ -1793,7 +1889,16 @@
             try {
               const request = db.transaction(AUDIO_STORE, "readonly").objectStore(AUDIO_STORE).get(key);
               request.onerror = () => resolve(null);
-              request.onsuccess = () => resolve(request.result || null);
+              request.onsuccess = () => {
+                const row = request.result || null;
+                if (row && Number(row.audio_epoch || 0) > 0 && Number(row.audio_epoch || 0) !== globalAudioCacheEpoch) {
+                  recordAudioCacheTrace({ type: "indexeddb-reject-epoch", key, record_epoch: Number(row.audio_epoch || 0), audio_epoch: globalAudioCacheEpoch });
+                  resolve(null);
+                  return;
+                }
+                if (row) recordAudioCacheTrace({ type: "indexeddb-hit", key, url: row.url || "", audio_epoch: Number(row.audio_epoch || 0), file_rev: row.file_rev || "" });
+                resolve(row);
+              };
             } catch (error) {
               resolve(null);
             }
@@ -1804,16 +1909,35 @@
           if (!db || !record || !record.key || !(record.blob instanceof Blob)) {
             return false;
           }
+          let audioEpoch = 0;
+          let fileRevision = "";
+          try {
+            const parsed = new URL(localClean(record.url || ""), window.location.href);
+            if (parsed.pathname.toLowerCase() === "/server-data/qm-sound") {
+              audioEpoch = Math.max(0, Number(parsed.searchParams.get("audio_epoch") || 0) || 0);
+              fileRevision = localClean(parsed.searchParams.get("file_rev") || "");
+              if (!audioEpoch || !fileRevision || audioEpoch !== globalAudioCacheEpoch) return false;
+            }
+          } catch (error) {}
+          const storedRecord = {
+            ...record,
+            audio_epoch: audioEpoch,
+            file_rev: fileRevision,
+            generation: audioCacheGeneration,
+          };
           return new Promise((resolve) => {
             try {
               const tx = db.transaction([AUDIO_STORE, AUDIO_META_STORE], "readwrite");
-              tx.objectStore(AUDIO_STORE).put(record);
+              tx.objectStore(AUDIO_STORE).put(storedRecord);
               tx.objectStore(AUDIO_META_STORE).put({
-                key: record.key,
-                url: record.url || "",
-                mime: record.mime || "",
-                size: Number(record.blob.size || 0) || 0,
-                createdAt: record.createdAt || new Date().toISOString(),
+                key: storedRecord.key,
+                url: storedRecord.url || "",
+                mime: storedRecord.mime || "",
+                size: Number(storedRecord.blob.size || 0) || 0,
+                audio_epoch: audioEpoch,
+                file_rev: fileRevision,
+                generation: audioCacheGeneration,
+                createdAt: storedRecord.createdAt || new Date().toISOString(),
               });
               tx.oncomplete = () => resolve(true);
               tx.onerror = () => resolve(false);
@@ -1822,6 +1946,119 @@
             }
           });
         };
+        // Added 2026-07-31: clears only browser audio state and fences in-flight writes from resurrecting stale audio.
+        const clearFutureAudioCache = async (options = {}) => {
+          const nextEpoch = Math.max(0, Number(options && options.epoch || globalAudioCacheEpoch || 0) || 0);
+          audioCacheGeneration += 1;
+          forceNetworkReloadGeneration = audioCacheGeneration;
+          recordAudioCacheTrace({ type: "clear-start", audio_epoch: nextEpoch, source: localClean(options && options.source || "local") });
+          audioFetchControllers.forEach((controller) => {
+            try { controller.abort(); } catch (error) {}
+          });
+          audioFetchControllers.clear();
+          if (nextEpoch) globalAudioCacheEpoch = nextEpoch;
+          const staleBlobUrls = Array.from(blobUrlByKey.values());
+          blobUrlByKey.clear();
+          pendingAudioByKey.clear();
+          revisionedQmSoundUrlBySemanticKey.clear();
+          staleBlobUrls.forEach((value) => {
+            if (typeof value === "string" && value.startsWith("blob:")) {
+              try { URL.revokeObjectURL(value); } catch (error) {}
+            }
+          });
+          document.querySelectorAll("audio, video").forEach((media) => {
+            const source = String(mediaOriginalSrc.get(media) || media.currentSrc || media.src || "");
+            if (!source.startsWith("blob:") && !audioUrlLooksCacheable(source, {})) return;
+            try { media.pause(); } catch (error) {}
+            try {
+              media.removeAttribute("src");
+              media.querySelectorAll("source").forEach((sourceNode) => sourceNode.removeAttribute("src"));
+              media.load();
+            } catch (error) {}
+            try { mediaOriginalSrc.delete(media); } catch (error) {}
+          });
+          try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (error) {}
+          try {
+            for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+              const key = localStorage.key(index) || "";
+              if (key.startsWith(SPEAK_PREFIX)) localStorage.removeItem(key);
+            }
+          } catch (error) {}
+          let cacheStorageDeleted = [];
+          try {
+            if (window.caches && typeof window.caches.keys === "function") {
+              const names = await window.caches.keys();
+              const audioNames = names.filter((name) => /audio|speak|voice|tts/i.test(String(name || "")));
+              const results = await Promise.all(audioNames.map(async (name) => ({ name, deleted: await window.caches.delete(name) })));
+              cacheStorageDeleted = results.filter((row) => row.deleted).map((row) => row.name);
+            }
+          } catch (error) {}
+          let lessonCacheResult = { ok: true, deleted: false };
+          if (typeof window.__futureClearLessonAudioCache === "function") {
+            try {
+              lessonCacheResult = await window.__futureClearLessonAudioCache();
+            } catch (error) {
+              lessonCacheResult = { ok: false, deleted: false, error: String(error && error.message || error || "lesson-cache-clear-failed") };
+            }
+          }
+          const db = audioDb;
+          audioDb = null;
+          dbPromise = null;
+          if (db) {
+            try {
+              await new Promise((resolve) => {
+                const stores = [AUDIO_STORE, AUDIO_META_STORE].filter((name) => db.objectStoreNames.contains(name));
+                if (!stores.length) { resolve(); return; }
+                const tx = db.transaction(stores, "readwrite");
+                stores.forEach((name) => tx.objectStore(name).clear());
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+                tx.onabort = () => resolve();
+              });
+            } catch (error) {}
+          }
+          try { if (db) db.close(); } catch (error) {}
+          let deleted = false;
+          if ("indexedDB" in window) deleted = await new Promise((resolve) => {
+            let settled = false;
+            const finish = (value) => {
+              if (settled) return;
+              settled = true;
+              resolve(Boolean(value));
+            };
+            try {
+              const request = indexedDB.deleteDatabase(DB_NAME);
+              request.onsuccess = () => finish(true);
+              request.onerror = () => finish(false);
+              request.onblocked = () => finish(false);
+            } catch (error) {
+              finish(false);
+            }
+          });
+          let activeReloadResult = { ok: true, active: false, reason: "no-active-space-v" };
+          if (options.reloadActive !== false && typeof window.__futureReloadCurrentSpaceVAudioCache === "function") {
+            try {
+              activeReloadResult = await window.__futureReloadCurrentSpaceVAudioCache({ audioEpoch: nextEpoch });
+            } catch (error) {
+              activeReloadResult = { ok: false, active: true, error: String(error && error.message || error || "space-v-audio-reload-failed") };
+            }
+          }
+          if (nextEpoch) {
+            try { localStorage.setItem(LAST_SEEN_AUDIO_CACHE_EPOCH_KEY, String(nextEpoch)); } catch (error) {}
+          }
+          recordAudioCacheTrace({ type: "clear-complete", audio_epoch: nextEpoch, deleted, cache_storage_deleted: cacheStorageDeleted });
+          return {
+            ok: lessonCacheResult.ok !== false && activeReloadResult.ok !== false && (!("indexedDB" in window) || deleted),
+            deleted,
+            database: DB_NAME,
+            lesson: lessonCacheResult,
+            active_reload: activeReloadResult,
+            audio_epoch: nextEpoch,
+            generation: audioCacheGeneration,
+            cache_storage_deleted: cacheStorageDeleted,
+          };
+        };
+        window.__futureClearAudioCache = clearFutureAudioCache;
         const audioUrlLooksCacheable = (url = "", options = {}) => {
           const href = canonicalAudioUrl(url);
           if (!href) {
@@ -1874,33 +2111,119 @@
             return "";
           }
         };
+        const createAudioFetchController = () => {
+          if (!("AbortController" in window)) return null;
+          const controller = new AbortController();
+          audioFetchControllers.add(controller);
+          return controller;
+        };
+        const releaseAudioFetchController = (controller) => {
+          if (controller) audioFetchControllers.delete(controller);
+        };
+        // Added 2026-07-31: legacy/direct callers resolve metadata first, so the audio request itself is always exact.
+        const resolveQmSoundProtocolUrl = async (value = "") => {
+          const raw = localClean(value);
+          if (!raw) return "";
+          let url;
+          try { url = new URL(raw, window.location.href); } catch (error) { return raw; }
+          if (url.pathname.toLowerCase() !== "/server-data/qm-sound") return url.href;
+          const semanticKey = qmSoundSemanticKey(url);
+          const requestedEpoch = Math.max(0, Number(url.searchParams.get("audio_epoch") || 0) || 0);
+          const fileRevision = localClean(url.searchParams.get("file_rev") || "");
+          if (requestedEpoch && fileRevision && fileRevision.toLowerCase() !== "missing" && fileRevision !== "0") {
+            if (requestedEpoch > globalAudioCacheEpoch) {
+              await clearFutureAudioCache({ epoch: requestedEpoch, reloadActive: false, source: "protocol-url" });
+            }
+            if (requestedEpoch === globalAudioCacheEpoch) {
+              revisionedQmSoundUrlBySemanticKey.set(semanticKey, url.href);
+              return url.href;
+            }
+          }
+          const mapped = revisionedQmSoundUrlBySemanticKey.get(semanticKey);
+          if (mapped) return mapped;
+          const meta = new URL("/server-data/qm-sound-meta", window.location.origin);
+          Array.from(url.searchParams.entries()).forEach(([name, entryValue]) => {
+            if (!["v", "revision", "rev", "audio_epoch", "file_rev", "ts", "cache"].includes(localClean(name).toLowerCase())) {
+              meta.searchParams.append(name, entryValue);
+            }
+          });
+          const taskGeneration = audioCacheGeneration;
+          const controller = createAudioFetchController();
+          try {
+            const response = await nativeFetch(meta.href, {
+              method: "GET",
+              cache: "no-store",
+              credentials: "same-origin",
+              signal: controller ? controller.signal : undefined,
+              headers: { "Accept": "application/json" },
+            });
+            const payload = await response.json().catch(() => ({}));
+            recordAudioCacheTrace({ type: "metadata", url: meta.href, status: response.status, network: true });
+            if (taskGeneration !== audioCacheGeneration || !response.ok || !payload || payload.ok === false) return url.href;
+            const serverEpoch = Math.max(0, Number(payload.audio_epoch || 0) || 0);
+            const serverRevision = localClean(payload.file_rev || "");
+            const exactUrl = localClean(payload.url || "");
+            if (!serverEpoch || !serverRevision || !exactUrl) return url.href;
+            if (serverEpoch > globalAudioCacheEpoch) {
+              await clearFutureAudioCache({ epoch: serverEpoch, reloadActive: false, source: "metadata" });
+            }
+            const resolved = new URL(exactUrl, window.location.origin).href;
+            revisionedQmSoundUrlBySemanticKey.set(semanticKey, resolved);
+            return resolved;
+          } catch (error) {
+            return url.href;
+          } finally {
+            releaseAudioFetchController(controller);
+          }
+        };
         const resolveCachedAudioUrl = async (url = "", options = {}) => {
-          const href = canonicalAudioUrl(url);
+          const href = await resolveQmSoundProtocolUrl(canonicalAudioUrl(url));
           if (!href || !audioUrlLooksCacheable(href, options)) {
             return href || url;
           }
-          const key = await stableAudioRequestKey(href);
-          if (blobUrlByKey.has(key)) {
-            return blobUrlByKey.get(key);
+          const persistentKey = await stableAudioRequestKey(href);
+          const parsedHref = new URL(href, window.location.href);
+          const semanticKey = qmSoundSemanticKey(parsedHref);
+          const pendingKey = persistentKey || `media-audio:v2:qm-current:${await stableHash(semanticKey || href)}`;
+          if (blobUrlByKey.has(persistentKey || pendingKey)) {
+            return blobUrlByKey.get(persistentKey || pendingKey);
           }
-          if (pendingAudioByKey.has(key)) {
-            return pendingAudioByKey.get(key);
+          if (pendingAudioByKey.has(pendingKey)) {
+            return pendingAudioByKey.get(pendingKey);
           }
           const task = (async () => {
-            const cached = await readAudioRecord(key);
+            const taskGeneration = audioCacheGeneration;
+            const cached = persistentKey ? await readAudioRecord(persistentKey) : null;
+            if (taskGeneration !== audioCacheGeneration) return href;
             if (cached && cached.blob instanceof Blob) {
               const blobUrl = URL.createObjectURL(cached.blob);
-              blobUrlByKey.set(key, blobUrl);
+              blobUrlByKey.set(persistentKey, blobUrl);
               return blobUrl;
             }
-            const response = await nativeFetch(href, {
+            const controller = createAudioFetchController();
+            let response;
+            try {
+              response = await nativeFetch(href, {
               ...options,
               method: "GET",
-              cache: "force-cache",
+              cache: taskGeneration === forceNetworkReloadGeneration ? "reload" : (persistentKey ? "force-cache" : "no-store"),
+              signal: controller ? controller.signal : undefined,
               headers: {
                 ...(options && options.headers && !(options.headers instanceof Headers) ? options.headers : {}),
                 "Accept": "audio/*,*/*",
               },
+              });
+            } finally {
+              releaseAudioFetchController(controller);
+            }
+            recordAudioCacheTrace({
+              type: "audio-network",
+              url: href,
+              status: Number(response && response.status || 0),
+              cache_mode: taskGeneration === forceNetworkReloadGeneration ? "reload" : (persistentKey ? "force-cache" : "no-store"),
+              audio_epoch: Number(new URL(href, window.location.href).searchParams.get("audio_epoch") || 0) || 0,
+              file_rev: localClean(new URL(href, window.location.href).searchParams.get("file_rev") || ""),
+              server_cache_source: localClean(response && response.headers && response.headers.get("X-Future-Audio-Cache-Source") || ""),
             });
             if (!response || !response.ok) {
               return href;
@@ -1910,23 +2233,44 @@
               return href;
             }
             const blob = await response.blob();
+            if (taskGeneration !== audioCacheGeneration) return href;
             if (!(blob instanceof Blob) || !blob.size) {
               return href;
             }
-            await writeAudioRecord({
-              key,
-              url: href,
-              blob,
-              mime: contentType || blob.type || "audio/mpeg",
-              createdAt: new Date().toISOString(),
-            });
+            let resolvedUrl = href;
+            let resolvedKey = persistentKey;
+            const responseRevision = localClean(response.headers && response.headers.get("X-Future-Audio-Revision") || "");
+            const responseEpoch = Math.max(0, Number(response.headers && response.headers.get("X-Future-Audio-Cache-Epoch") || 0) || 0);
+            if (!resolvedKey && semanticKey && responseRevision) {
+              const versioned = new URL(href, window.location.href);
+              versioned.searchParams.delete("v");
+              versioned.searchParams.delete("revision");
+              versioned.searchParams.delete("rev");
+              versioned.searchParams.set("audio_epoch", String(responseEpoch || globalAudioCacheEpoch || 0));
+              versioned.searchParams.set("file_rev", responseRevision);
+              resolvedUrl = versioned.href;
+              revisionedQmSoundUrlBySemanticKey.set(semanticKey, resolvedUrl);
+              resolvedKey = await stableAudioRequestKey(resolvedUrl);
+            }
+            if (resolvedKey) {
+                if (taskGeneration !== audioCacheGeneration) return href;
+               await writeAudioRecord({
+                key: resolvedKey,
+                url: resolvedUrl,
+                blob,
+                mime: contentType || blob.type || "audio/mpeg",
+                createdAt: new Date().toISOString(),
+              });
+              recordAudioCacheTrace({ type: "indexeddb-write", key: resolvedKey, url: resolvedUrl, audio_epoch: responseEpoch, file_rev: responseRevision });
+            }
             const blobUrl = URL.createObjectURL(blob);
-            blobUrlByKey.set(key, blobUrl);
+            blobUrlByKey.set(resolvedKey || pendingKey, blobUrl);
+            blobUrlByKey.set(pendingKey, blobUrl);
             return blobUrl;
           })().catch(() => href).finally(() => {
-            pendingAudioByKey.delete(key);
+            pendingAudioByKey.delete(pendingKey);
           });
-          pendingAudioByKey.set(key, task);
+          pendingAudioByKey.set(pendingKey, task);
           return task;
         };
         const speakCacheKeyFromRequest = async (url = "", options = {}) => {
@@ -1984,9 +2328,38 @@
             }));
           } catch (error) {}
         };
+        window.__futureAudioCacheManager = {
+          clear: clearFutureAudioCache,
+          epoch: () => globalAudioCacheEpoch,
+          generation: () => audioCacheGeneration,
+          trace: () => audioCacheTrace.slice(),
+          resetTrace: () => { audioCacheTrace.length = 0; window.__futureAudioCacheTrace = audioCacheTrace; },
+          resolveQmSoundUrl: resolveQmSoundProtocolUrl,
+          resolveAudioUrl: resolveCachedAudioUrl,
+          syncEpoch: async (serverEpoch, options = {}) => {
+            const epoch = Math.max(0, Number(serverEpoch || 0) || 0);
+            let seen = 0;
+            try { seen = Math.max(0, Number(localStorage.getItem(LAST_SEEN_AUDIO_CACHE_EPOCH_KEY) || 0) || 0); } catch (error) {}
+            if (!epoch || epoch <= seen) {
+              globalAudioCacheEpoch = Math.max(globalAudioCacheEpoch, seen, epoch);
+              return { ok: true, changed: false, audio_epoch: globalAudioCacheEpoch };
+            }
+            const result = await clearFutureAudioCache({ ...options, epoch, source: "server-epoch" });
+            return { ...result, changed: true, audio_epoch: epoch };
+          },
+        };
+        try {
+          if (window.speechSynthesis && !window.speechSynthesis.__futureAudioFallbackTraced) {
+            const nativeSpeechSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+            window.speechSynthesis.speak = (utterance) => {
+              recordAudioCacheTrace({ type: "browser-speech-fallback", text: localClean(utterance && utterance.text || "") });
+              return nativeSpeechSpeak(utterance);
+            };
+            window.speechSynthesis.__futureAudioFallbackTraced = true;
+          }
+        } catch (error) {}
         window.__futureResolveCachedAudioUrl = resolveCachedAudioUrl;
-        // Added 2026-07-20: foreground lesson playback can bypass this generic cache because Space audio owns its own validated blob cache.
-        window.__futureNativeAudioFetch = nativeFetch;
+        window.__futureRevisionSafeAudioUrl = revisionSafeAudioUrl;
         window.fetch = async (input, options = {}) => {
           const url = typeof input === "string" ? input : (input && input.url ? input.url : "");
           const method = localClean(options && options.method || (input && input.method) || "GET").toUpperCase();
@@ -2017,11 +2390,16 @@
                 headers: { "Content-Type": "audio/mpeg", "X-Future-Audio-Cache": "hit" },
               });
             }
+            if (cachedUrl) {
+              input = cachedUrl;
+            }
           }
+          const fetchGeneration = audioCacheGeneration;
           const response = await nativeFetch(input, options);
           if (speakKey) {
             const clone = response.clone();
             clone.json().then((payload) => {
+              if (fetchGeneration !== audioCacheGeneration) return;
               if (!clone.ok || !payload || payload.ok === false) {
                 return;
               }
@@ -2035,11 +2413,15 @@
           } else if (method === "GET" && audioUrlLooksCacheable(url, options)) {
             const clone = response.clone();
             clone.blob().then(async (blob) => {
+              if (fetchGeneration !== audioCacheGeneration) return;
               if (!response.ok || !(blob instanceof Blob) || !blob.size) {
                 return;
               }
               const href = canonicalAudioUrl(url);
               const key = await stableAudioRequestKey(href);
+              if (!key) {
+                return;
+              }
               await writeAudioRecord({
                 key,
                 url: href,
@@ -2061,9 +2443,15 @@
               const original = mediaOriginalSrc.get(this) || current;
               if (original && audioUrlLooksCacheable(original, {})) {
                 return resolveCachedAudioUrl(original).then((cachedUrl) => {
-                  if (cachedUrl && cachedUrl.startsWith("blob:") && this.src !== cachedUrl) {
+                  if (cachedUrl && this.src !== cachedUrl) {
                     this.src = cachedUrl;
                   }
+                  recordAudioCacheTrace({
+                    type: "media-play",
+                    requested_url: original,
+                    resolved_url: cachedUrl || original,
+                    current_src: this.currentSrc || this.src || "",
+                  });
                   return nativePlay.apply(this, args);
                 }).catch(() => nativePlay.apply(this, args));
               }
@@ -3734,6 +4122,26 @@
       let futureFrontendReloadToken = "";
       let futureFrontendReloading = false;
       let futureFrontendVersionPollInFlight = false;
+      const FUTURE_AUDIO_CACHE_CLEAR_TOKEN_KEY = "future_audio_cache_clear_token";
+      // Added 2026-07-31: gives local and server-broadcast audio clears one shared animated confirmation.
+      const showFutureAudioCacheClearNotice = (result = {}, source = "local") => {
+        const existing = document.getElementById("future-audio-cache-notice");
+        if (existing) existing.remove();
+        const notice = document.createElement("div");
+        notice.id = "future-audio-cache-notice";
+        notice.className = `future-audio-cache-notice${result && result.ok === false ? " is-warning" : ""}`;
+        const activeReload = result && result.active_reload && result.active_reload.active;
+        const detail = activeReload
+          ? `Space_V audio reloaded from Continue position ${Math.max(1, Number(result.active_reload.startIndex || 0) + 1)}.`
+          : (source === "server" ? "Server command applied on this device." : "Fresh audio will cache again when learning resumes.");
+        notice.innerHTML = `<span class="future-audio-cache-notice-orb" aria-hidden="true"></span><span><b>${result && result.ok === false ? "Audio cache needs another tab" : "Audio cache cleared"}</b><small>${detail}</small></span>`;
+        document.body.append(notice);
+        window.requestAnimationFrame(() => notice.classList.add("is-visible"));
+        window.setTimeout(() => {
+          notice.classList.remove("is-visible");
+          window.setTimeout(() => notice.remove(), 320);
+        }, 3600);
+      };
       const showFutureServerUpdateNotice = (payload = {}) => {
         const existing = document.querySelector(".future-update-notice-overlay");
         if (existing) {
@@ -3793,12 +4201,34 @@
           if (!response.ok || !payload || payload.ok === false) {
             return;
           }
-          const token = clean(payload.reload_token || payload.version || payload.etag || "");
+          // Prefer the actual delivered asset version for normal updates. The
+          // dashboard reload token is a separate command channel and may stay
+          // unchanged while future.js/future.css are rebuilt.
+          const versionToken = clean(payload.version || payload.etag || "");
+          const controlToken = clean(payload.reload_token || "");
+          const serverAudioEpoch = Math.max(0, Number(payload.global_audio_cache_epoch || 0) || 0);
+          let audioEpochResult = null;
+          if (serverAudioEpoch && window.__futureAudioCacheManager && typeof window.__futureAudioCacheManager.syncEpoch === "function") {
+            audioEpochResult = await window.__futureAudioCacheManager.syncEpoch(serverAudioEpoch, { reloadActive: true });
+            if (audioEpochResult && audioEpochResult.changed) {
+              showFutureAudioCacheClearNotice(audioEpochResult, "server");
+            }
+          }
+          const token = versionToken || controlToken;
           if (!token) {
             return;
           }
           if (!futureFrontendReloadToken) {
             futureFrontendReloadToken = token;
+          }
+          const command = clean(payload.reload_command || "").toLowerCase();
+          if (command === "clear-audio-cache") {
+            futureFrontendReloadToken = controlToken || token;
+            let processedToken = "";
+            try { processedToken = clean(localStorage.getItem(FUTURE_AUDIO_CACHE_CLEAR_TOKEN_KEY) || ""); } catch (error) {}
+            if (processedToken !== (controlToken || token)) {
+              try { localStorage.setItem(FUTURE_AUDIO_CACHE_CLEAR_TOKEN_KEY, controlToken || token); } catch (error) {}
+            }
             return;
           }
           if (token !== futureFrontendReloadToken) {

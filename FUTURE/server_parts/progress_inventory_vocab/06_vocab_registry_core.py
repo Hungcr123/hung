@@ -110,6 +110,20 @@ def qmdict_registry_summary_maps() -> dict[str, dict]:
         cached_maps = QMDICT_SUMMARY_MAP_CACHE.get("maps")
         if cached_signature == signature_key and isinstance(cached_maps, dict) and cached_maps:
             return cached_maps
+    # Added 2026-07-31: persist the derived QmDict lookup map and rebuild it
+    # only when the source file signature changes. Audio availability is kept
+    # separate and is never embedded in this catalog.
+    index_file = Path(SERVER_DATA_ROOT) / "_future_qmdict_summary_index.json"
+    try:
+        cached_payload = json.loads(index_file.read_text(encoding="utf-8-sig", errors="replace"))
+        cached_file_signature = tuple(cached_payload.get("signature") or [])
+        cached_file_maps = cached_payload.get("maps")
+        if cached_file_signature == signature_key and isinstance(cached_file_maps, dict) and cached_file_maps:
+            with QMDICT_SUMMARY_MAP_CACHE_LOCK:
+                QMDICT_SUMMARY_MAP_CACHE.update({"signature": signature_key, "maps": cached_file_maps, "built_at": time.time()})
+            return cached_file_maps
+    except Exception:
+        pass
     try:
         _runtime, qmdict = qmdict_runtime_and_dict()
     except Exception:
@@ -127,6 +141,10 @@ def qmdict_registry_summary_maps() -> dict[str, dict]:
                 maps[key] = summary
     with QMDICT_SUMMARY_MAP_CACHE_LOCK:
         QMDICT_SUMMARY_MAP_CACHE.update({"signature": signature_key, "maps": maps, "built_at": time.time()})
+    try:
+        atomic_write_json(index_file, {"version": 1, "signature": list(signature_key), "maps": maps}, indent=None)
+    except Exception as exc:
+        stt_debug_log("qmdict_summary_index_persist_failed", error=str(exc))
     return maps
 
 
@@ -260,7 +278,13 @@ def vocabulary_words_from_payload(payload: dict) -> list[dict]:
 VOCAB_STATS_SUPPORTED_EXTENSIONS = {".space_v", ".space_b", ".space_w", ".space_q", ".space_p", ".space_s", ".space_l"}
 VOCAB_STATS_TEXT_KEYS = {
     "en", "english", "word", "words", "sentence", "sentences", "text", "question", "answer",
-    "answers", "prompt", "target", "source", "line", "lines", "content", "title",
+    "answers", "accepted", "accepted_answers", "correct", "correct_answer", "wrong", "wrongs",
+    "choice", "choices", "option", "options", "tokens", "select_targets", "prompt", "target",
+    "source", "line", "lines", "content", "title", "root", "root_text", "roottext", "caption",
+    "picture_caption", "audio_text", "explain", "explanation", "explanation_text", "solution",
+    "info", "info_text", "note", "card", "hint", "guide", "guidance", "instruction",
+    "instructions", "description", "feedback", "main", "subtitle", "body", "definition", "translation",
+    "english", "text_value",
 }
 VOCAB_STATS_STOP_WORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "can", "could",
@@ -282,12 +306,14 @@ VOCAB_LESSON_INDEX_RAM_CACHE: dict[str, object] = {"signature": "", "built_at": 
 VOCAB_LESSON_INDEX_RAM_TTL_SECONDS = 180.0
 VOCAB_FILE_META_RAM_CACHE: dict[str, dict] = {}
 VOCAB_FILE_META_RAM_CACHE_LIMIT = 6000
-VOCAB_FILE_META_INDEX_VERSION = 1
+VOCAB_FILE_META_INDEX_VERSION = 2
+VOCAB_FILE_META_EXTRACTOR_VERSION = "spaceq-all-text-v2"
 VOCAB_FILE_META_INDEX_PATH = RUNTIME_ROOT / "vocab_file_meta_index_v1.json"
 VOCAB_FILE_META_INDEX_LOCK = threading.RLock()
 VOCAB_FILE_META_INDEX_STATE: dict[str, object] = {
     "loaded": False,
     "rows": {},
+    "lessons": {},
     "revision": 0,
     "first_dirty_at": 0.0,
     "timer": None,
@@ -318,19 +344,144 @@ def load_vocab_file_meta_index_once() -> dict[str, dict]:
                         word_key = ""
                     if word_key:
                         keys.append(word_key)
+                valid_keys = []
+                for index in record.get("valid_keys") or []:
+                    try:
+                        word_key = clean(dictionary[int(index)])
+                    except Exception:
+                        word_key = ""
+                    if word_key:
+                        valid_keys.append(word_key)
                 rows[clean_path_value(path_key).lower()] = {
                     "mtime_ns": int(record.get("mtime_ns", 0) or 0),
                     "size": int(record.get("size", -1) or -1),
                     "lesson_id": clean(record.get("lesson_id", ""))[:240],
                     "vocab_word_keys": keys,
+                    "vocab_valid_word_keys": valid_keys,
+                    "vocab_validated_signature": clean(record.get("vocab_validated_signature", "")),
+                    "vocab_extractor_version": clean(record.get("vocab_extractor_version", "")),
+                    "vocab_source_revision": clean(record.get("vocab_source_revision", "")),
+                    "vocab_source_title": clean(record.get("vocab_source_title", "")),
                     "vocab_total_words": max(0, int(record.get("vocab_total_words", len(keys)) or len(keys))),
                     "vocab_space": clean(record.get("vocab_space", "")),
                 }
+            lessons = source.get("lessons") if isinstance(source, dict) and isinstance(source.get("lessons"), dict) else {}
+            lesson_rows = {}
+            for lesson_id, record in lessons.items():
+                if not isinstance(record, dict) or not clean(lesson_id):
+                    continue
+                raw_keys = []
+                valid_keys = []
+                for field, destination in (("keys", raw_keys), ("valid_keys", valid_keys)):
+                    for index in record.get(field) or []:
+                        try:
+                            word_key = clean(dictionary[int(index)])
+                        except Exception:
+                            word_key = ""
+                        if word_key:
+                            destination.append(word_key)
+                lesson_rows[clean(lesson_id)] = {
+                    "lesson_id": clean(lesson_id),
+                    "path": clean_path_value(record.get("path", "")),
+                    "mtime_ns": int(record.get("mtime_ns", 0) or 0),
+                    "size": int(record.get("size", -1) or -1),
+                    "vocab_word_keys": raw_keys,
+                    "vocab_valid_word_keys": valid_keys,
+                    "vocab_validated_signature": clean(record.get("vocab_validated_signature", "")),
+                    "vocab_extractor_version": clean(record.get("vocab_extractor_version", "")),
+                    "vocab_source_revision": clean(record.get("vocab_source_revision", "")),
+                }
         except Exception:
             rows = {}
+            lesson_rows = {}
         VOCAB_FILE_META_INDEX_STATE["rows"] = rows
+        VOCAB_FILE_META_INDEX_STATE["lessons"] = lesson_rows
         VOCAB_FILE_META_INDEX_STATE["loaded"] = True
         return rows
+
+
+def lesson_vocab_meta_for_id(lesson_id: object = "") -> dict:
+    normalized = clean(lesson_id)
+    if not normalized:
+        return {}
+    load_vocab_file_meta_index_once()
+    with VOCAB_FILE_META_INDEX_LOCK:
+        lessons = VOCAB_FILE_META_INDEX_STATE.get("lessons")
+        record = lessons.get(normalized) if isinstance(lessons, dict) else None
+        return dict(record) if isinstance(record, dict) else {}
+
+
+def remember_vocab_lesson_meta(record: dict, path_key: str = "") -> None:
+    lesson_id = clean(record.get("lesson_id", "")) if isinstance(record, dict) else ""
+    if not lesson_id:
+        return
+    with VOCAB_FILE_META_INDEX_LOCK:
+        lessons = VOCAB_FILE_META_INDEX_STATE.setdefault("lessons", {})
+        if isinstance(lessons, dict):
+            lessons[lesson_id] = {
+                "lesson_id": lesson_id,
+                "path": clean_path_value(path_key),
+                "mtime_ns": int(record.get("mtime_ns", 0) or 0),
+                "size": int(record.get("size", -1) or -1),
+                "vocab_word_keys": list(record.get("vocab_word_keys") or []),
+                "vocab_valid_word_keys": list(record.get("vocab_valid_word_keys") or []),
+                "vocab_validated_signature": clean(record.get("vocab_validated_signature", "")),
+                "vocab_extractor_version": clean(record.get("vocab_extractor_version", "")),
+                "vocab_source_revision": clean(record.get("vocab_source_revision", "")),
+            }
+
+
+def lesson_vocab_meta_is_current(record: object, stat_result=None) -> bool:
+    if not isinstance(record, dict):
+        return False
+    signature = qmdict_source_signature_key()
+    signature_text = f"{int(signature[0])}:{int(signature[1])}"
+    source_revision = f"{int(stat_result.st_mtime_ns)}:{int(stat_result.st_size)}" if stat_result is not None else ""
+    return (
+        (stat_result is None or clean(record.get("vocab_source_revision", "")) == source_revision)
+        and clean(record.get("vocab_validated_signature", "")) == signature_text
+        and clean(record.get("vocab_extractor_version", "")) == VOCAB_FILE_META_EXTRACTOR_VERSION
+    )
+
+
+def lesson_file_vocab_meta_cached_for_target(target: Path) -> dict:
+    try:
+        path = Path(target)
+        stat = path.stat()
+        relative_key = clean_path_value(server_data_relative(path)).lower()
+        record = load_vocab_file_meta_index_once().get(relative_key) if relative_key else None
+        if not lesson_vocab_meta_is_current(record, stat):
+            return {}
+        result = dict(record)
+        result["vocab_source_revision"] = f"{int(stat.st_mtime_ns)}:{int(stat.st_size)}"
+        return result
+    except Exception:
+        return {}
+
+
+# Added 2026-08-01: repairs one stale lesson in the background without blocking Question Card entry.
+def schedule_lesson_vocab_meta_repair(target: Path, lesson_id: object = "") -> dict:
+    path = Path(target)
+    repair_key = clean(lesson_id) or str(path.resolve()).lower()
+    lock = globals().setdefault("VOCAB_LESSON_REPAIR_LOCK", threading.RLock())
+    jobs = globals().setdefault("VOCAB_LESSON_REPAIR_JOBS", {})
+    with lock:
+        current = jobs.get(repair_key) if isinstance(jobs, dict) else None
+        if isinstance(current, dict) and current.get("running"):
+            return {"scheduled": False, "single_flight": True, "repair_key": repair_key}
+        if isinstance(jobs, dict):
+            jobs[repair_key] = {"running": True, "started_at": time.time(), "path": str(path)}
+
+    def runner() -> None:
+        try:
+            lesson_file_vocab_meta_for_target(path)
+        finally:
+            with lock:
+                if isinstance(jobs, dict):
+                    jobs.pop(repair_key, None)
+
+    threading.Thread(target=runner, daemon=True, name=f"lesson-vocab-repair-{hashlib.sha1(repair_key.encode('utf-8', 'replace')).hexdigest()[:10]}").start()
+    return {"scheduled": True, "single_flight": False, "repair_key": repair_key}
 
 
 # Added 2026-07-30: coalesced writer persists the compact derived index off the request path.
@@ -342,6 +493,7 @@ def write_vocab_file_meta_index_snapshot(expected_revision: int) -> None:
     dictionary: list[str] = []
     dictionary_index: dict[str, int] = {}
     files = {}
+    lessons = {}
     for path_key, record in rows.items():
         indexes = []
         for word_key in record.get("vocab_word_keys") or []:
@@ -354,20 +506,50 @@ def write_vocab_file_meta_index_snapshot(expected_revision: int) -> None:
                 dictionary_index[word_key] = index
                 dictionary.append(word_key)
             indexes.append(index)
+        valid_indexes = []
+        for word_key in record.get("vocab_valid_word_keys") or []:
+            word_key = clean(word_key)
+            if not word_key:
+                continue
+            index = dictionary_index.get(word_key)
+            if index is None:
+                index = len(dictionary)
+                dictionary_index[word_key] = index
+                dictionary.append(word_key)
+            valid_indexes.append(index)
         files[path_key] = {
             "mtime_ns": int(record.get("mtime_ns", 0) or 0),
             "size": int(record.get("size", -1) or -1),
             "lesson_id": clean(record.get("lesson_id", ""))[:240],
             "keys": indexes,
+            "valid_keys": valid_indexes,
+            "vocab_validated_signature": clean(record.get("vocab_validated_signature", "")),
+            "vocab_extractor_version": clean(record.get("vocab_extractor_version", "")),
+            "vocab_source_revision": clean(record.get("vocab_source_revision", "")),
+            "vocab_source_title": clean(record.get("vocab_source_title", "")),
             "vocab_total_words": max(0, int(record.get("vocab_total_words", len(indexes)) or len(indexes))),
             "vocab_space": clean(record.get("vocab_space", "")),
         }
+        lesson_id = clean(record.get("lesson_id", ""))
+        if lesson_id:
+            lessons[lesson_id] = {
+                "path": path_key,
+                "mtime_ns": int(record.get("mtime_ns", 0) or 0),
+                "size": int(record.get("size", -1) or -1),
+                "keys": indexes,
+                "valid_keys": valid_indexes,
+                "vocab_validated_signature": clean(record.get("vocab_validated_signature", "")),
+                "vocab_extractor_version": clean(record.get("vocab_extractor_version", "")),
+                "vocab_source_revision": clean(record.get("vocab_source_revision", "")),
+            }
     try:
         VOCAB_FILE_META_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
         index_payload = {
             "version": VOCAB_FILE_META_INDEX_VERSION,
+            "extractor_version": VOCAB_FILE_META_EXTRACTOR_VERSION,
             "dictionary": dictionary,
             "files": files,
+            "lessons": lessons,
         }
         atomic_write_text(
             VOCAB_FILE_META_INDEX_PATH,
@@ -400,12 +582,15 @@ def schedule_vocab_file_meta_index_write() -> None:
         timer.start()
 
 
-def vocabulary_text_words_from_payload(payload: object, limit: int = 800) -> list[dict]:
+def vocabulary_text_words_from_payload(payload: object, limit: int = 0) -> list[dict]:
     result: list[dict] = []
     seen: set[str] = set()
 
+    def limit_reached() -> bool:
+        return limit > 0 and len(result) >= limit
+
     def add_text(value: object) -> None:
-        if len(result) >= limit:
+        if limit_reached():
             return
         text = clean(value)
         if not text:
@@ -417,11 +602,11 @@ def vocabulary_text_words_from_payload(payload: object, limit: int = 800) -> lis
                 continue
             seen.add(key)
             result.append({"word": word, "meaning": "", "pron": "", "type": ""})
-            if len(result) >= limit:
+            if limit_reached():
                 break
 
     def walk(node: object, parent_key: str = "") -> None:
-        if len(result) >= limit:
+        if limit_reached():
             return
         if isinstance(node, str):
             if parent_key in VOCAB_STATS_TEXT_KEYS:
@@ -430,7 +615,7 @@ def vocabulary_text_words_from_payload(payload: object, limit: int = 800) -> lis
         if isinstance(node, list):
             for item in node:
                 walk(item, parent_key)
-                if len(result) >= limit:
+                if limit_reached():
                     break
             return
         if isinstance(node, dict):
@@ -440,7 +625,7 @@ def vocabulary_text_words_from_payload(payload: object, limit: int = 800) -> lis
                     add_text(value)
                 else:
                     walk(value, normalized_key)
-                if len(result) >= limit:
+                if limit_reached():
                     break
 
     walk(payload)
@@ -448,7 +633,7 @@ def vocabulary_text_words_from_payload(payload: object, limit: int = 800) -> lis
 
 
 # Added 2026-07-03: extracts lightweight Space_W/translation vocab keys from saved token rows.
-def future_translation_payload_vocabulary_words(payload: dict, limit: int = 1000) -> list[dict]:
+def future_translation_payload_vocabulary_words(payload: dict, limit: int = 0) -> list[dict]:
     if not isinstance(payload, dict):
         return []
     if payload.get("k") == "ftg":
@@ -460,8 +645,11 @@ def future_translation_payload_vocabulary_words(payload: dict, limit: int = 1000
     result: list[dict] = []
     seen: set[str] = set()
 
+    def limit_reached() -> bool:
+        return limit > 0 and len(result) >= limit
+
     def add_word(word_value: object, meaning_value: object = "", pron_value: object = "", type_value: object = "") -> None:
-        if len(result) >= limit:
+        if limit_reached():
             return
         word = clean(word_value).replace("’", "'").strip("'’-")
         key = vocab_key(word)
@@ -478,14 +666,14 @@ def future_translation_payload_vocabulary_words(payload: dict, limit: int = 1000
         })
 
     def add_text(text_value: object) -> None:
-        if len(result) >= limit:
+        if limit_reached():
             return
         text = clean(text_value)
         if not text:
             return
         for match in re.finditer(r"[A-Za-z][A-Za-z'’-]{1,}", text):
             add_word(match.group(0))
-            if len(result) >= limit:
+            if limit_reached():
                 break
 
     for node in nodes if isinstance(nodes, list) else []:
@@ -506,11 +694,11 @@ def future_translation_payload_vocabulary_words(payload: dict, limit: int = 1000
                 token.get("i") or token.get("iu") or token.get("ik") or "",
                 token.get("p", ""),
             )
-            if len(result) >= limit:
+            if limit_reached():
                 break
         if not token_rows:
             add_text(node.get("e") or node.get("en") or "")
-        if len(result) >= limit:
+        if limit_reached():
             break
     return result
 
@@ -598,6 +786,38 @@ def space_v_file_vocabulary_stats(relative_path: str, viewer_username: str, targ
     return lesson_file_vocabulary_stats(relative_path, viewer_username, target_username)
 
 
+# Added 2026-08-01: validates lesson vocabulary once against the shared QmDict revision for every user.
+def qmdict_valid_vocab_keys_for_words(words: object) -> tuple[list[str], str]:
+    signature = qmdict_source_signature_key()
+    signature_text = f"{int(signature[0])}:{int(signature[1])}"
+    summary_maps = qmdict_registry_summary_maps()
+    valid_keys: list[str] = []
+    seen: set[str] = set()
+    for item in words if isinstance(words, list) else []:
+        surface = clean(item.get("word", "")) if isinstance(item, dict) else clean(item)
+        key = vocab_key(surface)
+        if not key or key in seen:
+            continue
+        detail = summary_maps.get(key) if isinstance(summary_maps, dict) and summary_maps else None
+        if (not isinstance(summary_maps, dict) or not summary_maps) and (not isinstance(detail, dict) or not detail):
+            detail = qmdict_lookup_summary(surface, surface)
+        if not isinstance(detail, dict) or not detail:
+            continue
+        resolved_key = vocab_key(detail.get("word", "")) or key
+        pronunciation = clean(detail.get("pron", "") or detail.get("pron_uk", "") or detail.get("pron_us", ""))
+        if (
+            not resolved_key
+            or resolved_key in seen
+            or not clean(detail.get("meaning", ""))
+            or not pronunciation
+            or not clean(detail.get("type", ""))
+        ):
+            continue
+        seen.add(resolved_key)
+        valid_keys.append(resolved_key)
+    return valid_keys, signature_text
+
+
 def lesson_file_vocab_meta_for_target(target: Path) -> dict:
     try:
         path = Path(target)
@@ -606,7 +826,10 @@ def lesson_file_vocab_meta_for_target(target: Path) -> dict:
             return {}
         stat = path.stat()
         cache_key = str(path.resolve()).lower()
-        signature = f"{stat.st_mtime_ns}:{stat.st_size}"
+        current_qmdict_signature = qmdict_source_signature_key()
+        current_qmdict_signature_text = f"{int(current_qmdict_signature[0])}:{int(current_qmdict_signature[1])}"
+        source_revision = f"{stat.st_mtime_ns}:{stat.st_size}"
+        signature = f"{source_revision}:{current_qmdict_signature_text}:{VOCAB_FILE_META_EXTRACTOR_VERSION}"
         cached = VOCAB_FILE_META_RAM_CACHE.get(cache_key)
         if isinstance(cached, dict) and cached.get("signature") == signature:
             return dict(cached.get("payload") or {})
@@ -617,13 +840,31 @@ def lesson_file_vocab_meta_for_target(target: Path) -> dict:
             isinstance(persistent, dict)
             and int(persistent.get("mtime_ns", 0) or 0) == int(stat.st_mtime_ns)
             and int(persistent.get("size", -1) or -1) == int(stat.st_size)
+            and clean(persistent.get("vocab_extractor_version", "")) == VOCAB_FILE_META_EXTRACTOR_VERSION
         ):
+            raw_keys = list(persistent.get("vocab_word_keys") or [])
+            valid_keys = list(persistent.get("vocab_valid_word_keys") or [])
+            if clean(persistent.get("vocab_validated_signature", "")) != current_qmdict_signature_text:
+                valid_keys, current_qmdict_signature_text = qmdict_valid_vocab_keys_for_words(raw_keys)
+                with VOCAB_FILE_META_INDEX_LOCK:
+                    persistent.update({
+                        "vocab_valid_word_keys": valid_keys,
+                        "vocab_validated_signature": current_qmdict_signature_text,
+                    })
+                    VOCAB_FILE_META_INDEX_STATE["revision"] = int(VOCAB_FILE_META_INDEX_STATE.get("revision", 0) or 0) + 1
+                schedule_vocab_file_meta_index_write()
             result = {
                 "lesson_id": clean(persistent.get("lesson_id", ""))[:240],
-                "vocab_word_keys": list(persistent.get("vocab_word_keys") or []),
+                "vocab_word_keys": raw_keys,
+                "vocab_valid_word_keys": valid_keys,
+                "vocab_validated_signature": current_qmdict_signature_text,
+                "vocab_extractor_version": VOCAB_FILE_META_EXTRACTOR_VERSION,
+                "vocab_source_revision": source_revision,
+                "vocab_source_title": clean(persistent.get("vocab_source_title", "")) or path.stem,
                 "vocab_total_words": max(0, int(persistent.get("vocab_total_words", 0) or 0)),
                 "vocab_space": clean(persistent.get("vocab_space", "")) or VOCAB_STATS_SPACE_LABELS.get(suffix, "Lesson"),
             }
+            remember_vocab_lesson_meta({**result, "mtime_ns": int(stat.st_mtime_ns), "size": int(stat.st_size)}, relative_key)
             VOCAB_FILE_META_RAM_CACHE[cache_key] = {"signature": signature, "payload": result, "at": time.time()}
             return result
         payload, _structure_path = load_future_lesson_document(path)
@@ -634,14 +875,21 @@ def lesson_file_vocab_meta_for_target(target: Path) -> dict:
             lesson_id = ""
         word_keys = []
         seen = set()
-        for item in lesson_payload_vocabulary_words(payload):
+        vocabulary_words = lesson_payload_vocabulary_words(payload)
+        for item in vocabulary_words:
             key = vocab_key(item.get("word", "")) if isinstance(item, dict) else ""
             if key and key not in seen:
                 seen.add(key)
                 word_keys.append(key)
+        valid_word_keys, qmdict_signature_text = qmdict_valid_vocab_keys_for_words(vocabulary_words)
         result = {
             "lesson_id": lesson_id,
-            "vocab_word_keys": word_keys[:1000],
+            "vocab_word_keys": word_keys,
+            "vocab_valid_word_keys": valid_word_keys,
+            "vocab_validated_signature": qmdict_signature_text,
+            "vocab_extractor_version": VOCAB_FILE_META_EXTRACTOR_VERSION,
+            "vocab_source_revision": source_revision,
+            "vocab_source_title": lesson_payload_title(payload, path.stem) or path.stem,
             "vocab_total_words": len(word_keys),
             "vocab_space": VOCAB_STATS_SPACE_LABELS.get(suffix, "Lesson"),
         }
@@ -654,6 +902,7 @@ def lesson_file_vocab_meta_for_target(target: Path) -> dict:
                     **result,
                 }
                 VOCAB_FILE_META_INDEX_STATE["revision"] = int(VOCAB_FILE_META_INDEX_STATE.get("revision", 0) or 0) + 1
+            remember_vocab_lesson_meta({**result, "mtime_ns": int(stat.st_mtime_ns), "size": int(stat.st_size)}, relative_key)
             schedule_vocab_file_meta_index_write()
         if len(VOCAB_FILE_META_RAM_CACHE) > VOCAB_FILE_META_RAM_CACHE_LIMIT:
             stale = sorted(VOCAB_FILE_META_RAM_CACHE.items(), key=lambda item: float((item[1] or {}).get("at", 0) or 0))
@@ -676,7 +925,8 @@ def vocab_lesson_index_signature() -> str:
                 latest = max(latest, path.stat().st_mtime_ns)
             except OSError:
                 pass
-        return f"{count}:{latest}"
+        qmdict_signature = qmdict_source_signature_key()
+        return f"{count}:{latest}:{int(qmdict_signature[0])}:{int(qmdict_signature[1])}"
     except Exception:
         return f"error:{time.time():.0f}"
 
@@ -694,22 +944,15 @@ def build_vocab_lesson_index(max_files: int = 6000) -> list[dict]:
             continue
         checked += 1
         try:
-            payload, _structure_path = load_future_lesson_document(target)
-            stats_words = lesson_payload_vocabulary_words(payload)
-            word_keys = []
-            seen = set()
-            for item in stats_words:
-                key = vocab_key(item.get("word", ""))
-                if key and key not in seen:
-                    seen.add(key)
-                    word_keys.append(key)
+            meta = lesson_file_vocab_meta_for_target(target)
+            word_keys = list(meta.get("vocab_valid_word_keys") or []) if isinstance(meta, dict) else []
             if not word_keys:
                 continue
             rows.append({
                 "path": server_data_relative(target),
-                "space": VOCAB_STATS_SPACE_LABELS.get(suffix, "Lesson"),
-                "title": lesson_payload_title(payload, target.stem),
-                "word_keys": word_keys[:1000],
+                "space": clean(meta.get("vocab_space", "")) or VOCAB_STATS_SPACE_LABELS.get(suffix, "Lesson"),
+                "title": clean(meta.get("vocab_source_title", "")) or target.stem,
+                "word_keys": word_keys,
                 "total_words": len(word_keys),
             })
         except Exception:

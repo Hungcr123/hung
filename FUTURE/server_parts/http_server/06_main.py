@@ -62,7 +62,7 @@ def open_future_start_page(url: str) -> None:
     webbrowser.open(url)
 
 def main() -> int:
-    global SERVER_HTTPD
+    global SERVER_HTTPD, DISTRIBUTED_WORKER_HTTPD
     set_future_server2_process_status("main")
     parser = argparse.ArgumentParser(description="Future local Faster-Whisper server")
     parser.add_argument("--host", default="127.0.0.1")
@@ -111,6 +111,8 @@ def main() -> int:
             "documents_restored": 0,
             "counts": {},
         }
+        # Added 2026-07-30: apply additive PostgreSQL tables/indexes before any durable queue access.
+        database_info["postgres_schema"] = postgres_initialize_schema()
         # Added 2026-07-29: warm durable Vault placements before HTTP accepts learners.
         database_info["vault_placements"] = server_database_load_vault_cache(None)
         load_auth_sessions()
@@ -137,6 +139,8 @@ def main() -> int:
         except Exception as sound_exc:
             SERVER_STATE["sound_asset_index"] = {"ok": False, "error": str(sound_exc)}
             stt_debug_log("sound_asset_index_warm_failed", error=str(sound_exc))
+        # Added 2026-07-30: recover durable TTS leases before accepting new audio requests.
+        SERVER_STATE["durable_tts_queue"] = start_durable_tts_dispatcher()
         start_server_data_manifest_monitor()
         schedule_space_pdf_progress_startup_warm()
     except Exception as exc:
@@ -144,6 +148,44 @@ def main() -> int:
         print(f"Cannot prepare C:\\server data\\common: {exc}", flush=True)
     httpd = FutureThreadingHTTPServer((args.host, int(args.port)), FutureWhisperHandler)
     SERVER_HTTPD = httpd
+    worker_httpd = None
+    worker_host = ""
+    worker_port = bounded_env_int("FUTURE_DISTRIBUTED_WORKER_PORT", 8890, 1024, 65535)
+    configured_worker_host = clean(os.environ.get("FUTURE_DISTRIBUTED_WORKER_HOST", ""))
+    lan_ips = []
+    for ip_text in local_ipv4_addresses():
+        try:
+            ip = ipaddress.ip_address(ip_text)
+        except ValueError:
+            continue
+        if ip.version == 4 and ip.is_private and not ip.is_loopback:
+            lan_ips.append(ip_text)
+    worker_host = configured_worker_host or (lan_ips[0] if lan_ips else "127.0.0.1")
+    try:
+        worker_httpd = FutureWorkerHTTPServer((worker_host, worker_port), FutureWhisperHandler)
+        DISTRIBUTED_WORKER_HTTPD = worker_httpd
+        worker_url = f"http://{worker_host}:{worker_port}"
+        SERVER_STATE.update({
+            "distributed_worker_url": worker_url,
+            "distributed_worker_listener": "lan-only",
+            "distributed_worker_host": worker_host,
+            "distributed_worker_port": worker_port,
+            "distributed_worker_http_max_threads": worker_httpd.future_worker_max_threads,
+        })
+        threading.Thread(
+            target=worker_httpd.serve_forever,
+            daemon=True,
+            name="future-worker-lan-http",
+        ).start()
+        print(f"Distributed worker LAN broker listening at {worker_url}", flush=True)
+    except Exception as exc:
+        DISTRIBUTED_WORKER_HTTPD = None
+        SERVER_STATE.update({
+            "distributed_worker_url": "",
+            "distributed_worker_listener": "failed",
+            "distributed_worker_listener_error": str(exc),
+        })
+        print(f"Distributed worker LAN broker failed: {exc}", flush=True)
     register_current_server_pid()
     browser_host = "127.0.0.1" if args.host in ("", "0.0.0.0", "::") else args.host
     server_url = f"http://{browser_host}:{args.port}"
@@ -202,8 +244,10 @@ def main() -> int:
             qmdict_warm_result = warm_qmdict_runtime(0.2)
             SERVER_STATE["qmdict_runtime_warm_wall_ms"] = int((time.perf_counter() - qmdict_warm_started) * 1000)
             SERVER_STATE["qmdict_runtime_warm_result"] = qmdict_warm_result
-            SERVER_STATE["warm_status"] = "Warming UK/US word audio index..."
+            SERVER_STATE["warm_status"] = "Preparing deterministic QMLearn audio paths..."
             warm_qmlearn_voice_audio_index_async(0.3)
+            SERVER_STATE["warm_status"] = "Warming Space_V local picture index..."
+            warm_space_v_local_picture_index_async(0.1)
             SERVER_STATE["warm_status"] = "Pinning process workers in RAM..."
             warm_future_process_workers_async(0.6)
             SERVER_STATE["warm_status"] = "Warming PDF and picture index..."
@@ -237,6 +281,13 @@ def main() -> int:
         pass
     finally:
         cleanup_runtime()
+        if worker_httpd is not None:
+            try:
+                worker_httpd.shutdown()
+            except Exception:
+                pass
+            worker_httpd.server_close()
+        DISTRIBUTED_WORKER_HTTPD = None
         httpd.server_close()
         SERVER_HTTPD = None
     return 0

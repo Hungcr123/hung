@@ -128,6 +128,7 @@
         );
         const checkpointAvailable = Boolean(
           done > 0 ||
+          (["space_p", "space_l", "space_s"].includes(space) && number(state.childIndex, state.child_index) > 0) ||
           reviewing ||
           (Array.isArray(state.queue) && state.queue.length) ||
           (state.nodeProgress && typeof state.nodeProgress === "object" && Object.keys(state.nodeProgress).length),

@@ -289,6 +289,10 @@
         if (page === pdfState.page && !pdfPendingPage && pdfEls && pdfEls.image && pdfEls.image.src) {
           return;
         }
+        // Added 2026-08-02: page changes own the AI audio lifecycle for both PDF and Picture modes.
+        if (typeof stopPdfAiAssistRuntimeAudio === "function") {
+          stopPdfAiAssistRuntimeAudio();
+        }
         pdfPendingPage = page;
         if (pdfPageNavigationPromise) {
           return await pdfPageNavigationPromise;
@@ -3540,20 +3544,44 @@
           if (typeof recordPdfPageVisit === "function") {
             recordPdfPageVisit(pdfState.page, { deferSave: true });
           }
+          // Added 2026-08-02: gated PDF entry spends 0-80% on source bytes before local parse/render.
+          const startSourceWarm = () => warmPdfSourceFileCache(info, { trackProgress: true }).then((sourceWarmResult) => {
+            if (!sourceWarmResult || !sourceWarmResult.bytes) {
+              return null;
+            }
+            if (options.awaitSourceWarm !== true
+              && pdfModeActive
+              && pdfState.mode === "pdf"
+              && normalizeServerPathValue(pdfState.path || "") === filePath) {
+              prefetchPdfNeighborPages();
+            }
+            return sourceWarmResult;
+          }).catch((error) => {
+            if (window && window.console && typeof window.console.debug === "function") {
+              window.console.debug("[Future PDF] Background PDF source warm skipped", error);
+            }
+            return null;
+          });
+          let sourceWarmPromise = null;
+          if (options.awaitSourceWarm === true && (!shouldWarmSourceFile || typeof warmPdfSourceFileCache !== "function")) {
+            throw new Error("PDF source size is unavailable; cannot start the network download.");
+          }
+          if (shouldWarmSourceFile && typeof warmPdfSourceFileCache === "function" && options.awaitSourceWarm === true) {
+            sourceWarmPromise = startSourceWarm();
+            const sourceWarmResult = await sourceWarmPromise;
+            if (!sourceWarmResult || !sourceWarmResult.bytes) {
+              throw new Error("PDF source download did not return any bytes.");
+            }
+            if (typeof window.__ftBeginLessonEntryPdfLocalProgress === "function") {
+              window.__ftBeginLessonEntryPdfLocalProgress();
+            }
+          }
           await renderPdfPage();
-          if (shouldWarmSourceFile && typeof warmPdfSourceFileCache === "function") {
-            void warmPdfSourceFileCache(info, { trackProgress: true }).then((sourceWarmResult) => {
-              if (!sourceWarmResult || !sourceWarmResult.bytes) {
-                return;
-              }
-              if (pdfModeActive && pdfState.mode === "pdf" && normalizeServerPathValue(pdfState.path || "") === filePath) {
-                prefetchPdfNeighborPages();
-              }
-            }).catch((error) => {
-              if (window && window.console && typeof window.console.debug === "function") {
-                window.console.debug("[Future PDF] Background PDF source warm skipped", error);
-              }
-            });
+          if (options.awaitSourceWarm === true) {
+            setPdfPageLoadProgress({ overallPercent: 100, phase: "LOCAL PAGE READY", done: true });
+          } else if (shouldWarmSourceFile && typeof warmPdfSourceFileCache === "function") {
+            sourceWarmPromise = startSourceWarm();
+            void sourceWarmPromise;
           }
           if (pdfModeActive && pdfState.mode === "pdf" && normalizeServerPathValue(pdfState.path || "") === filePath) {
             prefetchPdfNeighborPages();
@@ -3911,7 +3939,7 @@
         }
         if (filePath && typeof readPdfLocalProgress === "function") {
           const localProgress = readPdfLocalProgress(filePath);
-          const localPage = Math.max(1, Math.floor(Number(localProgress && localProgress.page) || 0));
+          const localPage = Math.max(0, Math.floor(Number(localProgress && localProgress.page) || 0));
           if (localPage > 0) {
             return localPage;
           }
@@ -3929,9 +3957,11 @@
         const openPath = normalizeServerPathValue(learningPath || displayPath);
         const clickedPath = normalizeServerPathValue(displayPath || entry.path || openPath);
         const linkedPath = displayPath && openPath && normalizeTaskPath(displayPath) !== normalizeTaskPath(openPath) ? displayPath : "";
-        const entryExtension = clean(entry.extension || (String(openPath || entry.path || "").match(/\.[^.\\/]+$/) || [""])[0]).toLowerCase();
-        const entryOpenOwnsLastFileSync = entryExtension === ".pdf" || isSpacePictureExtension(entryExtension);
-        requestAutoFullscreenForSpaceOpen();
+          const entryExtension = clean(entry.extension || (String(openPath || entry.path || "").match(/\.[^.\\/]+$/) || [""])[0]).toLowerCase();
+          const entryOpenOwnsLastFileSync = entryExtension === ".pdf" || isSpacePictureExtension(entryExtension);
+          requestAutoFullscreenForSpaceOpen();
+          const lessonEntryGateToken = beginLessonEntryGateTransition(entry);
+          let lessonEntryGateReleased = false;
         if (serverLessonProgressPrefetchTimer) {
           window.clearTimeout(serverLessonProgressPrefetchTimer);
           serverLessonProgressPrefetchTimer = 0;
@@ -3955,27 +3985,107 @@
         hideActiveLessonSurfaceForLoad(`Dang nap ${entry.name || "goi bai hoc"} tu server...`);
         setServerBrowserLoading("Dang tai file...");
         let progressPromise = null;
+        let vocabScanPromise = null;
         try {
+          if (entryExtension !== ".pdf" && !isSpacePictureExtension(entryExtension)) {
+            // 2026-08-03: the lesson ID is already known at click time, so progress lookup runs beside file download/decode.
+            progressPromise = fetchServerProgressForEntry({ ...learningEntry, path: openPath || learningPath || displayPath }).catch((error) => ({
+              space: serverLessonProgressSpaceForPath(openPath || displayPath || learningPath, entry.extension),
+              payload: {},
+              failed: true,
+              error,
+            }));
+          }
+          if (entryExtension === ".space_w") {
+            // 2026-08-03: scan unlearned vocabulary beside file download so Continue keeps the New Study feature without click-time delay.
+            const vocabScanStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            vocabScanPromise = fetchServerJson("/vocab/scan-space-w?response=compact-v1", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              timeoutMs: 10000,
+              body: JSON.stringify({
+                path: openPath || learningPath || displayPath,
+                lesson_id: clean(entry.lesson_id || entry.file_id || ""),
+              }),
+            }).then((result) => {
+              const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+              const scan = result && result.payload && typeof result.payload === "object" ? result.payload : {};
+              window.__ftSpaceWVocabScanTrace = {
+                source: "lesson-click-prefetch",
+                elapsedMs: Math.round((now - vocabScanStartedAt) * 100) / 100,
+                learnedTotal: Number(scan.learned_total || 0) || 0,
+                newCount: Number(scan.new_count || 0) || 0,
+                pendingCount: Number(scan.pending_count || 0) || 0,
+                indexPending: Boolean(scan.index_pending),
+              };
+              console.info("[FTG][VocabScan]", window.__ftSpaceWVocabScanTrace);
+              return result;
+            }, (error) => {
+              const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+              window.__ftSpaceWVocabScanTrace = {
+                source: "lesson-click-prefetch",
+                elapsedMs: Math.round((now - vocabScanStartedAt) * 100) / 100,
+                failed: true,
+                error: error && error.message ? error.message : String(error),
+              };
+              console.info("[FTG][VocabScan]", window.__ftSpaceWVocabScanTrace);
+              return { payload: {}, failed: true, error };
+            });
+          }
           if (entryExtension === ".pdf") {
             const resumePage = pdfResumePageFromLessonEntry(entry);
-            await enterPdfServerFile({
+            const pdfEntry = {
               ...entry,
               path: clickedPath || entry.path,
               effective_path: normalizeServerPathValue(entry.effective_path || entry.link_target || openPath || ""),
               link_target: normalizeServerPathValue(entry.link_target || ""),
               linked_path: linkedPath || normalizeServerPathValue(entry.linked_path || ""),
-            }, resumePage ? { page: resumePage, forcePage: true } : {});
+            };
+            const openPdfChoice = (mode = "new") => enterPdfServerFile(pdfEntry, {
+              page: mode === "continue" && resumePage ? resumePage : 1,
+              forcePage: true,
+              awaitSourceWarm: true,
+            });
+            if (lessonEntryGateToken) {
+              lessonEntryGateReleased = true;
+              void armLessonEntryMediaGateDecision(lessonEntryGateToken, {
+                resumePage,
+                label: entry.name || "PDF lesson ready",
+                kind: "pdf",
+                open: openPdfChoice,
+              });
+              return;
+            }
+            await openPdfChoice(resumePage ? "continue" : "new");
+            lessonEntryGateReleased = true;
+            void finishLessonEntryGateTransition(lessonEntryGateToken, entry.name || "PDF lesson ready");
             return;
           }
           if (isSpacePictureExtension(entryExtension)) {
             const resumePage = pdfResumePageFromLessonEntry(entry);
-            await enterPictureServerFile({
+            const pictureEntry = {
               ...entry,
               path: clickedPath || entry.path,
               effective_path: normalizeServerPathValue(entry.effective_path || entry.link_target || openPath || ""),
               link_target: normalizeServerPathValue(entry.link_target || ""),
               linked_path: linkedPath || normalizeServerPathValue(entry.linked_path || ""),
-            }, resumePage ? { page: resumePage, forcePage: true } : {});
+            };
+            const openPictureChoice = (mode = "new") => enterPictureServerFile(pictureEntry, {
+              page: mode === "continue" && resumePage ? resumePage : 1,
+              forcePage: true,
+            });
+            if (lessonEntryGateToken) {
+              lessonEntryGateReleased = true;
+              void armLessonEntryMediaGateDecision(lessonEntryGateToken, {
+                resumePage,
+                label: entry.name || "Picture lesson ready",
+                open: openPictureChoice,
+              });
+              return;
+            }
+            await openPictureChoice(resumePage ? "continue" : "new");
+            lessonEntryGateReleased = true;
+            void finishLessonEntryGateTransition(lessonEntryGateToken, entry.name || "Picture lesson ready");
             return;
           }
           const result = await fetchServerText(`/server-data/file?path=${encodeURIComponent(openPath || entry.path)}`);
@@ -4005,19 +4115,24 @@
             process: routeForLessonPayload(payload),
           });
           closeServerBrowser();
+          if (lessonEntryGateToken) {
+            [loadStartButton, loadReviewButton, loadReviewTrainButton, loadEnterNowButton].forEach((button) => {
+              if (button) button.hidden = true;
+            });
+            prepareLessonPayloadForGate(payload, { serverProgressPromise: progressPromise, vocabScanPromise, forceManualStart: true });
+            lessonEntryGateReleased = true;
+            void armLessonEntryGateDecision(lessonEntryGateToken, entry.name || lessonTitleFromPayload(payload));
+            return;
+          }
           if (shouldAutoStartLoadedFileInPopup() && (isVocabularyPayload(payload) || isQuestionPayload(payload))) {
             setLoadStatus("Da nap file tu server. Dang mo giao dien hoc...");
             await delay(20);
             loadLessonPayload(payload);
           } else {
-            progressPromise = fetchServerProgressForEntry({ ...learningEntry, path: openPath || learningPath || displayPath }).catch((error) => ({
-              space: serverLessonProgressSpaceForPath(openPath || displayPath || learningPath, entry.extension),
-              payload: {},
-              failed: true,
-              error,
-            }));
-            prepareLessonPayloadForGate(payload, { serverProgressPromise: progressPromise });
+            prepareLessonPayloadForGate(payload, { serverProgressPromise: progressPromise, vocabScanPromise });
           }
+          lessonEntryGateReleased = true;
+          void finishLessonEntryGateTransition(lessonEntryGateToken, entry.name || lessonTitleFromPayload(payload));
         } catch (error) {
           console.error("FTG load server Space_W failed", error);
           pendingVocabularyPayload = null;
@@ -4029,8 +4144,13 @@
           } else {
             setLoadStatus(error && error.message ? error.message : "Khong nap duoc file tren server.", true);
           }
+          lessonEntryGateReleased = true;
+          void cancelLessonEntryGateTransition(lessonEntryGateToken, error && error.message ? error.message : "Could not open lesson");
           await loadServerDataPath(serverBrowserPath, true, serverTaskOwnerContext);
         } finally {
+          if (!lessonEntryGateReleased && lessonEntryGateToken) {
+            void cancelLessonEntryGateTransition(lessonEntryGateToken, "Returning to Lesson Vault");
+          }
           serverBrowserBusy = false;
         }
       };
@@ -4220,11 +4340,7 @@
           : (pinnedActive ? pinnedSource : sourceProgress || pinnedSource);
         const extension = clean(entry && entry.extension).toLowerCase();
         const structuralQuestionTotal = extension === ".space_q"
-          ? Math.max(
-            0,
-            Math.floor(Number(source.total_nodes || source.totalNodes || entry.total_nodes || 0) || 0),
-            Math.floor(Number(source.nodes || entry.nodes || 0) || 0) + Math.floor(Number(source.questions || entry.questions || 0) || 0),
-          )
+          ? spaceQStructuralProgressTotal(source, entry)
           : 0;
         const structuralPageTotal = lessonVaultStructuralPageTotal(source, entry);
         const savedPageTotal = Math.max(0, Math.floor(Number(rawProgress && rawProgress.total || 0) || 0));
@@ -4246,7 +4362,7 @@
           };
         }
         const savedQuestionTotal = Math.max(0, Math.floor(Number(rawProgress && rawProgress.total || 0) || 0));
-        if (rawProgress && structuralQuestionTotal > savedQuestionTotal) {
+        if (rawProgress && structuralQuestionTotal && structuralQuestionTotal !== savedQuestionTotal) {
           const savedDone = Math.max(0, Math.floor(Number(rawProgress.done || 0) || 0));
           const done = savedQuestionTotal
             ? Math.round(savedDone * structuralQuestionTotal / savedQuestionTotal)
@@ -4404,8 +4520,25 @@
           return;
         }
         const timelineStartedAt = browserTimingNow();
+        const completedLoginRestore = typeof currentLessonVaultRestoreState === "function"
+          ? currentLessonVaultRestoreState()
+          : null;
+        const preserveRestoredScroll = Boolean(
+          completedLoginRestore
+          && completedLoginRestore.scrolled
+          && serverListNode
+          && normalizeTaskPath(payload && payload.path || serverBrowserPath || "") === normalizeTaskPath(completedLoginRestore.targetTree || "")
+        );
+        const restoredScrollTopBeforeRender = preserveRestoredScroll
+          ? (Number.isFinite(Number(completedLoginRestore.completedScrollTop))
+            ? Number(completedLoginRestore.completedScrollTop)
+            : Number(serverListNode.scrollTop || 0))
+          : 0;
         ensureLoginTimelineMetrics();
-        if (typeof applyLessonVaultProgressSnapshotToPayload === "function" && !(payload && payload.__ftLessonVaultProgressSnapshotApplied)) {
+        let listedProgressChanged = typeof rememberLessonVaultProgressEntries === "function" && Array.isArray(payload.entries)
+          ? rememberLessonVaultProgressEntries(payload.entries)
+          : 0;
+        if (typeof applyLessonVaultProgressSnapshotToPayload === "function") {
           payload = applyLessonVaultProgressSnapshotToPayload(payload);
         }
         serverListNode.textContent = "";
@@ -4603,6 +4736,7 @@
               .filter(Boolean)
           );
         const fragment = document.createDocumentFragment();
+        const resolvedProgressEntries = [];
         let vaultIndex = 0;
         entries.forEach((entry) => {
           const item = document.createElement("button");
@@ -4636,13 +4770,9 @@
           let entryProgress = lessonVaultDisplayProgressForStudy(entryStudy, entry, pinnedEntryProgress);
           const entryExtension = clean(entry && entry.extension).toLowerCase();
           const entrySpaceQTotal = entryExtension === ".space_q"
-            ? Math.max(
-              0,
-              Math.floor(Number(entryStudy.total_nodes || entryStudy.totalNodes || entry.total_nodes || 0) || 0),
-              Math.floor(Number(entryStudy.nodes || entry.nodes || 0) || 0) + Math.floor(Number(entryStudy.questions || entry.questions || 0) || 0),
-            )
+            ? spaceQStructuralProgressTotal(entryStudy, entry)
             : 0;
-          if (entryProgress && entrySpaceQTotal > Math.max(0, Math.floor(Number(entryProgress.total || 0) || 0))) {
+          if (entryProgress && entrySpaceQTotal && entrySpaceQTotal !== Math.max(0, Math.floor(Number(entryProgress.total || 0) || 0))) {
             const priorTotal = Math.max(0, Math.floor(Number(entryProgress.total || 0) || 0));
             const priorDone = Math.max(0, Math.floor(Number(entryProgress.done || 0) || 0));
             const done = priorTotal ? Math.round(priorDone * entrySpaceQTotal / priorTotal) : priorDone;
@@ -4664,6 +4794,14 @@
           }
           // Added 2026-07-15: keep Lesson Vault chips on the same local progress snapshot as the ring after Back.
           const entryForDisplay = entry && typeof entry === "object" ? { ...entry, study: entryStudy } : entry;
+          if (entryProgress && entryForDisplay && typeof entryForDisplay === "object") {
+            resolvedProgressEntries.push({
+              ...entryForDisplay,
+              lesson_id: entry.lesson_id || entry.lessonId || entry.file_id || entry.fileId || "",
+              progress: { ...entryProgress },
+              study: { ...entryStudy, progress: { ...entryProgress } },
+            });
+          }
           const entryProgressPartial = lessonProgressIsActivePartial(entryProgress);
           const progressMarksUserLearned = Boolean(
             entryProgress
@@ -4979,16 +5117,33 @@
         if (fragment.childNodes.length) {
           serverListNode.appendChild(fragment);
         }
+        // The visible Vault chip may resolve a newer pinned/active run than the
+        // raw list payload. Feed that exact resolved value into Space Task before
+        // its final render so card, hover, and Vault cannot diverge.
+        if (resolvedProgressEntries.length && typeof rememberLessonVaultProgressEntries === "function") {
+          listedProgressChanged += rememberLessonVaultProgressEntries(resolvedProgressEntries);
+        }
+        if (preserveRestoredScroll) {
+          serverListNode.scrollTop = restoredScrollTopBeforeRender;
+          recordLessonVaultRestorePhase("post-scroll-render-preserved", {
+            scrollTopBefore: restoredScrollTopBeforeRender,
+            scrollTopAfter: Number(serverListNode.scrollTop || 0),
+          });
+        }
         const folderTaskOwner = clean(payload.task_owner || (!payload.admin ? payload.username || "" : ""));
         if (folderTaskOwner) {
           syncVisibleFolderTaskChooseButtonsForOwner(folderTaskOwner);
+        }
+        if (listedProgressChanged > 0 && currentTaskPayload && typeof renderLessonTaskPanel === "function") {
+          lessonTaskPanelLastSignature = "";
+          renderLessonTaskPanel(currentTaskPayload);
         }
         if (typeof syncVisibleServerTaskRows === "function") {
           syncVisibleServerTaskRows(currentTaskPayload);
         }
         scheduleServerVaultVisibilityRefresh();
-        if (serverBrowserFocusedFilePath) {
-          window.setTimeout(scrollFocusedServerFileIntoView, 80);
+        if (typeof scheduleLessonVaultLoginRestore === "function") {
+          scheduleLessonVaultLoginRestore(payload, localCacheOnly ? "local-cache-render" : "render");
         }
       };
 
@@ -5102,7 +5257,11 @@
               item._futureTaskFocusBurstTimer = 0;
             }, 2400);
           }
-          window.setTimeout(scrollFocusedServerFileIntoView, 80);
+          if (typeof scheduleServerFileScrollWhenReady === "function") {
+            scheduleServerFileScrollWhenReady({ source: "payload-entry-select" });
+          } else {
+            scrollFocusedServerFileIntoView();
+          }
         }
         return true;
       };
@@ -6039,9 +6198,16 @@
                 rememberPdfProgressLoginSnapshot(snapshot);
               }
             });
-          } else if (preloadPayload.preload && preloadPayload.preload.progress_snapshot && typeof rememberPdfProgressLoginSnapshot === "function") {
-            // Updated 2026-07-22: compact-v2 keeps the canonical nested snapshot without duplicating JSON bytes.
-            rememberPdfProgressLoginSnapshot(preloadPayload.preload.progress_snapshot);
+          } else if (preloadPayload.preload && preloadPayload.preload.progress_snapshot) {
+            // Updated 2026-08-03: compact-v2 has one canonical snapshot for every Space;
+            // hydrate the shared Lesson Vault/Space Task cache before the PDF adapter.
+            const progressSnapshot = preloadPayload.preload.progress_snapshot;
+            if (typeof rememberLessonVaultProgressSnapshot === "function") {
+              rememberLessonVaultProgressSnapshot(progressSnapshot);
+            }
+            if (typeof rememberPdfProgressLoginSnapshot === "function") {
+              rememberPdfProgressLoginSnapshot(progressSnapshot);
+            }
           }
           loginVaultWarmupStats.progressApplyMs += Math.max(0, browserTimingNow() - progressApplyStartedAt);
           const rowSyncStartedAt = browserTimingNow();
@@ -6716,6 +6882,7 @@
           const restoreTarget = typeof resolveLessonVaultRestoreTarget === "function"
             ? await resolveLessonVaultRestoreTarget({
               routeTree: routeState.route === "lesson_vault" ? routeState.tree : "",
+              routeFile: routeState.route === "lesson_vault" ? routeState.file : "",
               routeTaskOwner: routeState.route === "lesson_vault" ? routeState.task_owner : "",
             })
             : {
@@ -6725,6 +6892,18 @@
           recordOpenPhase("resolve-target");
           const targetTree = restoreTarget.tree || "";
           const targetOwner = clean(restoreTarget.task_owner || "");
+          const loginRestore = typeof currentLessonVaultRestoreState === "function" ? currentLessonVaultRestoreState() : null;
+          if (loginRestore) {
+            const resolvedFile = normalizeServerPathValue(restoreTarget.file || loginRestore.targetFile || "");
+            loginRestore.targetFile = resolvedFile;
+            loginRestore.targetTree = normalizeServerPathValue(targetTree || (resolvedFile ? serverParentPathForFile(resolvedFile) : ""));
+            loginRestore.targetOwner = targetOwner || loginRestore.targetOwner || loginRestore.username;
+            loginRestore.targetPaths = Array.from(new Set([
+              ...(Array.isArray(restoreTarget.paths) ? restoreTarget.paths : []),
+              resolvedFile,
+            ].map((value) => normalizeServerPathValue(value || "")).filter(Boolean)));
+            recordLessonVaultRestorePhase("restore-target-resolved", { source: clean(restoreTarget.source || "unknown") });
+          }
           const warmupPayload = !fresh && loginVaultWarmupState && typeof loginVaultWarmupState.payload === "object"
             ? loginVaultWarmupState.payload
             : null;
@@ -6788,12 +6967,15 @@
         }
       };
 
-      const schedulePostAuthLessonVaultHydration = (payload = null, targetOwner = "") => {
+      const schedulePostAuthLessonVaultHydration = (payload = null, targetOwner = "", warmupPromise = null) => {
         if (!payload || typeof payload !== "object") {
           return;
         }
         const owner = clean(targetOwner || payload.task_owner || payload.username || currentAuthUsername || "");
-        const run = () => {
+        const run = async () => {
+          if (warmupPromise && typeof warmupPromise.then === "function") {
+            await Promise.resolve(warmupPromise).catch(() => null);
+          }
           try {
             if (shouldHydrateDeferredTaskBoardImmediately(payload, payload.path || "", false)) {
               hydrateDeferredTaskBoardNow(payload);
@@ -6822,9 +7004,9 @@
           }
         };
         if (typeof window.requestIdleCallback === "function") {
-          window.requestIdleCallback(run, { timeout: 1800 });
+          window.requestIdleCallback(() => void run(), { timeout: 1800 });
         } else {
-          window.setTimeout(run, 900);
+          window.setTimeout(() => void run(), 900);
         }
       };
 

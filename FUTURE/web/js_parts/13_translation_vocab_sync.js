@@ -72,7 +72,7 @@
             vocabLearnedConnector.classList.add("is-hidden");
           }
           hideVocabSideCards();
-          clearVocabAudioCache();
+          vocabAudioCacheToken += 1;
           currentLessonSource.title = currentLessonSource.title || lessonTitleFromPayload(payload);
           pendingVocabularyPayload = null;
           pendingLessonNodes = [];
@@ -107,7 +107,10 @@
           if (result && result.failed) {
             return { ok: false, error: result.error };
           }
-          if (!result || clean(result.space) !== clean(expectedSpace)) {
+          const actualSpace = clean(result && result.space);
+          const wantedSpace = clean(expectedSpace);
+          const paragraphFamily = new Set(["Space_P", "Space_L", "Space_S"]);
+          if (!result || (actualSpace !== wantedSpace && !(paragraphFamily.has(actualSpace) && paragraphFamily.has(wantedSpace)))) {
             return null;
           }
           return {
@@ -216,7 +219,12 @@
           setLoadStatus("Completed. Select New Study to begin another run.");
           return;
         }
-        setLoadStatus("No saved progress. Starting a new study...");
+        setLoadStatus("No saved progress. Select Open New Run.");
+        if (loadStartButton) {
+          loadStartButton.hidden = false;
+          loadStartButton.disabled = false;
+          loadStartButton.textContent = "Open New Run";
+        }
         warmSpaceWAudioCache(pendingLessonNodes, voiceSelect.value, {
           loadStatus: false,
           startIndex: currentNodeIndex,
@@ -224,17 +232,38 @@
           maxItems: 1,
           startDelayMs: 900,
         });
-        await delay(30);
-        if (token !== spaceWLoadDecisionToken || identity !== currentSpaceWCache.identity || !pendingLessonNodes.length) {
-          return;
-        }
-        startPreparedLesson();
+        return;
       };
 
       const finishPreparedVocabLoadDecision = async (normalized = pendingVocabularyPayload, options = {}) => {
         const token = ++vocabLoadDecisionToken;
         const identity = currentVocabProgressCache.identity;
         setLoadStatus("Checking saved Space_V progress...");
+        if (currentVocabProgressCache.savedProgress) {
+          loadGate.classList.add("is-file-ready");
+          updateVocabProgressButtons();
+          const navigation = resolveSpaceRunNavigation(currentVocabProgressCache.savedProgress, "Space_V");
+          setLoadStatus(`${vocabSavedSummary(currentVocabProgressCache.savedProgress)} ${navigation.resumeAvailable ? "Select New Study or Continue Previous." : "Completed. Select New Study to begin another run."}`);
+          warmVocabularyAudioCacheForLesson(normalized || pendingVocabularyPayload, {
+            startIndex: navigation.resumeAvailable ? vocabSavedStartIndex(currentVocabProgressCache.savedProgress) : 0,
+            label: "Space_V",
+            includeAlternates: false,
+            includeMeaning: true,
+            startDelayMs: 650,
+            delayMs: 45,
+            status: false,
+          });
+          // 2026-08-04: keep Gate actions responsive while the click-time progress preload reconciles a newer device checkpoint.
+          void readPreloadedServerProgress(options, "Space_V").then((preloaded) => {
+            if (!preloaded || !preloaded.ok || token !== vocabLoadDecisionToken || identity !== currentVocabProgressCache.identity) return;
+            const payload = preloaded.payload || {};
+            mergeVocabServerProgressRecord(payload.progress || null);
+            currentVocabProgressCache.serverPayload = payload;
+            currentVocabProgressCache.serverEtag = clean(preloaded.etag || "");
+            updateVocabProgressButtons();
+          }).catch(() => {});
+          return;
+        }
         const preloaded = await readPreloadedServerProgress(options, "Space_V");
         if (preloaded && preloaded.ok) {
           const payload = preloaded.payload || {};
@@ -280,21 +309,13 @@
           setLoadStatus("Completed. Select New Study to begin another run.");
           return;
         }
-        setLoadStatus("No saved Space_V progress. Starting a new study...");
+        setLoadStatus("No saved Space_V progress. Select Open New Run.");
         if (loadStartButton) {
-          loadStartButton.hidden = true;
+          loadStartButton.hidden = false;
+          loadStartButton.disabled = false;
+          loadStartButton.textContent = "Open New Run";
         }
-        if (loadReviewButton) {
-          loadReviewButton.hidden = true;
-        }
-        if (loadReviewTrainButton) {
-          loadReviewTrainButton.hidden = true;
-        }
-        await delay(30);
-        if (token !== vocabLoadDecisionToken || identity !== currentVocabProgressCache.identity || !pendingVocabularyPayload) {
-          return;
-        }
-        startPreparedLesson();
+        return;
       };
 
       const finishPreparedQuestionLoadDecision = async (normalized = pendingQuestionPayload, options = {}) => {
@@ -384,21 +405,13 @@
           setLoadStatus("Completed. Select New Study to begin another run.");
           return;
         }
-        setLoadStatus("No saved Space_Q progress. Starting a new study...");
+        setLoadStatus("No saved Space_Q progress. Select Open New Run.");
         if (loadStartButton) {
-          loadStartButton.hidden = true;
+          loadStartButton.hidden = false;
+          loadStartButton.disabled = false;
+          loadStartButton.textContent = "Open New Run";
         }
-        if (loadReviewButton) {
-          loadReviewButton.hidden = true;
-        }
-        if (loadReviewTrainButton) {
-          loadReviewTrainButton.hidden = true;
-        }
-        await delay(30);
-        if (token !== questionLoadDecisionToken || identity !== currentQuestionProgressCache.identity || !pendingQuestionPayload) {
-          return;
-        }
-        startPreparedLesson();
+        return;
       };
 
       const finishPreparedParagraphLoadDecision = async (normalized = pendingParagraphPayload, options = {}) => {
@@ -485,7 +498,12 @@
           setLoadStatus("Completed. Select New Study to begin another run.");
           return;
         }
-        setLoadStatus("No saved Space_P progress. Starting a new study...");
+        setLoadStatus("No saved Space progress. Select Open New Run.");
+        if (loadStartButton) {
+          loadStartButton.hidden = false;
+          loadStartButton.disabled = false;
+          loadStartButton.textContent = "Open New Run";
+        }
         warmParagraphAudioCacheForLesson(normalized || pendingParagraphPayload, {
           startIndex: 0,
           startChildIndex: 0,
@@ -496,20 +514,7 @@
           startDelayMs: 900,
           status: false,
         });
-        if (loadStartButton) {
-          loadStartButton.hidden = true;
-        }
-        if (loadReviewButton) {
-          loadReviewButton.hidden = true;
-        }
-        if (loadReviewTrainButton) {
-          loadReviewTrainButton.hidden = true;
-        }
-        await delay(30);
-        if (token !== paragraphLoadDecisionToken || identity !== currentParagraphProgressCache.identity || !pendingParagraphPayload) {
-          return;
-        }
-        startPreparedLesson();
+        return;
       };
 
       const prepareLessonPayloadForGate = (payload, options = {}) => {
@@ -525,13 +530,33 @@
           }
           pendingVocabularyPayload = normalized;
           configureVocabProgressCache(normalized, normalized.words);
+          if (options.serverProgressPromise && typeof options.serverProgressPromise.then === "function") {
+            const cacheIdentity = currentVocabProgressCache.identity;
+            currentVocabProgressCache.serverProgressSettled = false;
+            currentVocabProgressCache.serverProgressResult = null;
+            currentVocabProgressCache.serverProgressPromise = Promise.resolve(options.serverProgressPromise).then((result) => {
+              if (currentVocabProgressCache.identity === cacheIdentity) {
+                currentVocabProgressCache.serverProgressSettled = true;
+                currentVocabProgressCache.serverProgressResult = result;
+              }
+              return result;
+            }, (error) => {
+              const result = { space: "Space_V", payload: {}, failed: true, error };
+              if (currentVocabProgressCache.identity === cacheIdentity) {
+                currentVocabProgressCache.serverProgressSettled = true;
+                currentVocabProgressCache.serverProgressResult = result;
+              }
+              return result;
+            });
+            options = { ...options, serverProgressPromise: currentVocabProgressCache.serverProgressPromise };
+          }
           pendingLessonNodes = [];
           pendingLessonEffects = {};
           lessonEffects = normalizeEffectSounds(normalized.effects || {});
           preloadLessonEffectSounds();
           currentLessonSource.title = currentLessonSource.title || lessonTitleFromPayload(normalized);
           closeVoicePicker();
-          if (shouldAutoStartLoadedFileInPopup() && (isVocabularyPayload(payload) || isQuestionPayload(payload))) {
+          if (!options.forceManualStart && shouldAutoStartLoadedFileInPopup() && (isVocabularyPayload(payload) || isQuestionPayload(payload))) {
             setLoadStatus("Da nap file vocabulary. Dang mo Vocabulary card...");
             return;
           }
@@ -556,6 +581,7 @@
           }
           configureQuestionProgressCache(normalized, normalized.nodes);
           pendingQuestionPayload = normalized;
+          updateQuestionProgressButtons();
           pendingVocabularyPayload = null;
           pendingLessonNodes = [];
           pendingLessonEffects = {};
@@ -609,6 +635,30 @@
         pendingLessonNodes = normalizeLessonPayloadNodes(payload);
         pendingLessonEffects = normalizeEffectSounds(payload.effects || payload.sounds || payload.fx || {});
         configureSpaceWCache(payload, pendingLessonNodes);
+        currentSpaceWCache.vocabScanPromise = options.vocabScanPromise && typeof options.vocabScanPromise.then === "function"
+          ? options.vocabScanPromise
+          : null;
+        // 2026-08-03: retain the parallel progress lookup so Continue never starts a duplicate blocking request.
+        if (options.serverProgressPromise && typeof options.serverProgressPromise.then === "function") {
+          const cacheIdentity = currentSpaceWCache.identity;
+          currentSpaceWCache.serverProgressSettled = false;
+          currentSpaceWCache.serverProgressResult = null;
+          currentSpaceWCache.serverProgressPromise = Promise.resolve(options.serverProgressPromise).then((result) => {
+            if (currentSpaceWCache.identity === cacheIdentity) {
+              currentSpaceWCache.serverProgressSettled = true;
+              currentSpaceWCache.serverProgressResult = result;
+            }
+            return result;
+          }, (error) => {
+            const result = { space: "Space_W", payload: {}, failed: true, error };
+            if (currentSpaceWCache.identity === cacheIdentity) {
+              currentSpaceWCache.serverProgressSettled = true;
+              currentSpaceWCache.serverProgressResult = result;
+            }
+            return result;
+          });
+          options = { ...options, serverProgressPromise: currentSpaceWCache.serverProgressPromise };
+        }
         const firstNode = pendingLessonNodes[0] || null;
         currentNode = firstNode;
         currentNodeIndex = 0;
@@ -726,6 +776,7 @@
               resumeState: null,
               startIndex: 0,
               reviewRun: false,
+              vocabScanPromise: currentSpaceWCache.vocabScanPromise,
             },
           );
           return;
@@ -740,8 +791,42 @@
       };
 
       const startSavedVocabProgress = async (options = {}) => {
-        if (canUseVocabProgressServer()) {
+        const traceStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const trace = { mode: "Space_V", startedAt: Date.now(), stages: [] };
+        const mark = (stage, detail = {}) => {
+          const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+          trace.stages.push({ stage, ms: Math.round((now - traceStartedAt) * 100) / 100, ...detail });
+        };
+        const publishTrace = (record = null) => {
+          const state = record && record.state && typeof record.state === "object" ? record.state : {};
+          trace.learnedCount = Array.isArray(state.learned) ? state.learned.length : Math.max(0, Number(record && record.learnedCount || 0) || 0);
+          trace.unlearnedCount = Array.isArray(state.studyIndexes) ? state.studyIndexes.length : 0;
+          window.__ftSpaceVContinueTrace = trace;
+          console.info("[FTG][SpaceVContinue]", JSON.stringify(trace));
+        };
+        mark("continue-click");
+        if (currentVocabProgressCache.serverPayload && clean(currentVocabProgressCache.serverEtag || "")) {
+          mark("progress-cache-hit");
+        } else if (currentVocabProgressCache.serverProgressSettled && currentVocabProgressCache.serverProgressResult) {
+          const preloaded = await readPreloadedServerProgress({
+            serverProgressPromise: Promise.resolve(currentVocabProgressCache.serverProgressResult),
+          }, "Space_V");
+          if (preloaded && preloaded.ok) {
+            const payload = preloaded.payload || {};
+            mergeVocabServerProgressRecord(payload.progress || null);
+            currentVocabProgressCache.serverPayload = payload;
+            currentVocabProgressCache.serverEtag = clean(preloaded.etag || "");
+            mark("progress-preload-hit");
+          } else {
+            mark("progress-preload-failed");
+          }
+        } else if (currentVocabProgressCache.serverProgressPromise) {
+          mark("progress-preload-pending");
+        } else if (canUseVocabProgressServer()) {
           await refreshVocabServerProgress();
+          mark("progress-direct-refresh");
+        } else {
+          mark("progress-local-only");
         }
         const record = normalizeVocabProgressRecord(currentVocabProgressCache.savedProgress || readSpaceWJson(currentVocabProgressCache.progressKey));
         const state = record && record.state && typeof record.state === "object" ? record.state : null;
@@ -749,20 +834,26 @@
         if (!navigation.resumeAvailable) {
           updateVocabProgressButtons();
           setLoadStatus(navigation.lifetimeComplete ? "This Space_V run is completed. Select New Study to begin another run." : "No resumable Space_V run is available.", true);
+          publishTrace(record);
           return false;
         }
         if (!state || !pendingVocabularyPayload) {
           updateVocabProgressButtons();
           setLoadStatus("No saved Space_V progress is available for this file.", true);
+          publishTrace(record);
           return false;
         }
         startLessonStudyTimeHeartbeat();
-        return enterVocabularyPayloadNow(pendingVocabularyPayload, {
+        const result = await enterVocabularyPayloadNow(pendingVocabularyPayload, {
           ...options,
           resumeState: state,
           skipAudioPrepare: options.skipAudioPrepare,
+          deferInitialProgressSave: Boolean(currentVocabProgressCache.serverProgressPromise && !currentVocabProgressCache.serverProgressSettled),
           startIndex: Math.max(0, Math.floor(Number(state.currentIndex || 0) || 0)),
         });
+        mark("runtime-ready");
+        publishTrace(record);
+        return result;
       };
 
       const startSavedQuestionProgress = async (options = {}) => {
@@ -877,6 +968,20 @@
         rememberCurrentSpaceWVoice();
         const selected = selectedVoiceCacheRecord();
         const savedIndex = Math.max(0, Number(savedState.index ?? savedState.nodeIndex ?? 0) || 0);
+        if (shouldRunSpaceWVocabPreflight({ nodes: pendingLessonNodes }) && !options.allowDuringVocabBuild) {
+          void runSpaceWVocabPreflight(
+            { nodes: pendingLessonNodes, effects: pendingLessonEffects },
+            selected.value || savedState.selectedVoice || voiceSelect.value,
+            {
+              ...options,
+              resumeSpaceWSaved: true,
+              resumeState: savedState,
+              startIndex: savedIndex,
+              vocabScanPromise: currentSpaceWCache.vocabScanPromise,
+            },
+          );
+          return true;
+        }
         if (options.skipAudioPrepare) {
           warmSpaceWAudioCacheForActiveLesson(pendingLessonNodes, selected.value || savedState.selectedVoice || voiceSelect.value, pendingLessonEffects, {
             label: "Space_W review",
@@ -901,6 +1006,7 @@
           selectedVoice: selected.value || savedState.selectedVoice || voiceSelect.value,
           voiceHint: selected.label || savedState.voiceHint || selected.value || voiceHint,
           loadHidden: true,
+          deferInitialProgressSave: Boolean(currentSpaceWCache.serverProgressPromise && !currentSpaceWCache.serverProgressSettled),
         };
         const ok = applyRuntimeState(state);
         if (!ok) {
@@ -911,7 +1017,9 @@
         closeVoicePicker();
         setLoadStatus("");
         startLessonStudyTimeHeartbeat();
-        saveSpaceWProgressNow();
+        if (!state.deferInitialProgressSave) {
+          saveSpaceWProgressNow();
+        }
         warmSpaceWAudioCacheForActiveLesson(lessonNodes, voiceSelect.value, lessonEffects, {
           startIndex: currentNodeIndex,
           startDelayMs: 900,
@@ -1015,7 +1123,7 @@
             vocabLearnedConnector.classList.add("is-hidden");
           }
           hideVocabSideCards();
-          clearVocabAudioCache();
+          vocabAudioCacheToken += 1;
           pendingVocabularyPayload = null;
           pendingLessonNodes = [];
           pendingLessonEffects = {};
@@ -1136,6 +1244,18 @@
       };
 
       const continuePreparedLessonFromSavedProgress = async (options = {}) => {
+        const traceStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const trace = { mode: "Space_W", startedAt: Date.now(), stages: [] };
+        const mark = (stage) => {
+          const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+          trace.stages.push({ stage, ms: Math.round((now - traceStartedAt) * 100) / 100 });
+        };
+        const publishTrace = () => {
+          try {
+            window.__ftSpaceWContinueTrace = trace;
+          } catch (_error) {
+          }
+        };
         const nextOptions = { skipAudioPrepare: true, ...options };
         if (pendingVocabularyPayload || pendingQuestionPayload || pendingParagraphPayload || pendingLessonNodes.length) {
           hideActiveLessonSurfaceForLoad("Checking saved progress...");
@@ -1175,10 +1295,37 @@
           return false;
         }
         if (pendingLessonNodes.length) {
-          await refreshSpaceWServerProgress();
+          // 2026-08-03: Continue consumes the lookup already started beside file download.
+          // If it is still pending, open the durable local checkpoint without issuing a duplicate wait.
+          mark("continue-click");
+          if (currentSpaceWCache.serverPayload && clean(currentSpaceWCache.serverEtag || "")) {
+            mark("progress-cache-hit");
+          } else if (currentSpaceWCache.serverProgressSettled && currentSpaceWCache.serverProgressResult) {
+            const preloaded = await readPreloadedServerProgress({
+              serverProgressPromise: Promise.resolve(currentSpaceWCache.serverProgressResult),
+            }, "Space_W");
+            if (preloaded && preloaded.ok) {
+              const payload = preloaded.payload || {};
+              applySpaceWVoicePayload(payload.preferences || {});
+              applyAiAgentGhostEnVoicePayload(payload.preferences || {});
+              mergeSpaceWServerProgressRecord(payload.progress || null);
+              currentSpaceWCache.serverPayload = payload;
+              currentSpaceWCache.serverEtag = clean(preloaded.etag || "");
+              mark("progress-preload-hit");
+            } else {
+              mark("progress-preload-failed");
+            }
+          } else if (currentSpaceWCache.serverProgressPromise) {
+            mark("progress-preload-pending");
+          } else {
+            mark("progress-local-only");
+          }
           const navigation = navigationForLoadedRecord(currentSpaceWCache.savedProgress, "Space_W");
           if (navigation.resumeAvailable) {
-            return startSavedSpaceWProgress(nextOptions);
+            const result = await startSavedSpaceWProgress(nextOptions);
+            mark("runtime-ready");
+            publishTrace();
+            return result;
           }
           loadGate.classList.add("is-file-ready");
           updateSpaceWReviewButton();
@@ -1187,6 +1334,8 @@
             loadStartButton.textContent = "New Study";
           }
           setLoadStatus(navigation.lifetimeComplete ? "Completed. Select New Study to begin another run." : "No resumable Space_W run is available.");
+          mark("no-resumable-run");
+          publishTrace();
           return false;
         }
         return false;
@@ -1330,10 +1479,23 @@
             process: processKey,
             replace: true,
           });
-          await loadServerDataPath(treePath, false);
+          const restoredVaultPayload = await loadServerDataPath(treePath, false);
           if (filePath) {
             setSelectedTaskPath(filePath);
-            window.setTimeout(scrollFocusedServerFileIntoView, 100);
+            const restore = typeof currentLessonVaultRestoreState === "function" ? currentLessonVaultRestoreState() : null;
+            if (restore) {
+              restore.lastFileReady = true;
+              restore.targetFile = filePath;
+              restore.targetTree = treePath;
+              restore.targetPaths = [filePath];
+              restore.candidates = [{ path: filePath, parentPath: treePath }];
+              recordLessonVaultRestorePhase("refresh-target-ready", { source: "reload-session" });
+              if (typeof scheduleLessonVaultLoginRestore === "function") {
+                scheduleLessonVaultLoginRestore(restoredVaultPayload || { path: treePath, entries: serverCurrentEntries || [] }, "reload-session");
+              }
+            } else {
+              scrollFocusedServerFileIntoView();
+            }
           }
           try {
             sessionStorage.removeItem(RELOAD_SESSION_KEY);
@@ -2211,7 +2373,12 @@
             if (!entry || typeof entry !== "object") {
               return;
             }
+            const entrySpace = lessonVaultEntryProgressSpace(entry);
+            const entryIds = [entry.lesson_id, entry.lessonId, entry.file_id, entry.fileId]
+              .map((value) => clean(value).toLowerCase())
+              .filter(Boolean);
             const entryPaths = [
+              ...entryIds.map((value) => entrySpace ? `space:${entrySpace.toLowerCase()}:id:${value}` : ""),
               entry.path,
               entry.effective_path,
               entry.link_target,
@@ -3258,7 +3425,8 @@
       };
       const serverStorageKeyCandidates = (baseKey) => {
         const primary = serverStorageKey(baseKey);
-        return primary === baseKey ? [primary] : [primary, baseKey];
+        // 2026-07-31: authenticated navigation must never inherit another user's legacy unscoped last-file state.
+        return primary === baseKey ? [primary] : [primary];
       };
       const readServerStorageValue = (baseKey) => {
         try {
@@ -3287,6 +3455,143 @@
       const LESSON_VAULT_FOLDER_DB_NAME = "future-lesson-vault-folder-v1";
       const LESSON_VAULT_FOLDER_STORE = "folder_state";
       let serverLastFileFetchPromise = null;
+      let serverLastFileFetchUsername = "";
+      let serverLastFileFetchGeneration = 0;
+      let lessonVaultRestoreGeneration = 0;
+      let lessonVaultRestoreState = null;
+
+      // 2026-07-31: one generation-scoped state machine coordinates login identity, last-file, tree render and scroll.
+      const recordLessonVaultRestorePhase = (phase = "", extra = {}) => {
+        const state = lessonVaultRestoreState;
+        if (!state) return null;
+        const row = {
+          phase: clean(phase || "unknown"),
+          at: Date.now(),
+          generation: state.generation,
+          username: state.username,
+          targetFile: state.targetFile || "",
+          targetTree: state.targetTree || "",
+          restoreCalls: Number(state.restoreCalls || 0),
+          ...extra,
+        };
+        state.timeline.push(row);
+        if (state.timeline.length > 80) state.timeline.splice(0, state.timeline.length - 80);
+        try {
+          window.__futureLessonVaultRestoreTrace = state.timeline.slice();
+          document.documentElement.dataset.futureLessonVaultRestoreTrace = JSON.stringify(row);
+        } catch (error) {
+        }
+        return row;
+      };
+
+      const beginLessonVaultLoginRestore = (username = "", options = {}) => {
+        const normalizedUser = clean(username || "");
+        lessonVaultRestoreGeneration += 1;
+        try {
+          if (typeof lessonVaultRestoreWaitCleanup === "function") lessonVaultRestoreWaitCleanup();
+        } catch (error) {
+        }
+        serverLastFileFetchPromise = null;
+        serverLastFileFetchUsername = "";
+        serverLastFileFetchGeneration = lessonVaultRestoreGeneration;
+        serverLastFileEtag = "";
+        serverLastFileHasServerPayload = false;
+        serverLastFileState = { file: null, recentFiles: [], selectedFolder: null, updated_at: "" };
+        serverLastFolderState = { path: "", task_owner: "", selected_at: "", source: "" };
+        lessonVaultRestoreState = {
+          generation: lessonVaultRestoreGeneration,
+          username: normalizedUser,
+          phase: "authenticated",
+          startedAt: Number(options.startedAt || Date.now()) || Date.now(),
+          targetFile: "",
+          targetTree: "",
+          targetOwner: normalizedUser,
+          targetPaths: [],
+          lastFileReady: false,
+          treeReady: false,
+          targetRendered: false,
+          scrolled: false,
+          cancelled: false,
+          userInteracted: false,
+          restoreCalls: 0,
+          completedScrollTop: null,
+          timeline: [],
+        };
+        if (typeof serverBrowserLoadSerial === "number") serverBrowserLoadSerial += 1;
+        if (serverBrowserActiveAbort) {
+          try { serverBrowserActiveAbort.abort(); } catch (error) {}
+          serverBrowserActiveAbort = null;
+        }
+        recordLessonVaultRestorePhase("authenticated");
+        return lessonVaultRestoreState;
+      };
+
+      const currentLessonVaultRestoreState = (generation = 0) => {
+        const state = lessonVaultRestoreState;
+        if (!state || state.cancelled) return null;
+        if (generation && Number(generation) !== Number(state.generation)) return null;
+        if (!authUsernameMatches(state.username, currentAuthUsername || "")) return null;
+        return state;
+      };
+
+      const lessonVaultRestoreTargetRows = (state = serverLastFileState) => {
+        const rows = [];
+        const seen = new Set();
+        const add = (value) => {
+          const row = normalizeServerRecentRow(value);
+          const key = normalizeTaskPath(row && row.path || "");
+          if (!row || !key || seen.has(key) || !serverRecentRowIsResumeable(row)) return;
+          seen.add(key);
+          rows.push(row);
+        };
+        add(state && state.file);
+        if (state && Array.isArray(state.recentFiles)) state.recentFiles.forEach(add);
+        return rows;
+      };
+
+      const noteLessonVaultRestoreLastFile = (state = serverLastFileState, source = "last-file") => {
+        const restore = currentLessonVaultRestoreState();
+        if (!restore) return null;
+        const rows = lessonVaultRestoreTargetRows(state);
+        const target = rows[0] || null;
+        restore.lastFileReady = true;
+        restore.phase = "last-file-ready";
+        restore.targetFile = normalizeServerPathValue(target && target.path || "");
+        restore.targetTree = normalizeServerPathValue(target && (target.parentPath || serverParentPathForFile(target.path)) || "");
+        restore.targetOwner = clean(target && target.task_owner || restore.username || "");
+        restore.targetPaths = target ? Array.from(new Set([
+          target.path,
+          target.displayPath,
+          target.sourcePath,
+          target.effectivePath,
+          target.linkTarget,
+          target.linkedPath,
+        ].map((value) => normalizeServerPathValue(value || "")).filter(Boolean))) : [];
+        restore.candidates = rows;
+        recordLessonVaultRestorePhase("last-file-ready", { source, candidateCount: rows.length });
+        if (restore.pendingPayload && typeof scheduleLessonVaultLoginRestore === "function") {
+          scheduleLessonVaultLoginRestore(restore.pendingPayload, "last-file-after-tree");
+        }
+        return restore;
+      };
+
+      const cancelLessonVaultLoginRestore = (reason = "cancelled", options = {}) => {
+        const state = currentLessonVaultRestoreState(Number(options.generation || 0));
+        if (!state || state.scrolled) return false;
+        state.cancelled = true;
+        state.userInteracted = Boolean(options.userInteracted);
+        state.phase = "cancelled";
+        recordLessonVaultRestorePhase("cancelled", { reason: clean(reason), userInteracted: state.userInteracted });
+        return true;
+      };
+
+      window.__futureLessonVaultRestoreManager = {
+        begin: beginLessonVaultLoginRestore,
+        current: currentLessonVaultRestoreState,
+        noteLastFile: noteLessonVaultRestoreLastFile,
+        cancel: cancelLessonVaultLoginRestore,
+        trace: () => lessonVaultRestoreState ? lessonVaultRestoreState.timeline.slice() : [],
+      };
 
       const lessonLastFilePathFromEntry = (entry = {}) => {
         const source = entry && typeof entry === "object" ? entry : { path: entry };
@@ -3527,16 +3832,27 @@
           } catch (error) {
           }
         }
+        noteLessonVaultRestoreLastFile(serverLastFileState, clean(options.restoreSource || "last-file-state"));
         return serverLastFileState;
       };
 
       const syncServerLastFileFromServer = async (options = {}) => {
-        if (serverLastFileFetchPromise) {
+        const requestUsername = clean(currentAuthUsername || "");
+        const requestGeneration = lessonVaultRestoreGeneration;
+        const requestToken = clean(authToken || "");
+        if (
+          serverLastFileFetchPromise
+          && authUsernameMatches(serverLastFileFetchUsername, requestUsername)
+          && serverLastFileFetchGeneration === requestGeneration
+        ) {
           return serverLastFileFetchPromise;
         }
+        serverLastFileFetchUsername = requestUsername;
+        serverLastFileFetchGeneration = requestGeneration;
         serverLastFileFetchPromise = (async () => {
           const recentFiles = readStoredServerRecentFiles();
           let serverState = null;
+          let responseEtag = "";
           if (authToken) {
             try {
               const result = await fetchAuthJson("/server-data/last-file", {
@@ -3544,13 +3860,22 @@
                 notModifiedPayload: serverLastFileHasServerPayload ? { ok: true, state: serverLastFileState } : null,
               });
               const payload = result && result.payload && typeof result.payload === "object" ? result.payload : {};
-              serverLastFileEtag = clean(result && result.etag || serverLastFileEtag);
+              responseEtag = clean(result && result.etag || "");
               serverState = payload.state && typeof payload.state === "object" ? payload.state : null;
-              serverLastFileHasServerPayload = Boolean(serverState);
             } catch (error) {
               serverState = null;
             }
           }
+          if (
+            !authUsernameMatches(requestUsername, currentAuthUsername || "")
+            || requestToken !== clean(authToken || "")
+            || requestGeneration !== lessonVaultRestoreGeneration
+          ) {
+            recordLessonVaultRestorePhase("stale-last-file-ignored", { requestUsername });
+            return serverLastFileState;
+          }
+          serverLastFileEtag = responseEtag;
+          serverLastFileHasServerPayload = Boolean(serverState);
           const serverFile = serverState ? normalizeServerRecentRow(serverState.file || null) : null;
           const serverRecent = serverState && Array.isArray(serverState.recentFiles) ? serverState.recentFiles : [];
           const serverFolder = normalizeLessonVaultFolderState(serverState && (serverState.selectedFolder || serverState.selected_folder || serverState.folder) || {}, clean(serverState && (serverState.task_owner || serverState.taskOwner || currentAuthUsername || "")));
@@ -3558,18 +3883,30 @@
           const file = authToken
             ? (serverFile || serverRecent.find(serverRecentRowIsResumeable) || serverRecent[0] || localFile)
             : (serverFile || recentFiles[0] || localFile);
-          serverLastFileFetchPromise = null;
-          const state = applyServerLastFileState({ file, recentFiles: [...serverRecent, ...recentFiles], selectedFolder: serverFolder }, options);
+          const state = applyServerLastFileState(
+            { file, recentFiles: [...serverRecent, ...recentFiles], selectedFolder: serverFolder },
+            { ...options, restoreSource: "server-last-file" }
+          );
           if (serverFolder) {
             serverLastFolderState = serverFolder;
           }
           return state;
         })();
-        return serverLastFileFetchPromise;
+        try {
+          return await serverLastFileFetchPromise;
+        } finally {
+          if (
+            authUsernameMatches(serverLastFileFetchUsername, requestUsername)
+            && serverLastFileFetchGeneration === requestGeneration
+          ) {
+            serverLastFileFetchPromise = null;
+          }
+        }
       };
 
       const resolveLessonVaultRestoreTarget = async (options = {}) => {
         const routeTree = normalizeServerPathValue(options.routeTree || "");
+        const routeFile = normalizeServerPathValue(options.routeFile || "");
         const routeTaskOwner = clean(options.routeTaskOwner || "");
         const routeTop = clean(routeTree.split("/").filter(Boolean)[0] || "");
         const inferredAdminOwner = currentAuthIsAdmin
@@ -3583,7 +3920,21 @@
           return {
             tree: routeTree,
             task_owner: preferredOwner,
+            file: routeFile,
+            paths: [routeFile].filter(Boolean),
             source: "route",
+          };
+        }
+        const restore = currentLessonVaultRestoreState();
+        const restoreFile = normalizeServerPathValue(restore && restore.targetFile || "");
+        const restoreTree = normalizeServerPathValue(restore && restore.targetTree || (restoreFile ? serverParentPathForFile(restoreFile) : ""));
+        if (restoreTree) {
+          return {
+            tree: restoreTree,
+            task_owner: clean(restore && restore.targetOwner || preferredOwner || ""),
+            file: restoreFile,
+            paths: restore && Array.isArray(restore.targetPaths) ? restore.targetPaths.slice() : [restoreFile].filter(Boolean),
+            source: "last_file",
           };
         }
         const localFolder = await readStoredLessonVaultFolderState(preferredOwner);
@@ -3977,14 +4328,16 @@
         const progressDone = Math.max(0, Math.min(progressTotal || Infinity, Math.floor(Number(current.done ?? 0) || 0)));
         const text = clean(current.text || (progressTotal ? `${progressDone}/${progressTotal}` : ""));
         const priorRuns = typeof lessonStudyCompletedRunCount === "function" ? lessonStudyCompletedRunCount(source) : 0;
-        const nodeLabel = text ? `Node ${text}` : "";
+        const progressSpace = clean(current.space || source.space || "").toLowerCase();
+        const workloadLabel = progressSpace === "space_q" ? "Question" : "Node";
+        const nodeLabel = text ? `${workloadLabel} ${text}` : "";
         if (current.reviewing || current.reviewRun) {
           return nodeLabel || (text ? `Review ${text}` : "Review");
         }
         if (priorRuns > 0 || current.relearning || current.relearnRun || current.previously_completed || current.previouslyCompleted) {
           return nodeLabel || (text ? `Relearn ${text}` : "Relearn");
         }
-        return nodeLabel || (text ? `Node ${text}` : "Node");
+        return nodeLabel || (text ? `${workloadLabel} ${text}` : workloadLabel);
       };
 
       // Added 2026-07-15: shows the active lesson node as its own Lesson Vault chip.
@@ -3996,11 +4349,26 @@
           return "";
         }
         const text = clean(current.text || "");
+        const workloadLabel = clean(current.space || "").toLowerCase() === "space_q" ? "Question" : "Node";
         if (text) {
-          return `Node ${text}`;
+          return `${workloadLabel} ${text}`;
         }
         const done = Math.max(0, Math.min(total, Math.floor(Number(current.done ?? 0) || 0)));
-        return `Node ${done}/${total}`;
+        return `${workloadLabel} ${done}/${total}`;
+      };
+
+      // Added 2026-08-03: normalize mixed legacy Space_Q metadata without adding root nodes twice.
+      const spaceQStructuralProgressTotal = (study = {}, entry = {}) => {
+        const sourceStudy = study && typeof study === "object" ? study : {};
+        const sourceEntry = entry && typeof entry === "object" ? entry : {};
+        const nodes = Math.max(0, Math.floor(Number(sourceStudy.nodes || sourceEntry.nodes || sourceEntry.node_count || 0) || 0));
+        const directQuestions = Math.max(0, Math.floor(Number(sourceStudy.direct_questions || sourceStudy.directQuestions || sourceEntry.direct_questions || 0) || 0));
+        const questions = Math.max(0, Math.floor(Number(sourceStudy.questions || sourceEntry.questions || 0) || 0));
+        const explicitTotal = Math.max(0, Math.floor(Number(sourceStudy.total_nodes || sourceStudy.totalNodes || sourceEntry.total_nodes || 0) || 0));
+        if (explicitTotal) {
+          return explicitTotal;
+        }
+        return directQuestions ? Math.max(nodes + directQuestions, questions) : nodes + questions;
       };
 
       const createServerChip = (text, kind = "") => {
@@ -4418,11 +4786,13 @@
 
       const lessonProgressOverrideKey = (path = "") => normalizeTaskPath(normalizeServerPathValue(path || ""));
       const lessonVaultProgressSnapshot = new Map();
+      let lessonVaultProgressSnapshotGeneration = 0;
 
       // Added 2026-07-29: prevents one signed-in user/run snapshot surviving logout or an account switch.
       const resetLessonVaultProgressRuntimeCache = () => {
         lessonVaultProgressSnapshot.clear();
         lessonProgressOverrides.clear();
+        lessonVaultProgressSnapshotGeneration += 1;
       };
       if (typeof window !== "undefined") {
         window.__ftResetLessonVaultProgressRuntimeCache = resetLessonVaultProgressRuntimeCache;
@@ -4460,6 +4830,29 @@
         );
       };
 
+      // Added 2026-07-31: equal timestamps use the durable server revision as their ordering tie-break.
+      const lessonProgressSnapshotRevision = (row = {}) => {
+        const source = row && typeof row === "object" ? row : {};
+        const study = source.study && typeof source.study === "object" ? source.study : {};
+        const progress = source.progress && typeof source.progress === "object"
+          ? source.progress
+          : (study.progress && typeof study.progress === "object" ? study.progress : {});
+        return Math.max(
+          0,
+          Number(source.server_revision || source.serverRevision || source._serverRevision || 0) || 0,
+          Number(study.server_revision || study.serverRevision || 0) || 0,
+          Number(progress.server_revision || progress.serverRevision || 0) || 0,
+        );
+      };
+
+      const compareLessonProgressSnapshotOrder = (left = {}, right = {}) => {
+        const timestampDelta = lessonProgressSnapshotTimestamp(left) - lessonProgressSnapshotTimestamp(right);
+        if (timestampDelta) {
+          return timestampDelta;
+        }
+        return lessonProgressSnapshotRevision(left) - lessonProgressSnapshotRevision(right);
+      };
+
       const normalizeLessonVaultProgressSnapshotItem = (item = {}, fallbackPath = "") => {
         const source = item && typeof item === "object" ? item : {};
         const pathValue = normalizeServerPathValue(source.path || fallbackPath || "");
@@ -4482,6 +4875,27 @@
         };
       };
 
+      // Added 2026-07-31: progress identities are namespaced by Space so legacy ID collisions cannot cross-apply.
+      const lessonVaultProgressSnapshotSpace = (row = {}) => {
+        const source = row && typeof row === "object" ? row : {};
+        const study = source.study && typeof source.study === "object" ? source.study : {};
+        const progress = source.progress && typeof source.progress === "object"
+          ? source.progress
+          : (study.progress && typeof study.progress === "object" ? study.progress : {});
+        const raw = clean(progress.space || study.space || source.space || "").toLowerCase();
+        const suffix = raw.replace(/^space[_-]?/, "");
+        return suffix ? `Space_${suffix.toUpperCase()}` : "";
+      };
+
+      const lessonVaultEntryProgressSpace = (entry = {}) => {
+        const routeSpace = typeof futureRouteSpaceForFilePath === "function"
+          ? clean(futureRouteSpaceForFilePath(entry.path || entry.effective_path || entry.link_target || ""))
+          : "";
+        const raw = clean(routeSpace || entry.extension || "").toLowerCase().replace(/^\./, "");
+        const suffix = raw.replace(/^space[_-]?/, "");
+        return suffix ? `Space_${suffix.toUpperCase()}` : "";
+      };
+
       // Added 2026-07-15: stores the login progress snapshot so Lesson Vault/Space Task can render progress without per-file GETs.
       const rememberLessonVaultProgressSnapshot = (snapshot = {}) => {
         const items = snapshot && typeof snapshot === "object" ? snapshot.items : null;
@@ -4491,13 +4905,15 @@
         let changed = 0;
         Object.entries(items).forEach(([rawKey, rawItem]) => {
           const item = normalizeLessonVaultProgressSnapshotItem(rawItem, rawKey);
+          const itemSpace = lessonVaultProgressSnapshotSpace(item);
+          const idValues = [item.lesson_id, item.lessonId, item.file_id, item.fileId]
+            .map((value) => clean(value).toLowerCase())
+            .filter(Boolean);
           const keys = [
             rawKey,
             item.path,
-            item.lesson_id ? `id:${clean(item.lesson_id).toLowerCase()}` : "",
-            item.lessonId ? `id:${clean(item.lessonId).toLowerCase()}` : "",
-            item.file_id ? `id:${clean(item.file_id).toLowerCase()}` : "",
-            item.fileId ? `id:${clean(item.fileId).toLowerCase()}` : "",
+            ...idValues.map((value) => itemSpace ? `space:${itemSpace.toLowerCase()}:id:${value}` : ""),
+            ...idValues.map((value) => itemSpace ? "" : `id:${value}`),
             item.effective_path,
             item.effectivePath,
             item.link_target,
@@ -4505,9 +4921,20 @@
             item.linked_path,
             item.linkedPath,
           ].map((value) => lessonProgressOverrideKey(value)).filter(Boolean);
+          const newestExisting = keys.reduce((latest, key) => {
+            const existing = lessonVaultProgressSnapshot.get(key);
+            return existing && (!latest || compareLessonProgressSnapshotOrder(existing, latest) > 0) ? existing : latest;
+          }, null);
+          // Updated 2026-07-31: reject an older canonical item before it can create a stale alias key.
+          if (newestExisting && compareLessonProgressSnapshotOrder(newestExisting, item) > 0) {
+            return;
+          }
           keys.forEach((key) => {
             const previous = lessonVaultProgressSnapshot.get(key);
-            if (previous && lessonProgressSnapshotTimestamp(previous) > lessonProgressSnapshotTimestamp(item)) {
+            if (previous && compareLessonProgressSnapshotOrder(previous, item) > 0) {
+              return;
+            }
+            if (previous && compareLessonProgressSnapshotOrder(previous, item) === 0 && JSON.stringify(previous) === JSON.stringify(item)) {
               return;
             }
             lessonVaultProgressSnapshot.set(key, item);
@@ -4515,19 +4942,58 @@
             const incomingProgress = item.progress || (item.study && item.study.progress) || null;
             // Login/tree snapshots may carry lifetime completion history. They must not
             // delete an identified New Study run that is already newer in local RAM.
-            if (!activeOverride || !shouldKeepExistingLessonProgressOverride(activeOverride, incomingProgress)) {
+            if (!activeOverride || (incomingProgress && !shouldKeepExistingLessonProgressOverride(activeOverride, incomingProgress))) {
               lessonProgressOverrides.delete(key);
             }
             changed += 1;
           });
         });
+        if (changed > 0) {
+          lessonVaultProgressSnapshotGeneration += 1;
+          // 2026-08-03: the tree snapshot can arrive after the cached Task Board paint.
+          // Reapply it immediately so both surfaces share the same canonical checkpoint.
+          if (typeof window !== "undefined" && typeof window.__ftRefreshLessonTaskPanelFromProgressSnapshot === "function") {
+            window.__ftRefreshLessonTaskPanelFromProgressSnapshot();
+          }
+        }
         return changed;
+      };
+
+      // Added 2026-08-03: a freshly listed Lesson Vault row is authoritative for the
+      // same visible Space Task card, even when the task payload still carries an older summary.
+      const rememberLessonVaultProgressEntries = (entries = []) => {
+        const items = {};
+        (Array.isArray(entries) ? entries : []).forEach((entry, index) => {
+          if (!entry || typeof entry !== "object") {
+            return;
+          }
+          const study = entry.study && typeof entry.study === "object" ? entry.study : {};
+          const progress = study.progress && typeof study.progress === "object"
+            ? study.progress
+            : (entry.progress && typeof entry.progress === "object" ? entry.progress : null);
+          if (!progress) {
+            return;
+          }
+          const pathValue = normalizeServerPathValue(entry.path || entry.effective_path || entry.link_target || "");
+          const lessonId = clean(entry.lesson_id || entry.lessonId || entry.file_id || entry.fileId || "").toLowerCase();
+          const key = pathValue || (lessonId ? `entry:${lessonId}` : `entry:${index}`);
+          items[key] = {
+            ...entry,
+            path: pathValue,
+            lesson_id: lessonId || entry.lesson_id,
+            study: { ...study, progress: { ...progress } },
+            progress: { ...progress },
+          };
+        });
+        return Object.keys(items).length ? rememberLessonVaultProgressSnapshot({ items }) : 0;
       };
 
       const updateLessonVaultProgressSnapshotForPaths = (paths = [], progress = null) => {
         if (!progress || typeof progress !== "object") {
           return;
         }
+        let changed = false;
+        const updatedAt = new Date().toISOString();
         (Array.isArray(paths) ? paths : [paths]).forEach((path) => {
           const key = lessonProgressOverrideKey(path);
           if (!key) {
@@ -4541,7 +5007,7 @@
             progress: nextProgress,
             progress_text: clean(nextProgress.text || previousStudy.progress_text || ""),
             progress_percent: Number(nextProgress.percent ?? previousStudy.progress_percent ?? 0) || 0,
-            updatedAt: new Date().toISOString(),
+            updatedAt,
           };
           lessonVaultProgressSnapshot.set(key, {
             ...previous,
@@ -4550,21 +5016,23 @@
             progress: nextProgress,
             updatedAt: nextStudy.updatedAt,
           });
+          changed = true;
         });
+        if (changed) {
+          // Task payloads carry a generation marker; advance it so Exit reapplies this local delta immediately.
+          lessonVaultProgressSnapshotGeneration += 1;
+        }
       };
 
-      const lessonVaultProgressSnapshotForPaths = (paths = []) => {
+      const lessonVaultProgressSnapshotForPaths = (paths = [], expectedSpace = "") => {
+        const normalizedExpectedSpace = clean(expectedSpace);
         for (const path of (Array.isArray(paths) ? paths : [paths])) {
           const key = lessonProgressOverrideKey(path);
           if (key && lessonVaultProgressSnapshot.has(key)) {
-            return lessonVaultProgressSnapshot.get(key);
-          }
-        }
-        for (const path of (Array.isArray(paths) ? paths : [paths])) {
-          const key = lessonProgressOverrideKey(path);
-          const idKey = clean(path || "").toLowerCase().startsWith("id:") ? lessonProgressOverrideKey(path) : "";
-          if (idKey && lessonVaultProgressSnapshot.has(idKey)) {
-            return lessonVaultProgressSnapshot.get(idKey);
+            const candidate = lessonVaultProgressSnapshot.get(key);
+            if (!normalizedExpectedSpace || lessonVaultProgressSnapshotSpace(candidate) === normalizedExpectedSpace) {
+              return candidate;
+            }
           }
         }
         return null;
@@ -4574,7 +5042,12 @@
         if (!entry || typeof entry !== "object") {
           return entry;
         }
+        const entrySpace = lessonVaultEntryProgressSpace(entry);
+        const entryIds = [entry.lesson_id, entry.lessonId, entry.file_id, entry.fileId]
+          .map((value) => clean(value).toLowerCase())
+          .filter(Boolean);
         const paths = [
+          ...entryIds.map((value) => entrySpace ? `space:${entrySpace.toLowerCase()}:id:${value}` : ""),
           entry.path,
           entry.effective_path,
           entry.effectivePath,
@@ -4585,34 +5058,77 @@
           entry.sourcePath,
           entry.original_path,
         ];
-        const snapshot = lessonVaultProgressSnapshotForPaths(paths);
-        if (!snapshot) {
+        const snapshot = lessonVaultProgressSnapshotForPaths(paths, entrySpace);
+        const activeOverride = typeof lessonProgressOverrideForPaths === "function"
+          ? lessonProgressOverrideForPaths(paths)
+          : null;
+        if (!snapshot && !activeOverride) {
           return entry;
         }
         const baseStudy = entry.study && typeof entry.study === "object" ? entry.study : {};
-        const snapshotStudy = snapshot.study && typeof snapshot.study === "object" ? snapshot.study : {};
-        const snapshotProgress = snapshot.progress && typeof snapshot.progress === "object"
+        const snapshotStudy = snapshot && snapshot.study && typeof snapshot.study === "object" ? snapshot.study : {};
+        const snapshotProgress = activeOverride || (snapshot && snapshot.progress && typeof snapshot.progress === "object"
           ? snapshot.progress
-          : (snapshotStudy.progress && typeof snapshotStudy.progress === "object" ? snapshotStudy.progress : null);
+          : (snapshotStudy.progress && typeof snapshotStudy.progress === "object" ? snapshotStudy.progress : null));
         const baseProgress = baseStudy.progress && typeof baseStudy.progress === "object"
           ? baseStudy.progress
           : (entry.progress && typeof entry.progress === "object" ? entry.progress : null);
-        const baseTimestamp = lessonProgressSnapshotTimestamp({
+        const baseOrder = {
+          server_revision: entry.server_revision || entry.serverRevision || baseStudy.server_revision || baseStudy.serverRevision || 0,
           updatedAt: entry.updatedAt || entry.updated_at || "",
           savedAt: entry.savedAt || entry.saved_at || "",
           study: baseStudy,
           progress: baseProgress,
-        });
-        const snapshotTimestamp = lessonProgressSnapshotTimestamp(snapshot);
+        };
         const snapshotSpace = clean(snapshotProgress && snapshotProgress.space);
         const baseSpace = clean(baseProgress && baseProgress.space);
         const canonicalMediaCorrection = ["Space_PDF", "Space_Picture"].includes(snapshotSpace) && baseSpace !== snapshotSpace;
+        // 2026-08-03: a task payload can contain structural Space_Q metadata
+        // (for example total_nodes=48) while its progress summary is an older
+        // placeholder such as 0/16. Prefer the identified Vault checkpoint in
+        // that case; structural totals must never make a stale progress row win.
+        const snapshotRunId = clean(snapshotProgress && (snapshotProgress.runId || snapshotProgress.run_id) || "");
+        const baseRunId = clean(baseProgress && (baseProgress.runId || baseProgress.run_id) || "");
+        const snapshotDone = Math.max(0, Number(snapshotProgress && snapshotProgress.done || 0) || 0);
+        const baseDone = Math.max(0, Number(baseProgress && baseProgress.done || 0) || 0);
+        const snapshotProgressTime = lessonProgressSnapshotTimestamp(snapshotProgress || {});
+        const baseProgressTime = lessonProgressSnapshotTimestamp(baseProgress || {});
+        const isActivePartialProgress = (progress = null) => {
+          const row = progress && typeof progress === "object" ? progress : {};
+          const total = Math.max(0, Number(row.total ?? row.nodeTotal ?? row.node_total ?? 0) || 0);
+          const done = Math.max(0, Number(row.done ?? row.nodeDone ?? row.node_done ?? 0) || 0);
+          const percent = Math.max(0, Math.min(100, Number(row.percent || 0) || 0));
+          const activeRun = Boolean(row.activeRun || row.active_run);
+          const completed = Boolean(row.completed || row.complete || row.lessonComplete || row.vocabComplete);
+          return Boolean(!completed && total > 0 && done < total && percent < 100 && (activeRun || done > 0 || row.in_progress));
+        };
+        const snapshotBeatsBaseProgress = Boolean(
+          snapshotProgress &&
+          snapshotRunId &&
+          isActivePartialProgress(snapshotProgress) &&
+          (
+            !baseProgress ||
+            !isActivePartialProgress(baseProgress) ||
+            !baseRunId ||
+            (
+              snapshotRunId === baseRunId &&
+              snapshotDone >= baseDone &&
+              (!baseProgressTime || snapshotProgressTime >= baseProgressTime)
+            ) ||
+            (
+              snapshotRunId !== baseRunId &&
+              snapshotProgressTime > baseProgressTime
+            )
+          )
+        );
         const useSnapshotProgress = Boolean(
           snapshotProgress &&
           (
+            activeOverride ||
+            snapshotBeatsBaseProgress ||
             !baseProgress ||
             canonicalMediaCorrection ||
-            (snapshotTimestamp && (!baseTimestamp || snapshotTimestamp >= baseTimestamp))
+            (snapshot && lessonProgressSnapshotTimestamp(snapshot) && compareLessonProgressSnapshotOrder(snapshot, baseOrder) >= 0)
           )
         );
         const mergedStudy = {
@@ -4657,7 +5173,7 @@
         if (source.progress_snapshot) {
           rememberLessonVaultProgressSnapshot(source.progress_snapshot);
         }
-        if (source.__ftLessonVaultProgressSnapshotApplied) {
+        if (source.__ftLessonVaultProgressSnapshotGeneration === lessonVaultProgressSnapshotGeneration) {
           return source;
         }
         const next = { ...source };
@@ -4670,19 +5186,27 @@
         if (Array.isArray(next.space_tasks)) {
           next.space_tasks = next.space_tasks.map((task) => applyLessonVaultProgressSnapshotToEntry(task));
         }
+        // Space Task's canonical nested rows are rendered from space_task.tasks;
+        // keep that branch on the same lesson-id/path snapshot as the aliases above.
+        if (next.space_task && typeof next.space_task === "object" && Array.isArray(next.space_task.tasks)) {
+          next.space_task = {
+            ...next.space_task,
+            tasks: next.space_task.tasks.map((task) => applyLessonVaultProgressSnapshotToEntry(task)),
+          };
+        }
         if (typeof window !== "undefined" && typeof window.__ftRecordLoginTimelinePhase === "function") {
           const timelineEndedAt = typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
           window.__ftRecordLoginTimelinePhase("applyLessonVaultProgressSnapshotToPayload", timelineEndedAt - timelineStartedAt);
         }
         try {
-          Object.defineProperty(next, "__ftLessonVaultProgressSnapshotApplied", {
-            value: true,
+          Object.defineProperty(next, "__ftLessonVaultProgressSnapshotGeneration", {
+            value: lessonVaultProgressSnapshotGeneration,
             enumerable: false,
             configurable: true,
           });
         } catch (error) {
           try {
-            next.__ftLessonVaultProgressSnapshotApplied = true;
+            next.__ftLessonVaultProgressSnapshotGeneration = lessonVaultProgressSnapshotGeneration;
           } catch (_error) {
           }
         }
@@ -4702,9 +5226,15 @@
       const shouldKeepExistingLessonProgressOverride = (existing = null, incoming = null) => {
         const current = existing && existing.progress && typeof existing.progress === "object" ? existing.progress : null;
         const next = incoming && typeof incoming === "object" ? incoming : null;
-        const currentSpace = clean(current && current.space);
-        if (!current || !next || !["Space_V", "Space_W", "Space_P", "Space_L", "Space_S"].includes(currentSpace) || clean(next.space) !== currentSpace) {
+        const currentSpace = clean(current && current.space).toLowerCase();
+        const nextSpace = clean(next && next.space).toLowerCase();
+        if (!current || !next || !["space_v", "space_w", "space_q", "space_p", "space_l", "space_s"].includes(currentSpace)) {
           return false;
+        }
+        // 2026-08-03: incomplete or differently-cased cache rows cannot clear
+        // a newer identified active-run override.
+        if (!nextSpace || nextSpace !== currentSpace) {
+          return true;
         }
         const currentRunId = clean(current.runId || current.run_id || "");
         const nextRunId = clean(next.runId || next.run_id || "");
@@ -4733,7 +5263,10 @@
         const currentTimestamp = lessonProgressSnapshotTimestamp(current);
         const nextTimestamp = lessonProgressSnapshotTimestamp(next);
         if (nextRunId && currentRunId && nextRunId !== currentRunId) {
-          return false;
+          return Boolean(currentTimestamp && nextTimestamp && currentTimestamp > nextTimestamp);
+        }
+        if (nextRunId && currentRunId && nextRunId === currentRunId && currentTotal && nextTotal && currentTotal === nextTotal && nextDone < currentDone) {
+          return true;
         }
         if (nextRunId && currentRunId && nextRunId === currentRunId && nextTimestamp && currentTimestamp) {
           if (nextTimestamp > currentTimestamp) {
@@ -4816,8 +5349,19 @@
         };
       };
 
-      const isAdminViewingOtherLearner = (owner = "") => {
-        const target = clean(owner || "");
+      const lessonProgressResolvedOwner = (owner = "", paths = []) => {
+        const fallback = clean(owner || "");
+        if (typeof lessonVaultTaskOwnerForPath !== "function") {
+          return fallback;
+        }
+        const path = (Array.isArray(paths) ? paths : [paths])
+          .map((value) => normalizeServerPathValue(value || ""))
+          .find((value) => value && !value.toLowerCase().startsWith("space:"));
+        return clean(lessonVaultTaskOwnerForPath(path || "", fallback, null) || fallback);
+      };
+
+      const isAdminViewingOtherLearner = (owner = "", paths = []) => {
+        const target = lessonProgressResolvedOwner(owner, paths);
         const viewer = clean(currentAuthUsername || "");
         return Boolean(currentAuthIsAdmin && target && viewer && target.toLowerCase() !== viewer.toLowerCase());
       };
@@ -4826,15 +5370,37 @@
         const source = study && typeof study === "object" ? study : {};
         const override = lessonProgressOverrideForPaths(paths);
         const baseAdminProgress = source && typeof source.admin_progress === "object" ? source.admin_progress : null;
-        if (isAdminViewingOtherLearner(owner)) {
+        if (isAdminViewingOtherLearner(owner, paths)) {
           return {
             study: source,
             adminProgress: override || baseAdminProgress,
           };
         }
+        // Updated 2026-08-03: an admin inside their own folder is the normal learner;
+        // fold legacy admin fields into the single user surface instead of rendering two charts.
+        const ownAdminView = Boolean(currentAuthIsAdmin && authUsernameMatches(lessonProgressResolvedOwner(owner, paths), currentAuthUsername));
+        const sourceProgress = source.progress && typeof source.progress === "object" ? source.progress : null;
+        const selfProgress = override || sourceProgress || (ownAdminView ? baseAdminProgress : null);
+        const selfStudy = ownAdminView
+          ? {
+            ...source,
+            admin_view: false,
+            mine: Math.max(0, Number(source.mine || 0) || 0, Number(source.admin_mine || 0) || 0),
+            completed_runs: Math.max(0, Number(source.completed_runs || source.completedRuns || 0) || 0, Number(source.admin_mine || 0) || 0),
+            completedRuns: Math.max(0, Number(source.completedRuns || source.completed_runs || 0) || 0, Number(source.admin_mine || 0) || 0),
+            mine_last: parseLessonProgressTimestamp(source.admin_mine_last || "") > parseLessonProgressTimestamp(source.mine_last || "")
+              ? clean(source.admin_mine_last || "")
+              : clean(source.mine_last || ""),
+            ...(selfProgress ? {
+              progress: selfProgress,
+              progress_text: clean(selfProgress.text || source.progress_text || ""),
+              progress_percent: Math.max(0, Math.min(100, Number(selfProgress.percent ?? source.progress_percent ?? 0) || 0)),
+            } : {}),
+          }
+          : (override ? { ...source, progress: override } : source);
         return {
-          study: override ? { ...source, progress: override } : source,
-          adminProgress: baseAdminProgress,
+          study: selfStudy,
+          adminProgress: null,
         };
       };
 
@@ -4977,8 +5543,16 @@
       const questionProgressOverrideFromRecord = (record = null) => {
         const source = record && typeof record === "object" ? record : {};
         const state = source.state && typeof source.state === "object" ? source.state : {};
-        const questionTotal = Math.max(0, Math.floor(Number(state.questionTotal ?? state.totalQuestions ?? 0) || 0));
-        const nodeTotal = Math.max(0, Math.floor(Number(state.totalNodes ?? source.nodeCount ?? state.nodeCount ?? questionNodes.length ?? 0) || 0));
+        // Exit can run after the cached checkpoint was written by an early manifest
+        // (for example 16 nodes) while the live payload has the complete 48-item
+        // workload. Prefer the live counters for the active lesson handoff.
+        const liveStats = typeof questionModeActive !== "undefined" && questionModeActive
+          && typeof questionNodes !== "undefined" && Array.isArray(questionNodes) && questionNodes.length
+          && typeof questionProgressStats === "function"
+          ? questionProgressStats()
+          : null;
+        const questionTotal = Math.max(0, Math.floor(Number(liveStats?.total ?? state.questionTotal ?? state.totalQuestions ?? 0) || 0));
+        const nodeTotal = Math.max(0, Math.floor(Number(liveStats?.totalNodes ?? state.totalNodes ?? source.nodeCount ?? state.nodeCount ?? questionNodes.length ?? 0) || 0));
         const total = questionTotal || nodeTotal;
         if (!total) {
           return null;
@@ -4988,8 +5562,8 @@
         const runId = clean(source.runId || source.run_id || state.runId || state.run_id || "");
         const savedAt = clean(source.savedAt || state.savedAt || "");
         const updatedAt = clean(source.updatedAt || state.updatedAt || savedAt);
-        const questionDone = Math.max(0, Math.floor(Number(state.questionDone ?? state.completedQuestions ?? 0) || 0));
-        const nodeDone = Math.max(0, Math.floor(Number(state.completedNodes ?? 0) || 0));
+        const questionDone = Math.max(0, Math.floor(Number(liveStats?.done ?? state.questionDone ?? state.completedQuestions ?? 0) || 0));
+        const nodeDone = Math.max(0, Math.floor(Number(liveStats?.completedNodes ?? state.completedNodes ?? 0) || 0));
         const done = Math.max(0, Math.min(total, questionTotal ? questionDone : nodeDone));
         const percent = Math.max(0, Math.min(reviewing ? 99 : 100, Math.round((done / total) * 100)));
         const text = `${done}/${total}`;
@@ -5613,6 +6187,10 @@
       });
 
       const startLessonStudyTimeHeartbeat = () => {
+        if (window.__ftLessonEntryGateActivationBlocked && typeof window.__ftRunAfterLessonEntryGateOpen === "function") {
+          window.__ftRunAfterLessonEntryGateOpen(() => startLessonStudyTimeHeartbeat());
+          return;
+        }
         const pathValue = currentLessonStudyPath();
         if (!authToken || !pathValue) {
           return;
@@ -5908,6 +6486,7 @@
             ? "Bỏ qua học root từ đầu và vào vòng ôn ngẫu nhiên root + train nodes."
             : "Hoàn thành phần root của file này một lần để mở Review Train.";
         }
+        if (typeof window.__ftSyncLessonEntryGateActions === "function") window.__ftSyncLessonEntryGateActions();
       };
 
       const configureSpaceWCache = (payload = {}, nodes = []) => {
@@ -5937,6 +6516,10 @@
           savedProgress: savedProgress && savedProgress.state ? savedProgress : null,
           serverPayload: null,
           serverEtag: "",
+          serverProgressPromise: null,
+          serverProgressResult: null,
+          serverProgressSettled: false,
+          vocabScanPromise: null,
         };
         updateSpaceWReviewButton();
         return currentSpaceWCache;
@@ -5986,7 +6569,12 @@
         return `${sourceHash}:${contentHash}`;
       };
 
-      const questionProgressIdentityFor = (payload = {}, nodes = []) => stableLessonIdFor(payload) || legacyQuestionProgressIdentityFor(payload, nodes);
+      const questionProgressIdentityFor = (payload = {}, nodes = []) => {
+        const sourceLessonId = clean(currentLessonSource && (currentLessonSource.lesson_id || currentLessonSource.file_id) || "");
+        return (sourceLessonId.toLowerCase().startsWith("ftg-lesson-") ? sourceLessonId : "")
+          || stableLessonIdFor(payload)
+          || legacyQuestionProgressIdentityFor(payload, nodes);
+      };
 
       const normalizeQuestionProgressRecord = (record = null) => {
         if (!record || typeof record !== "object") {
@@ -5997,6 +6585,9 @@
           return null;
         }
         const reviewing = Boolean(record.reviewing || record.reviewRun || state.reviewing || state.reviewRun);
+        const activeRun = Boolean(record.activeRun || record.active_run || state.activeRun || state.active_run);
+        const runId = clean(record.runId || record.run_id || state.runId || state.run_id || "");
+        const completedRuns = Math.max(0, Math.floor(Number(record.completedRuns ?? record.completed_runs ?? state.completedRuns ?? state.completed_runs ?? 0) || 0));
         return {
           version: 1,
           identity: clean(record.identity || state.identity || ""),
@@ -6005,13 +6596,23 @@
           nodeIndex: Math.max(0, Math.floor(Number(record.nodeIndex ?? state.currentIndex ?? state.nodeIndex ?? 0) || 0)),
           nodeCount: Math.max(0, Math.floor(Number(record.nodeCount ?? state.nodeCount ?? 0) || 0)),
           activeRun,
-          runId: clean(record.runId || record.run_id || state.runId || state.run_id || ""),
+          runId,
           complete: Boolean(!activeRun && (record.complete || record.completed || record.lessonComplete || state.complete || state.lessonComplete)),
           completedRuns,
           completed_runs: completedRuns,
           reviewing,
           reviewRun: reviewing,
-          state: { ...state, reviewing, reviewRun: reviewing },
+          state: {
+            ...state,
+            activeRun,
+            active_run: activeRun,
+            runId,
+            run_id: runId,
+            completedRuns,
+            completed_runs: completedRuns,
+            reviewing,
+            reviewRun: reviewing,
+          },
         };
       };
 
@@ -6058,9 +6659,9 @@
         const hasQuestionSaved = Boolean(pendingQuestionPayload && navigation.resumeAvailable);
         const hasQuestionHistory = Boolean(pendingQuestionPayload && !currentQuestionProgressCache?.savedProgress && navigationForLoadedRecord(null, "Space_Q").lifetimeComplete);
         if (loadStartButton && pendingQuestionPayload) {
-          loadStartButton.hidden = !(currentQuestionProgressCache && currentQuestionProgressCache.savedProgress) && !hasQuestionHistory;
+          loadStartButton.hidden = false;
           loadStartButton.disabled = false;
-          loadStartButton.textContent = "New Study";
+          loadStartButton.textContent = hasQuestionHistory || currentQuestionProgressCache?.savedProgress ? "New Study" : "Open New Run";
         }
         if (loadReviewButton && pendingQuestionPayload) {
           loadReviewButton.hidden = !hasQuestionSaved;
@@ -6071,6 +6672,7 @@
           loadReviewTrainButton.hidden = true;
           loadReviewTrainButton.disabled = true;
         }
+        if (typeof window.__ftSyncLessonEntryGateActions === "function") window.__ftSyncLessonEntryGateActions();
       };
 
       const resetQuestionProgressCache = () => {
@@ -6090,6 +6692,32 @@
       };
 
       const currentQuestionServerPath = () => clean(currentLessonSource && currentLessonSource.path).replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+
+      // Added 2026-08-03: patch Lesson Vault and Space Task by canonical ID plus every visible/effective path.
+      const currentQuestionProgressPaths = (record = null) => {
+        const source = record && typeof record === "object" ? record : {};
+        const state = source.state && typeof source.state === "object" ? source.state : {};
+        const lessonSource = state.lessonSource && typeof state.lessonSource === "object" ? state.lessonSource : {};
+        const lessonId = clean(
+          source.lesson_id || source.file_id || source.identity
+          || state.lesson_id || state.file_id
+          || lessonSource.lesson_id || lessonSource.file_id
+          || currentLessonStudyId(),
+        );
+        return Array.from(new Set([
+          lessonId.toLowerCase().startsWith("ftg-lesson-") ? `space:space_q:id:${lessonId.toLowerCase()}` : "",
+          currentLessonStudyPath(),
+          currentQuestionServerPath(),
+          currentLessonSource && currentLessonSource.path,
+          currentLessonSource && currentLessonSource.effective_path,
+          currentLessonSource && currentLessonSource.link_target,
+          currentLessonSource && currentLessonSource.linked_path,
+          lessonSource.path,
+          lessonSource.effective_path,
+          lessonSource.link_target,
+          lessonSource.linked_path,
+        ].map((value) => normalizeServerPathValue(value || "")).filter(Boolean)));
+      };
 
       const canUseQuestionProgressServer = () => Boolean(
         authToken &&
@@ -6399,6 +7027,7 @@
           loadReviewTrainButton.hidden = true;
           loadReviewTrainButton.disabled = true;
         }
+        if (typeof window.__ftSyncLessonEntryGateActions === "function") window.__ftSyncLessonEntryGateActions();
       };
 
       const configureParagraphProgressCache = (payload = {}, nodes = []) => {
@@ -6936,6 +7565,7 @@
           loadReviewTrainButton.hidden = true;
           loadReviewTrainButton.disabled = true;
         }
+        if (typeof window.__ftSyncLessonEntryGateActions === "function") window.__ftSyncLessonEntryGateActions();
       };
 
       const configureVocabProgressCache = (payload = {}, words = []) => {
@@ -6963,6 +7593,9 @@
           savedProgress: savedProgress && savedProgress.state ? savedProgress : null,
           serverPayload: null,
           serverEtag: "",
+          serverProgressPromise: null,
+          serverProgressResult: null,
+          serverProgressSettled: false,
         };
         updateVocabProgressButtons();
         return currentVocabProgressCache;

@@ -152,6 +152,75 @@ def invalidate_space_task_payload_cache(target_user: str = "") -> None:
     )
 
 
+# Added 2026-08-03: patch an active Space Task card after a partial checkpoint without rescanning folders.
+def patch_space_task_payload_cache_progress(target_user: str = "", record: dict | None = None, study: dict | None = None) -> int:
+    target_user = normalize_username(target_user)
+    source = record if isinstance(record, dict) else {}
+    progress_study = study if isinstance(study, dict) else {}
+    if not target_user or not progress_study:
+        return 0
+    wanted = {
+        clean(value).lower()
+        for value in (
+            source.get("lesson_id"), source.get("identity"), source.get("path"),
+            source.get("legacy_path"), source.get("effective_path"),
+        ) if clean(value)
+    }
+    if not wanted:
+        return 0
+    patched = 0
+    prefix = f"{target_user}|"
+    with SPACE_TASK_PAYLOAD_RAM_CACHE_LOCK:
+        for cache_key, row in list(SPACE_TASK_PAYLOAD_RAM_CACHE.items()):
+            if not clean(cache_key).startswith(prefix) or not isinstance(row, dict):
+                continue
+            payload = row.get("payload") if isinstance(row.get("payload"), dict) else None
+            tasks = payload.get("tasks") if isinstance(payload, dict) and isinstance(payload.get("tasks"), list) else []
+            for task in tasks:
+                if not isinstance(task, dict):
+                    continue
+                candidates = {
+                    clean(value).lower()
+                    for value in (
+                        task.get("lesson_id"), task.get("lessonId"), task.get("file_id"),
+                        task.get("fileId"), task.get("path"), task.get("effective_path"),
+                        task.get("effectivePath"), task.get("link_target"), task.get("linkTarget"),
+                    ) if clean(value)
+                }
+                if not candidates.intersection(wanted):
+                    continue
+                base_study = task.get("study") if isinstance(task.get("study"), dict) else {}
+                merged_study = {**base_study, **progress_study}
+                base_progress = base_study.get("progress") if isinstance(base_study.get("progress"), dict) else {}
+                next_progress = progress_study.get("progress") if isinstance(progress_study.get("progress"), dict) else progress_study
+                merged_progress = {**base_progress, **next_progress}
+                merged_study["progress"] = merged_progress
+                task["study"] = merged_study
+                task["progress"] = merged_progress
+                task["completed"] = bool(merged_progress.get("completed"))
+                task["progress_text"] = clean(merged_progress.get("text"))
+                task["progress_percent"] = max(0, min(100, space_w_int(merged_progress.get("percent", 0), 0)))
+                patched += 1
+    if patched:
+        with SPACE_TASK_PAYLOAD_RAM_CACHE_LOCK:
+            progress_signature_cache = globals().get("SPACE_TASK_PROGRESS_SIGNATURE_CACHE")
+            if isinstance(progress_signature_cache, dict):
+                progress_signature_cache.pop(target_user, None)
+            signature_cache = globals().get("SPACE_TASK_PAYLOAD_SIGNATURE_CACHE")
+            if isinstance(signature_cache, dict):
+                for key in list(signature_cache.keys()):
+                    if clean(key).startswith(prefix):
+                        signature_cache.pop(key, None)
+        bump_revision = globals().get("space_task_payload_user_revision")
+        if callable(bump_revision):
+            bump_revision(target_user, bump=True)
+        invalidate_response = globals().get("invalidate_lesson_tasks_response_cache")
+        if callable(invalidate_response):
+            invalidate_response(target_user)
+    _space_task_trace("partial_patch", target_user, patched=patched)
+    return patched
+
+
 def _space_task_progress_runtime_signature(username: str = "") -> tuple:
     username = normalize_username(username)
     if not username:

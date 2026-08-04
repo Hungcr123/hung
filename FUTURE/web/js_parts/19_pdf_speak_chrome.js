@@ -3255,6 +3255,44 @@
         return Array.isArray(source.timings) && source.timings.length;
       };
 
+      // Added 2026-08-02: one cleanup path owns every runtime AI Notice/Question audio element.
+      const disposePdfAiRuntimeAudio = (audio = null) => {
+        if (!audio) return;
+        try { audio.pause(); } catch (error) {}
+        try {
+          audio.removeAttribute("src");
+          audio.load();
+        } catch (error) {}
+      };
+
+      const stopPdfAiQuestionPrimaryAudio = (options = {}) => {
+        if (options.invalidate !== false) pdfAiQuestionAudioToken += 1;
+        disposePdfAiRuntimeAudio(pdfAiQuestionAudio);
+        pdfAiQuestionAudio = null;
+        const panel = document.getElementById("ft-pdf-ai-question-panel");
+        if (panel) panel.classList.remove("is-speaking");
+      };
+
+      const stopPdfAiQuestionRuntimeAudio = (options = {}) => {
+        stopPdfAiQuestionPrimaryAudio(options);
+        disposePdfAiRuntimeAudio(pdfAiQuestionFeedbackAudio);
+        pdfAiQuestionFeedbackAudio = null;
+      };
+
+      const stopPdfAiNoticeRuntimeAudio = (options = {}) => {
+        if (options.invalidate !== false) pdfAiNoticeAudioToken += 1;
+        disposePdfAiRuntimeAudio(pdfAiNoticeVoiceAudio);
+        pdfAiNoticeVoiceAudio = null;
+        const actor = document.getElementById("ft-pdf-ai-notice-fireball");
+        if (actor) actor.classList.remove("is-speaking");
+      };
+
+      const stopPdfAiAssistRuntimeAudio = () => {
+        stopPdfAiQuestionRuntimeAudio();
+        stopPdfAiNoticeRuntimeAudio();
+      };
+      window.__ftStopPdfAiAssistRuntimeAudio = stopPdfAiAssistRuntimeAudio;
+
       // Added 2026-07-01: MishiKa voice must include server timing rows so typed text can follow speech.
       const playPdfAiQuestionGateVoice = async (text = "", voice = PDF_AI_QUESTION_DEFAULT_VOICE) => {
         const promptText = preserveQuestionText(text || "");
@@ -3262,13 +3300,15 @@
         if (!promptText) {
           return null;
         }
+        const requestToken = ++pdfAiQuestionAudioToken;
+        stopPdfAiQuestionPrimaryAudio({ invalidate: false });
         loadPdfAiQuestionGateAudioCache();
         const cacheKey = `${voiceKey}\n${promptText}`;
         const cached = pdfAiQuestionGateAudioCache.get(cacheKey);
         const cachedPath = cached && clean(cached.audio_path || cached.audioPath || cached.path || "");
         const cachedTimingPayload = pdfAiQuestionTimingPayloadFromVoicePayload(cached || {});
         if (cachedPath && pdfAiQuestionTimingPayloadHasRows(cachedTimingPayload)) {
-          return playPdfAiQuestionAudioPath(cachedPath, cachedTimingPayload);
+          return playPdfAiQuestionAudioPath(cachedPath, cachedTimingPayload, { token: requestToken });
         }
         try {
           const { payload } = await fetchAuthJson("/pdf/speak?client_source=pdf_speak", {
@@ -3277,6 +3317,9 @@
             body: JSON.stringify({ text: promptText, voice: voiceKey }),
           });
           const audioPath = payload && clean(payload.audio_path || payload.audioPath || (payload.audio && payload.audio.path) || "");
+          if (requestToken !== pdfAiQuestionAudioToken || !pdfModeActive) {
+            return null;
+          }
           if (audioPath) {
             const timingPayload = pdfAiQuestionTimingPayloadFromVoicePayload(payload);
             pdfAiQuestionGateAudioCache.set(cacheKey, {
@@ -3287,11 +3330,11 @@
               updatedAt: new Date().toISOString(),
             });
             savePdfAiQuestionGateAudioCache();
-            return playPdfAiQuestionAudioPath(audioPath, timingPayload);
+            return playPdfAiQuestionAudioPath(audioPath, timingPayload, { token: requestToken });
           }
         } catch (error) {}
-        if (cachedPath) {
-          return playPdfAiQuestionAudioPath(cachedPath);
+        if (cachedPath && requestToken === pdfAiQuestionAudioToken && pdfModeActive) {
+          return playPdfAiQuestionAudioPath(cachedPath, null, { token: requestToken });
         }
         return null;
       };
@@ -4784,6 +4827,7 @@
         pdfState.aiAssistRegionsVisible = Boolean(visible);
         if (!pdfState.aiAssistRegionsVisible) {
           clearPdfAiNoticeHoverFireball();
+          stopPdfAiAssistRuntimeAudio();
           hidePdfAiNoticeFireball({ immediate: true });
           hidePdfAiQuestionPanel();
           closePdfAiNoticeEditor();
@@ -6954,9 +6998,7 @@
         const button = ensurePdfAiQuestionMinimizedButton();
         button.classList.remove("is-hidden");
         button.setAttribute("aria-hidden", "false");
-        if (pdfAiQuestionAudio) {
-          try { pdfAiQuestionAudio.pause(); } catch (error) {}
-        }
+        stopPdfAiQuestionRuntimeAudio();
       };
 
       const restorePdfAiQuestionPanel = () => {
@@ -6987,6 +7029,7 @@
         if (!panel || panel.classList.contains("is-hidden")) {
           return;
         }
+        stopPdfAiQuestionRuntimeAudio();
         if (pdfAiQuestionCloseTimer) {
           window.clearTimeout(pdfAiQuestionCloseTimer);
           pdfAiQuestionCloseTimer = 0;
@@ -7013,14 +7056,7 @@
           window.clearTimeout(pdfAiQuestionCloseTimer);
           pdfAiQuestionCloseTimer = 0;
         }
-        if (pdfAiQuestionAudio) {
-          try {
-            pdfAiQuestionAudio.pause();
-            pdfAiQuestionAudio.removeAttribute("src");
-            pdfAiQuestionAudio.load();
-          } catch (error) {}
-          pdfAiQuestionAudio = null;
-        }
+        stopPdfAiQuestionRuntimeAudio();
         if (!panel) {
           return;
         }
@@ -7133,15 +7169,15 @@
         }
       };
 
-      const playPdfAiQuestionAudioPath = (pathValue = "", timingPayload = null) => {
+      const playPdfAiQuestionAudioPath = (pathValue = "", timingPayload = null, options = {}) => {
         const path = clean(pathValue || "");
-        if (!path) {
+        const expectedToken = Math.max(0, Number(options && options.token || 0) || 0);
+        if (!path || !pdfModeActive || (expectedToken && expectedToken !== pdfAiQuestionAudioToken)) {
           return null;
         }
         try {
-          if (pdfAiQuestionAudio) {
-            pdfAiQuestionAudio.pause();
-          }
+          stopPdfAiQuestionPrimaryAudio({ invalidate: false });
+          pdfAiQuestionAudioToken += 1;
           const audio = new Audio(serverAssetUrl(path));
           audio._pdfAiQuestionTimingPayload = timingPayload && typeof timingPayload === "object" ? timingPayload : null;
           pdfAiQuestionAudio = audio;
@@ -7167,8 +7203,15 @@
       const playPdfAiQuestionFeedbackFx = (correct = false) => {
         const path = correct ? PDF_AI_QUESTION_TRUE_FX_PATH : PDF_AI_QUESTION_FALSE_FX_PATH;
         try {
+          disposePdfAiRuntimeAudio(pdfAiQuestionFeedbackAudio);
           const audio = new Audio(serverAssetUrl(path));
+          pdfAiQuestionFeedbackAudio = audio;
           audio.volume = correct ? 0.8 : 0.72;
+          const release = () => {
+            if (pdfAiQuestionFeedbackAudio === audio) pdfAiQuestionFeedbackAudio = null;
+          };
+          audio.addEventListener("ended", release, { once: true });
+          audio.addEventListener("error", release, { once: true });
           audio.play().catch(() => {});
           return audio;
         } catch (error) {
@@ -7184,7 +7227,10 @@
         }
         const voice = clean(answer.explanationVoice || answer.explanation_voice || question.voice || PDF_AI_QUESTION_DEFAULT_VOICE) || PDF_AI_QUESTION_DEFAULT_VOICE;
         const delayMs = Math.max(0, Math.floor(Number(options.delayMs || 0) || 0));
-        const start = () => playPdfAiQuestionGateVoice(speechText, voice).then((audio) => {
+        const scheduledToken = pdfAiQuestionAudioToken;
+        const start = () => {
+          if (!pdfModeActive || scheduledToken !== pdfAiQuestionAudioToken) return Promise.resolve(null);
+          return playPdfAiQuestionGateVoice(speechText, voice).then((audio) => {
           if (dialogue && audio) {
             setPdfAiQuestionDialogueText(dialogue, speechText, {
               stepMs: 18,
@@ -7193,7 +7239,8 @@
             });
           }
           return audio;
-        });
+          });
+        };
         if (!delayMs) {
           return start();
         }
@@ -7287,9 +7334,7 @@
           window.clearTimeout(pdfAiQuestionCloseTimer);
           pdfAiQuestionCloseTimer = 0;
         }
-        if (pdfAiQuestionAudio) {
-          try { pdfAiQuestionAudio.pause(); } catch (error) {}
-        }
+        stopPdfAiQuestionRuntimeAudio();
         pdfState.aiQuestionActiveId = gateKey;
         panel.classList.remove("is-hidden", "is-opening", "is-tail-ready", "is-asking", "is-switching", "is-instant", "is-closing", "is-animation-paused", "is-minimized");
         panel.classList.add("is-gate", "is-opening");
@@ -7863,9 +7908,7 @@
             window.clearTimeout(pdfAiQuestionCloseTimer);
             pdfAiQuestionCloseTimer = 0;
           }
-          if (pdfAiQuestionAudio) {
-            try { pdfAiQuestionAudio.pause(); } catch (error) {}
-          }
+          stopPdfAiQuestionRuntimeAudio();
           cleanupPdfAiQuestionSpeechNodes(panel);
           pdfState.aiQuestionActiveId = `switching-${Date.now()}`;
           panel.classList.add("is-switching");
@@ -9651,10 +9694,60 @@
         return mode === "click" || mode === "when_click" || mode === "every" ? "click" : "once";
       };
 
+      const pdfAiNoticeAudioRepairRequests = new Map();
+
+      // Added 2026-08-01: asks Server 2 to repair only the clicked persisted notice and coalesces repeated clicks per region.
+      const requestPdfAiNoticeAudioRepair = (notice = {}) => {
+        const noticeId = clean(notice && notice.id || "");
+        const scope = currentPdfAiRegionNoticeScope();
+        const repairScope = {
+          ...scope,
+          path: normalizeServerPathValue(scope.path || notice && notice.path || ""),
+          mode: clean(scope.mode || notice && notice.mode || "pdf") === "picture" ? "picture" : "pdf",
+          page: Math.max(1, Math.floor(Number(scope.page || notice && notice.page || 1) || 1)),
+        };
+        const key = pdfAiNoticeFireballKey(notice);
+        if (!noticeId || !repairScope.path || typeof fetchAuthJson !== "function") {
+          return Promise.resolve(null);
+        }
+        if (pdfAiNoticeAudioRepairRequests.has(key)) {
+          return pdfAiNoticeAudioRepairRequests.get(key);
+        }
+        const request = fetchAuthJson("/space-pdf/ai-region-notices?client_source=pdf_ai_notice_audio_repair", {
+          method: "POST",
+          timeoutMs: 150000,
+          body: JSON.stringify({ ...repairScope, id: noticeId, action: "ensure_audio" }),
+        }).then(({ payload }) => {
+          if (payload && Array.isArray(payload.notices)) {
+            applyPdfAiRegionNoticePayload(payload);
+          }
+          const repaired = payload && payload.notice ? normalizePdfAiRegionNotice(payload.notice) : null;
+          return repaired && clean(repaired.audioPath || repaired.audio_path || "") ? repaired : null;
+        }).catch((error) => {
+          setPdfStatus(error && error.message ? `AI notice voice could not reload: ${error.message}` : "AI notice voice could not reload.", true);
+          return null;
+        }).finally(() => {
+          pdfAiNoticeAudioRepairRequests.delete(key);
+        });
+        pdfAiNoticeAudioRepairRequests.set(key, request);
+        return request;
+      };
+
       const playPdfAiNoticeVoice = (notice = {}, options = {}) => {
         const audioPath = clean(notice && (notice.audioPath || notice.audio_path || ""));
         const speakMode = noticePdfAiSpeakMode(notice);
-        if (!audioPath || (!options.force && (speakMode === "off" || options.source === "hover"))) {
+        if (!pdfModeActive || (!options.force && (speakMode === "off" || options.source === "hover"))) {
+          return;
+        }
+        if (!audioPath) {
+          if (!options.repairAttempted) {
+            const repairToken = pdfAiNoticeAudioToken;
+            void requestPdfAiNoticeAudioRepair(notice).then((repaired) => {
+              if (repaired && pdfModeActive && repairToken === pdfAiNoticeAudioToken) {
+                playPdfAiNoticeVoice(repaired, { ...options, force: true, repairAttempted: true });
+              }
+            });
+          }
           return;
         }
         const key = pdfAiNoticeFireballKey(notice);
@@ -9662,17 +9755,22 @@
           return;
         }
         try {
-          if (pdfAiNoticeVoiceAudio) {
-            pdfAiNoticeVoiceAudio.pause();
-            pdfAiNoticeVoiceAudio.removeAttribute("src");
-            pdfAiNoticeVoiceAudio.load();
-          }
+          stopPdfAiNoticeRuntimeAudio({ invalidate: false });
         } catch (error) {
         }
+        const playToken = ++pdfAiNoticeAudioToken;
         const audio = new Audio(serverAssetUrl(audioPath));
         pdfAiNoticeVoiceAudio = audio;
         audio.preload = "auto";
         normalizeAudioPlaybackSpeed(audio);
+        audio.addEventListener("error", () => {
+          if (options.repairAttempted || playToken !== pdfAiNoticeAudioToken || !pdfModeActive) return;
+          void requestPdfAiNoticeAudioRepair(notice).then((repaired) => {
+            if (repaired && pdfModeActive && playToken === pdfAiNoticeAudioToken) {
+              playPdfAiNoticeVoice(repaired, { ...options, force: true, repairAttempted: true });
+            }
+          });
+        }, { once: true });
         audio.play().then(() => {
           if (!options.preview && speakMode === "once" && pdfAiNoticeVoicePlayedKeys) {
             pdfAiNoticeVoicePlayedKeys.add(key);
@@ -12637,6 +12735,11 @@
         }
         if (pdfEls.drawCanvas) {
           pdfEls.drawCanvas.addEventListener("pointerdown", (event) => {
+            if (pdfPenClearing) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
             if (pdfEraserActive) {
               event.preventDefault();
               event.stopPropagation();
@@ -13639,6 +13742,16 @@
       };
 
       const setPdfPageLoadProgress = (progress = {}) => {
+        if (typeof window.__ftUpdateLessonEntryPdfProgress === "function") {
+          window.__ftUpdateLessonEntryPdfProgress(progress);
+        }
+        // Gate 1 is the sole visible progress surface during gated PDF entry.
+        const gateOwnsProgress = typeof window.__ftLessonEntryPdfProgressActive === "function"
+          && window.__ftLessonEntryPdfProgressActive();
+        window.__ftPdfProgressRoute = gateOwnsProgress ? "gate" : "legacy";
+        if (gateOwnsProgress) {
+          return;
+        }
         if (!pdfEls || !pdfEls.root) {
           return;
         }
@@ -15341,6 +15454,9 @@
 
       const openPdfLocalImageSlot = async (slotIndex = 0) => {
         const index = Math.max(0, Math.min(3, Math.floor(Number(slotIndex) || 0)));
+        if (typeof stopPdfAiAssistRuntimeAudio === "function") {
+          stopPdfAiAssistRuntimeAudio();
+        }
         let slots = loadPdfLocalImageSlots();
         const dbSlots = await loadPdfLocalImageSlotsFromDb({ render: false });
         if (dbSlots) {
@@ -15399,6 +15515,9 @@
         if (!pdfState || !pdfState.localImageActive) {
           hidePdfLocalImagePopover();
           return false;
+        }
+        if (typeof stopPdfAiAssistRuntimeAudio === "function") {
+          stopPdfAiAssistRuntimeAudio();
         }
         const original = pdfLocalImageOriginalState || {};
         pdfState.localImageActive = false;
@@ -15940,7 +16059,7 @@
 
       const clearPdfPenCanvas = (options = {}) => {
         if (!pdfEls || !pdfEls.drawCanvas) {
-          return;
+          return options.forgetStorage ? removePdfDrawingLayer(options) : null;
         }
         const targetScope = options.scope || null;
         const clearVisibleCanvas = !targetScope || isCurrentPdfDrawingScope(targetScope);
@@ -15958,8 +16077,9 @@
           }
         }
         if (options.forgetStorage) {
-          removePdfDrawingLayer(options);
+          return removePdfDrawingLayer(options);
         }
+        return null;
       };
 
       const pdfDrawingLayerKey = (page = pdfState.page, scopeOverride = null) => {
@@ -16013,28 +16133,28 @@
         return clean(row && row.dataUrl || "");
       };
 
-      const readPdfDrawingLayerMeta = (page = pdfState.page) => {
+      const readPdfDrawingLayerMeta = (page = pdfState.page, scopeOverride = null) => {
         try {
-          const row = JSON.parse(localStorage.getItem(pdfDrawingLayerMetaKey(page)) || "{}");
+          const row = JSON.parse(localStorage.getItem(pdfDrawingLayerMetaKey(page, scopeOverride)) || "{}");
           return row && typeof row === "object" ? row : {};
         } catch (error) {
           return {};
         }
       };
 
-      const writePdfDrawingLayerMeta = (page = pdfState.page, meta = {}) => {
+      const writePdfDrawingLayerMeta = (page = pdfState.page, meta = {}, scopeOverride = null) => {
         try {
           const updatedAt = clean(meta && meta.updatedAt || "");
           const serverRevision = Math.max(0, Math.floor(Number(meta && meta.serverRevision || 0) || 0));
           if (updatedAt || serverRevision) {
-            localStorage.setItem(pdfDrawingLayerMetaKey(page), JSON.stringify({
+            localStorage.setItem(pdfDrawingLayerMetaKey(page, scopeOverride), JSON.stringify({
               updatedAt,
               serverRevision,
-              path: normalizeServerPathValue(pdfState && pdfState.path || ""),
-              mode: pdfState && pdfState.localImageActive ? "local-image" : (pdfState && pdfState.mode === "picture" ? "picture" : "pdf"),
+              path: normalizeServerPathValue(scopeOverride && scopeOverride.path || (pdfState && pdfState.path) || ""),
+              mode: clean(scopeOverride && scopeOverride.mode || "") || (pdfState && pdfState.localImageActive ? "local-image" : (pdfState && pdfState.mode === "picture" ? "picture" : "pdf")),
             }));
           } else {
-            localStorage.removeItem(pdfDrawingLayerMetaKey(page));
+            localStorage.removeItem(pdfDrawingLayerMetaKey(page, scopeOverride));
           }
         } catch (error) {
         }
@@ -16555,6 +16675,11 @@
 
       const savePdfDrawingLayer = async (options = {}) => {
         if (!pdfEls || !pdfEls.drawCanvas || !pdfState || !pdfState.path) return "";
+        // Added 2026-08-01: strokes created while Clear All is in flight wait for
+        // its tombstone, then use the new server revision instead of being rejected as stale.
+        if (pdfPenClearing) {
+          await Promise.resolve(pdfDrawingSavePromise).catch(() => {});
+        }
         const scope = pdfDrawingRequestScope(options.page);
         const localUpdatedAt = clean(options.updatedAt || "") || new Date().toISOString();
         const vector = mergePdfDrawingVectors(readPdfDrawingVectorLayer(scope.page), options.vector || null);
@@ -16664,17 +16789,33 @@
         if (!targetPath) return;
         const targetTitle = clean(options.title || (pdfState && (pdfState.title || pdfState.name) || "")) || (scope.mode === "picture" ? "Space_Picture" : "Space_PDF");
         const targetPages = Math.max(0, Math.floor(Number(options.pages || (pdfState && pdfState.pages) || 0) || 0));
-        const baseRevision = Math.max(0, Math.floor(Number(readPdfDrawingLayerMeta(scope.page).serverRevision || 0) || 0));
-        try {
-          localStorage.removeItem(pdfDrawingLayerKey(scope.page, scope));
-          localStorage.removeItem(pdfDrawingVectorLayerKey(scope.page, scope));
-          localStorage.removeItem(pdfDrawingLayerMetaKey(scope.page, scope));
-        } catch (error) {
-        }
-        rememberPdfDrawingLayerInMemory(pdfDrawingLayerKey(scope.page, scope), "");
+        const canonicalKey = pdfDrawingLayerKey(scope.page, scope);
+        const legacyKey = pdfLegacyDrawingLayerKey(scope.page, scope);
+        const clearLocalCopies = () => {
+          const keys = new Set([
+            canonicalKey,
+            pdfDrawingVectorLayerKey(scope.page, scope),
+            pdfDrawingLayerMetaKey(scope.page, scope),
+            legacyKey,
+            `${legacyKey}:vector:v${Number(pdfDrawingVectorVersion || 2) || 2}`,
+            `${legacyKey}:meta`,
+          ]);
+          try {
+            keys.forEach((key) => localStorage.removeItem(key));
+          } catch (error) {
+          }
+          rememberPdfDrawingLayerInMemory(canonicalKey, "");
+          rememberPdfDrawingLayerInMemory(legacyKey, "");
+        };
+        // Added 2026-08-01: settle an older save before clearing every local identity,
+        // otherwise its ACK can repopulate the just-cleared canvas/cache.
+        await Promise.resolve(pdfDrawingSavePromise).catch(() => {});
+        const baseRevision = Math.max(0, Math.floor(Number(readPdfDrawingLayerMeta(scope.page, scope).serverRevision || 0) || 0));
+        clearLocalCopies();
         if (scope.mode === "local-image") {
           return;
         }
+        const clientUpdatedAt = new Date().toISOString();
         const payload = {
           action: "clear",
           path: targetPath,
@@ -16684,7 +16825,7 @@
           mode: scope.mode,
           page: scope.page,
           pages: targetPages,
-          clientUpdatedAt: new Date().toISOString(),
+          clientUpdatedAt,
           operationId: pdfDrawingOperationId(),
           baseRevision,
         };
@@ -16693,22 +16834,30 @@
           payload.user = actingUser;
         }
         const pendingId = enqueuePdfDrawingPendingSave(payload, scope);
+        const clearRequest = fetchAuthJson("/space-pdf/drawing?client_source=pdf_drawing_clear", {
+          method: "POST",
+          body: JSON.stringify(payload),
+          timeoutMs: 0,
+        });
+        pdfDrawingSavePromise = Promise.resolve(clearRequest).catch(() => {});
         try {
-          const response = await fetchAuthJson("/space-pdf/drawing?client_source=pdf_drawing_clear", {
-            method: "POST",
-            body: JSON.stringify(payload),
-            timeoutMs: 0,
-          });
+          const response = await clearRequest;
           const savedDrawing = response && response.payload && response.payload.drawing ? response.payload.drawing : {};
           writePdfDrawingLayerMeta(scope.page, {
             updatedAt: clean(savedDrawing.updatedAt || payload.clientUpdatedAt) || payload.clientUpdatedAt,
             serverRevision: Math.max(baseRevision, Number(savedDrawing.serverRevision || 0) || 0),
-          });
+          }, scope);
+          clearLocalCopies();
           removePdfDrawingPendingSave(pendingId);
           if (savedDrawing.conflict || savedDrawing.stale) {
-            await loadPdfDrawingLayer({ page: scope.page, forceServer: true, clientSource: "pdf_drawing_clear_conflict" });
+            if (Math.max(0, Math.floor(Number(options.retryCount || 0) || 0)) < 1) {
+              await removePdfDrawingLayer({ ...options, scope, retryCount: 1 });
+            } else {
+              await loadPdfDrawingLayer({ page: scope.page, forceServer: true, clientSource: "pdf_drawing_clear_conflict" });
+            }
           }
         } catch (error) {
+          if (options.reportServerError) throw error;
         }
       };
 
@@ -17890,10 +18039,11 @@
           return;
         }
         const targetScope = options.scope && typeof options.scope === "object" ? options.scope : null;
-        syncPdfPenCanvasSize();
-        const ctx = pdfEls.drawCanvas.getContext("2d");
-        const canvas = pdfEls.drawCanvas;
+        if (!options.canvas) syncPdfPenCanvasSize();
+        const canvas = options.canvas || pdfEls.drawCanvas;
+        const ctx = canvas.getContext("2d");
         if (!ctx || !canvas.width || !canvas.height) {
+          if (typeof options.cleanupCanvas === "function") options.cleanupCanvas();
           resolve(false);
           return;
         }
@@ -17902,6 +18052,7 @@
         const eraserSize = Math.max(24 * dpr, 34 * dpr);
         const inkBoxes = getPdfPenInkBounds(ctx, canvas, eraserSize).slice(0, 6);
         if (!inkBoxes.length) {
+          if (typeof options.cleanupCanvas === "function") options.cleanupCanvas();
           resolve(false);
           return;
         }
@@ -18060,12 +18211,13 @@
             }
           });
           resolve(true);
+          if (typeof options.cleanupCanvas === "function") options.cleanupCanvas();
         };
         window.requestAnimationFrame(animate);
       });
 
       const clearPdfPenLayer = async () => {
-        if (!pdfEls || !pdfEls.drawCanvas) {
+        if (!pdfState || !pdfState.path) {
           return;
         }
         if (pdfPenClearing) {
@@ -18083,20 +18235,39 @@
         pdfPenClearing = true;
         setPdfStatus("Pen erasers are clearing the drawing...");
         try {
-          const animated = await runPdfPenEraserAnimation({ scope: clearScope });
-          if (animated) {
-            clearPdfPenCanvas({ ...clearOptions, forgetStorage: true });
-            setPdfStatus("Pen drawings cleared.");
-          } else {
-            setPdfStatus("No pen drawing found to clear.");
+          // Added 2026-08-01: start the durable delete in the click turn; animation is visual only.
+          let animationPromise = Promise.resolve(false);
+          if (pdfEls && pdfEls.drawCanvas) {
+            syncPdfPenCanvasSize();
+            const sourceCanvas = pdfEls.drawCanvas;
+            const animationCanvas = document.createElement("canvas");
+            animationCanvas.width = sourceCanvas.width;
+            animationCanvas.height = sourceCanvas.height;
+            animationCanvas.className = "ft-pdf-draw-canvas ft-pdf-clear-animation";
+            animationCanvas.style.cssText = `${sourceCanvas.style.cssText};z-index:6;pointer-events:none;`;
+            const animationCtx = animationCanvas.getContext("2d");
+            if (animationCtx) animationCtx.drawImage(sourceCanvas, 0, 0);
+            if (pdfEls.wrap) pdfEls.wrap.appendChild(animationCanvas);
+            animationPromise = runPdfPenEraserAnimation({
+              scope: clearScope,
+              canvas: animationCanvas,
+              cleanupCanvas: () => animationCanvas.remove(),
+            });
           }
+          const clearPromise = clearPdfPenCanvas({ ...clearOptions, forgetStorage: true, reportServerError: true });
+          await clearPromise;
+          // The durable ACK is the boundary: new strokes may be created now,
+          // while the snapshot eraser continues as a purely visual effect.
+          pdfPenClearing = false;
+          const animated = await animationPromise;
+          setPdfStatus(animated ? "Pen drawings cleared." : "Stored pen drawings cleared.");
         } catch (error) {
           try {
             console.error("[Future PDF Pen] eraser animation failed", error);
           } catch (_error) {
           }
           const message = error && error.message ? error.message : "unknown error";
-          setPdfStatus(`Pen eraser animation could not start: ${message}`, true);
+          setPdfStatus(`Pen drawings could not be cleared: ${message}`, true);
         } finally {
           hidePdfPenPopover();
           hidePdfEraserPopover();
@@ -18363,6 +18534,7 @@
         pdfDrawingLoadInflight = {};
         clearPdfSelectionTechBurst();
         clearPdfAiNoticeHoverFireball();
+        stopPdfAiAssistRuntimeAudio();
         hidePdfAiNoticeFireball({ immediate: true });
         hidePdfAiQuestionPanel();
         stopPdfSharedAudioPlayback();
@@ -19396,6 +19568,19 @@
         }, Math.max(500, Number(delayMs) || 10000));
       };
 
+      // Added 2026-08-03: bounded byte-level trace for diagnosing real PDF source stalls without retaining lesson handles.
+      const recordPdfSourceNetworkTrace = (event = "", detail = {}) => {
+        const trace = Array.isArray(window.__ftPdfSourceNetworkTrace) ? window.__ftPdfSourceNetworkTrace : [];
+        trace.push({
+          epoch: Date.now(),
+          t: window.performance && typeof window.performance.now === "function" ? Math.round(window.performance.now() * 10) / 10 : Date.now(),
+          event: clean(event),
+          ...(detail && typeof detail === "object" ? detail : {}),
+        });
+        if (trace.length > 1200) trace.splice(0, trace.length - 1200);
+        window.__ftPdfSourceNetworkTrace = trace;
+      };
+
       const fetchAuthBlob = async (path, options = {}) => {
         const errors = [];
         const fetchOptionsBase = { ...(options || {}) };
@@ -19409,13 +19594,78 @@
           try {
             const fetchOptions = { ...fetchOptionsBase };
             const onProgress = typeof fetchOptions.onProgress === "function" ? fetchOptions.onProgress : null;
+            const progressTransport = clean(fetchOptions.progressTransport || "").toLowerCase();
+            const requestTimeoutMs = Math.max(0, Number(fetchOptions.timeoutMs || 0) || 0);
             delete fetchOptions.onProgress;
+            delete fetchOptions.progressTransport;
+            delete fetchOptions.timeoutMs;
             const headers = await antiRobotHeaders(base, fetchOptions.headers || {});
             if (!authToken) {
               authToken = getStoredAuthToken();
             }
             if (authToken) {
               headers.Authorization = `Bearer ${authToken}`;
+            }
+            if (progressTransport === "xhr" && base === originBase && typeof XMLHttpRequest === "function") {
+              let pdfChunkTrace = null;
+              try {
+                const traceUrl = new URL(path, window.location.origin);
+                if (traceUrl.pathname === "/pdf/file") {
+                  pdfChunkTrace = {
+                    chunkIndex: Math.max(0, Number(traceUrl.searchParams.get("chunk_index") || 0) || 0),
+                    chunkCount: Math.max(0, Number(traceUrl.searchParams.get("chunk_count") || 0) || 0),
+                    attempt: Math.max(1, Number(traceUrl.searchParams.get("attempt") || 1) || 1),
+                    range: clean(headers && typeof headers.get === "function" ? headers.get("Range") : headers && headers.Range || ""),
+                  };
+                }
+              } catch (error) {
+              }
+              const xhrResult = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open(clean(fetchOptions.method || "GET") || "GET", `${base}${path}`, true);
+                xhr.responseType = "blob";
+                if (requestTimeoutMs > 0) xhr.timeout = requestTimeoutMs;
+                if (headers && typeof headers.forEach === "function") headers.forEach((value, key) => xhr.setRequestHeader(key, value));
+                else Object.entries(headers || {}).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+                xhr.onprogress = (event) => {
+                  if (!onProgress) return;
+                  const loaded = Math.max(0, Number(event.loaded || 0) || 0);
+                  const total = event.lengthComputable ? Math.max(0, Number(event.total || 0) || 0) : 0;
+                  if (pdfChunkTrace) recordPdfSourceNetworkTrace("progress", { ...pdfChunkTrace, loaded, total });
+                  onProgress({ loaded, total, percent: total > 0 ? (loaded / total) * 100 : 0, done: false });
+                };
+                xhr.onerror = () => {
+                  if (pdfChunkTrace) recordPdfSourceNetworkTrace("network_error", pdfChunkTrace);
+                  reject(new Error("PDF chunk network error."));
+                };
+                xhr.onabort = () => {
+                  if (pdfChunkTrace) recordPdfSourceNetworkTrace("aborted", pdfChunkTrace);
+                  reject(new DOMException("PDF chunk request aborted.", "AbortError"));
+                };
+                xhr.ontimeout = () => {
+                  if (pdfChunkTrace) recordPdfSourceNetworkTrace("timeout", pdfChunkTrace);
+                  reject(new Error("PDF chunk request timed out."));
+                };
+                xhr.onload = () => {
+                  if (xhr.status < 200 || xhr.status >= 300) {
+                    if (pdfChunkTrace) recordPdfSourceNetworkTrace("http_error", { ...pdfChunkTrace, status: xhr.status });
+                    reject(new Error(`Server error ${xhr.status}`));
+                    return;
+                  }
+                  const blob = xhr.response instanceof Blob ? xhr.response : new Blob([]);
+                  if (pdfChunkTrace) recordPdfSourceNetworkTrace("complete", { ...pdfChunkTrace, status: xhr.status, loaded: blob.size });
+                  if (onProgress) onProgress({ loaded: blob.size, total: blob.size, percent: 100, done: true });
+                  const responseHeaders = new Headers();
+                  clean(xhr.getAllResponseHeaders() || "").split(/\r?\n/).forEach((line) => {
+                    const separator = line.indexOf(":");
+                    if (separator > 0) responseHeaders.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
+                  });
+                  resolve({ base, blob, headers: responseHeaders, status: xhr.status });
+                };
+                if (pdfChunkTrace) recordPdfSourceNetworkTrace("request_start", pdfChunkTrace);
+                xhr.send(fetchOptions.body || null);
+              });
+              return xhrResult;
             }
             const cacheMode = fetchOptions && Object.prototype.hasOwnProperty.call(fetchOptions, "cache") ? fetchOptions.cache : "no-store";
             const response = await fetch(`${base}${path}`, {
@@ -19473,8 +19723,8 @@
 
       const pdfRenderQualityStorageKey = () => "future_pdf_render_quality_level";
 
-      const normalizePdfRenderQualityLevel = (value = 1) => {
-        return 1;
+      const normalizePdfRenderQualityLevel = (value = 2) => {
+        return Number(value) === 1 ? 1 : 2;
       };
 
       const pdfRenderQualityCacheVersion = (level = pdfRenderQualityLevel) => (
@@ -19511,7 +19761,7 @@
         }
       };
 
-      const setPdfRenderQualityLevel = (level = 1, options = {}) => {
+      const setPdfRenderQualityLevel = (level = 2, options = {}) => {
         const nextLevel = normalizePdfRenderQualityLevel(level);
         const changed = nextLevel !== normalizePdfRenderQualityLevel(pdfRenderQualityLevel);
         pdfRenderQualityLevel = nextLevel;
@@ -19589,6 +19839,16 @@
         return `${base}${encodeURIComponent(clean(key))}/${safeIndex}`;
       };
 
+      // Added 2026-08-03: bounds Cache API operations so broken local cache state cannot freeze PDF startup.
+      const withPdfCacheTimeout = async (promise, timeoutMs = 6000, fallback = null) => {
+        const marker = {};
+        const result = await Promise.race([
+          promise,
+          new Promise((resolve) => window.setTimeout(() => resolve(marker), Math.max(1000, Number(timeoutMs || 0) || 6000))),
+        ]);
+        return result === marker ? fallback : result;
+      };
+
       // Added 2026-07-13: avoids freezing large PDFs by using chunk cache instead of full Cache API blobs.
       const pdfSourceFileExpectedBytes = (info = {}) => Math.max(0, Number(
         info && (info.size || info.bytes) || pdfState && (pdfState.size || pdfState.bytes) || 0,
@@ -19621,8 +19881,9 @@
           return null;
         }
         try {
-          const cache = await caches.open(PDF_FILE_PERSISTENT_CACHE);
-          const response = await cache.match(pdfSourceFileCacheUrl(key));
+          const cache = await withPdfCacheTimeout(caches.open(PDF_FILE_PERSISTENT_CACHE), PDF_FILE_CACHE_READ_TIMEOUT_MS);
+          if (!cache) return null;
+          const response = await withPdfCacheTimeout(cache.match(pdfSourceFileCacheUrl(key)), PDF_FILE_CACHE_READ_TIMEOUT_MS);
           if (!response || !response.ok) {
             return null;
           }
@@ -19633,10 +19894,7 @@
           }
           const timeoutMs = Math.max(1000, Number(PDF_FILE_CACHE_READ_TIMEOUT_MS || 0) || 6000);
           const timedOut = { timedOut: true };
-          const blob = await Promise.race([
-            response.blob(),
-            new Promise((resolve) => setTimeout(() => resolve(timedOut), timeoutMs)),
-          ]);
+          const blob = await withPdfCacheTimeout(response.blob(), timeoutMs, timedOut);
           if (blob === timedOut) {
             void cache.delete(pdfSourceFileCacheUrl(key));
             return null;
@@ -19659,12 +19917,24 @@
           return null;
         }
         try {
-          const cache = await caches.open(PDF_FILE_PERSISTENT_CACHE);
-          const response = await cache.match(pdfSourceFileChunkCacheUrl(key, index));
+          const cache = await withPdfCacheTimeout(caches.open(PDF_FILE_PERSISTENT_CACHE), PDF_FILE_CACHE_READ_TIMEOUT_MS);
+          if (!cache) return null;
+          const cacheUrl = pdfSourceFileChunkCacheUrl(key, index);
+          const timeoutMs = Math.max(1000, Number(PDF_FILE_CACHE_READ_TIMEOUT_MS || 0) || 6000);
+          const timedOut = { timedOut: true };
+          const response = await withPdfCacheTimeout(cache.match(cacheUrl), timeoutMs, timedOut);
+          if (response === timedOut) {
+            void cache.delete(cacheUrl);
+            return null;
+          }
           if (!response || !response.ok) {
             return null;
           }
-          const blob = await response.blob();
+          const blob = await withPdfCacheTimeout(response.blob(), timeoutMs, timedOut);
+          if (blob === timedOut) {
+            void cache.delete(cacheUrl);
+            return null;
+          }
           if (!blob || !blob.size) {
             return null;
           }
@@ -19679,22 +19949,28 @@
           return false;
         }
         try {
-          const cache = await caches.open(PDF_FILE_PERSISTENT_CACHE);
-          await cache.put(
-            pdfSourceFileChunkCacheUrl(key, index),
-            new Response(blob, {
-              status: 200,
-              headers: {
-                "Content-Type": "application/pdf",
-                "X-Future-File-Cache": "browser-chunk",
-                "X-Future-Chunk-Index": String(Math.max(0, Math.floor(Number(index) || 0))),
-                "X-Future-Chunk-Start": String(Math.max(0, Number(range.start || 0) || 0)),
-                "X-Future-Chunk-End": String(Math.max(0, Number(range.end || 0) || 0)),
-                "X-Future-Chunk-Bytes": String(Number(blob.size || 0) || 0),
-              },
-            }),
+          const cache = await withPdfCacheTimeout(caches.open(PDF_FILE_PERSISTENT_CACHE), PDF_FILE_CACHE_WRITE_TIMEOUT_MS);
+          if (!cache) return false;
+          const timeoutMs = Math.max(1000, Number(PDF_FILE_CACHE_WRITE_TIMEOUT_MS || 0) || 4000);
+          const result = await withPdfCacheTimeout(
+            cache.put(
+              pdfSourceFileChunkCacheUrl(key, index),
+              new Response(blob, {
+                status: 200,
+                headers: {
+                  "Content-Type": "application/pdf",
+                  "X-Future-File-Cache": "browser-chunk",
+                  "X-Future-Chunk-Index": String(Math.max(0, Math.floor(Number(index) || 0))),
+                  "X-Future-Chunk-Start": String(Math.max(0, Number(range.start || 0) || 0)),
+                  "X-Future-Chunk-End": String(Math.max(0, Number(range.end || 0) || 0)),
+                  "X-Future-Chunk-Bytes": String(Number(blob.size || 0) || 0),
+                },
+              }),
+            ).then(() => true),
+            timeoutMs,
+            false,
           );
-          return true;
+          return Boolean(result);
         } catch (error) {
           return false;
         }
@@ -19707,22 +19983,36 @@
         }
         const chunkBytes = Math.max(256 * 1024, Number(PDF_FILE_CHUNK_BYTES || 0) || (2 * 1024 * 1024));
         const chunkCount = Math.max(1, Math.ceil(totalBytes / chunkBytes));
+        window.__ftPdfSourceNetworkTrace = [];
         const chunks = new Array(chunkCount);
         let loaded = 0;
-        const canTrackProgress = () => Boolean(
-          options && options.trackProgress
-          && (!options.isCurrent || (typeof options.isCurrent === "function" && options.isCurrent()))
-        );
-        const reportProgress = (extra = {}) => {
+        // Updated 2026-08-03: a background single-flight download must start feeding Gate 1
+        // as soon as the gate becomes visible, even if its first caller did not request progress.
+        const canTrackProgress = () => {
+          const gate = document.getElementById("ft-lesson-entry-gate");
+          const frame = gate && gate.querySelector(".ft-entry-gate-frame");
+          const gateNeedsProgress = Boolean(
+            gate && !gate.hidden
+            && frame && frame.classList.contains("is-pdf-stream-active")
+          );
+          return Boolean(
+            (options && options.trackProgress || gateNeedsProgress)
+            && (!options.isCurrent || (typeof options.isCurrent === "function" && options.isCurrent()))
+          );
+        };
+        const reportProgress = (index = 0, extra = {}) => {
           if (canTrackProgress()) {
             setPdfPageLoadProgress({
               loaded: Math.min(totalBytes, loaded),
               total: totalBytes,
               percent: totalBytes > 0 ? Math.min(99, (Math.min(totalBytes, loaded) / totalBytes) * 100) : 0,
               done: false,
-              page: pdfState.page || 1,
-              surface: "PDF file",
-              ...extra,
+                page: pdfState.page || 1,
+                surface: "PDF file",
+                chunkIndex: Math.min(chunkCount, index + 1),
+                chunkCount,
+                chunkPercent: 100,
+                ...extra,
             });
           }
         };
@@ -19732,47 +20022,101 @@
           const expectedSize = end - start + 1;
           const cachedChunk = await readPdfSourceFileChunkCache(key, index);
           if (cachedChunk && Number(cachedChunk.size || 0) === expectedSize) {
+            recordPdfSourceNetworkTrace("cache_hit", { chunkIndex: index + 1, chunkCount, loaded: cachedChunk.size, total: expectedSize });
             chunks[index] = cachedChunk;
             loaded += cachedChunk.size;
-            reportProgress();
+            reportProgress(index);
             continue;
           }
-          const result = await fetchAuthBlob(`/pdf/file?${query.toString()}`, {
-            cache: "no-store",
-            sameOriginOnly: true,
-            headers: {
-              Range: `bytes=${start}-${end}`,
-            },
-            onProgress: options && options.trackProgress
-              ? (progress) => {
-                if (!canTrackProgress()) return;
-                const chunkLoaded = Math.min(expectedSize, Math.max(0, Number(progress && progress.loaded || 0) || 0));
-                setPdfPageLoadProgress({
-                  loaded: Math.min(totalBytes, loaded + chunkLoaded),
-                  total: totalBytes,
-                  percent: totalBytes > 0 ? Math.min(99, ((loaded + chunkLoaded) / totalBytes) * 100) : 0,
-                  done: false,
-                  page: pdfState.page || 1,
-                  surface: "PDF file",
-                });
+          recordPdfSourceNetworkTrace("cache_miss", { chunkIndex: index + 1, chunkCount, total: expectedSize });
+          query.set("client_source", "pdf_source_chunk");
+          query.set("chunk_index", String(index + 1));
+          query.set("chunk_count", String(chunkCount));
+          let result = null;
+          let lastChunkError = null;
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            try {
+              query.set("attempt", String(attempt + 1));
+              recordPdfSourceNetworkTrace("request_start", {
+                chunkIndex: index + 1,
+                chunkCount,
+                attempt: attempt + 1,
+                range: `bytes=${start}-${end}`,
+              });
+              result = await fetchAuthBlob(`/pdf/file?${query.toString()}`, {
+                cache: "no-store",
+                sameOriginOnly: true,
+                progressTransport: "xhr",
+                headers: {
+                  Range: `bytes=${start}-${end}`,
+                },
+                onProgress: (progress) => {
+                  if (!canTrackProgress()) return;
+                  const chunkLoaded = Math.min(expectedSize, Math.max(0, Number(progress && progress.loaded || 0) || 0));
+                  recordPdfSourceNetworkTrace("progress", {
+                    chunkIndex: index + 1,
+                    chunkCount,
+                    attempt: attempt + 1,
+                    loaded: chunkLoaded,
+                    total: Math.max(0, Number(progress && progress.total || 0) || 0),
+                  });
+                  setPdfPageLoadProgress({
+                    loaded: Math.min(totalBytes, loaded + chunkLoaded),
+                    total: totalBytes,
+                    percent: totalBytes > 0 ? Math.min(99, ((loaded + chunkLoaded) / totalBytes) * 100) : 0,
+                    done: false,
+                    page: pdfState.page || 1,
+                    surface: "PDF file",
+                    chunkIndex: index + 1,
+                    chunkCount,
+                    chunkPercent: expectedSize > 0 ? (chunkLoaded / expectedSize) * 100 : 0,
+                    retry: attempt,
+                  });
+                },
+              });
+              recordPdfSourceNetworkTrace("complete", {
+                chunkIndex: index + 1,
+                chunkCount,
+                attempt: attempt + 1,
+                status: Number(result && result.status || 0) || 0,
+                loaded: Number(result && result.blob && result.blob.size || 0) || 0,
+              });
+              lastChunkError = null;
+              break;
+            } catch (error) {
+              lastChunkError = error;
+              recordPdfSourceNetworkTrace("request_error", {
+                chunkIndex: index + 1,
+                chunkCount,
+                attempt: attempt + 1,
+                message: clean(error && error.message || error),
+              });
+              if (attempt === 0 && canTrackProgress()) {
+                reportProgress(index, { retry: 1, chunkPercent: 0 });
               }
-              : null,
-          });
+            }
+          }
+          if (!result) {
+            throw lastChunkError || new Error(`PDF chunk ${index + 1}/${chunkCount} failed.`);
+          }
           const blob = result && result.blob ? result.blob : null;
           if (!blob || !blob.size) {
             throw new Error(`PDF chunk ${index + 1}/${chunkCount} was empty.`);
           }
-          if (Number(result && result.status) === 200 && index === 0 && Number(blob.size || 0) >= totalBytes) {
-            return { blob, headers: result.headers || null, chunks: 1, bytes: blob.size, fullResponse: true };
+            if (Number(result && result.status) === 200 && index === 0 && Number(blob.size || 0) >= totalBytes) {
+              if (canTrackProgress()) {
+                setPdfPageLoadProgress({ loaded: blob.size, total: blob.size, percent: 100, done: true, page: pdfState.page || 1, surface: "PDF file", chunkIndex: 1, chunkCount: 1, chunkPercent: 100 });
+              }
+              return { blob, headers: result.headers || null, chunks: 1, bytes: blob.size, fullResponse: true };
           }
           if (Number(blob.size || 0) !== expectedSize) {
             throw new Error(`PDF chunk ${index + 1}/${chunkCount} size mismatch.`);
           }
           chunks[index] = blob;
           loaded += blob.size;
-          // Updated 2026-07-22: a reported downloaded chunk is already durable in the shared machine cache.
-          await writePdfSourceFileChunkCache(key, index, blob, { start, end });
-          reportProgress();
+          // Added 2026-08-03: received network bytes advance immediately; a slow Cache API write is background-only.
+          reportProgress(index);
+          void writePdfSourceFileChunkCache(key, index, blob, { start, end });
         }
         const blob = new Blob(chunks, { type: "application/pdf" });
         if (!blob || Number(blob.size || 0) !== totalBytes) {
@@ -19786,6 +20130,9 @@
             done: true,
             page: pdfState.page || 1,
             surface: "PDF file",
+            chunkIndex: chunkCount,
+            chunkCount,
+            chunkPercent: 100,
           });
         }
         return { blob, headers: null, chunks: chunkCount, bytes: blob.size, fullResponse: false };
@@ -19800,7 +20147,8 @@
           return false;
         }
         try {
-          const cache = await caches.open(PDF_FILE_PERSISTENT_CACHE);
+          const cache = await withPdfCacheTimeout(caches.open(PDF_FILE_PERSISTENT_CACHE), PDF_FILE_CACHE_WRITE_TIMEOUT_MS);
+          if (!cache) return false;
           const responseHeaders = {
             "Content-Type": blob.type || "application/pdf",
             "X-Future-File-Bytes": String(Number(blob.size || 0) || 0),
@@ -19810,14 +20158,14 @@
           if (etag) {
             responseHeaders.ETag = etag;
           }
-          await cache.put(
+          const stored = await withPdfCacheTimeout(cache.put(
             pdfSourceFileCacheUrl(key),
             new Response(blob, {
               status: 200,
               headers: responseHeaders,
             }),
-          );
-          return true;
+          ).then(() => true), PDF_FILE_CACHE_WRITE_TIMEOUT_MS, false);
+          return Boolean(stored);
         } catch (error) {
           return false;
         }
@@ -19869,17 +20217,29 @@
         const sourcePath = normalizeServerPathValue(sourceInfo.path || pdfState.path || "");
         const sourceLessonId = clean(sourceInfo.lesson_id || sourceInfo.lessonId || pdfState.lessonId || "");
         const sourceLessonHandle = clean(sourceInfo.lesson_handle || sourceInfo.lessonHandle || pdfState.lessonHandle || "");
-        const isCurrentSource = () => Boolean(
-          pdfState
-          && pdfState.mode === "pdf"
-          && normalizeServerPathValue(pdfState.path || "") === sourcePath
-          && (!sourceLessonId || clean(pdfState.lessonId || "") === sourceLessonId)
-        );
+        const isCurrentSource = () => {
+          if (!pdfState || pdfState.mode !== "pdf") return false;
+          const currentLessonId = clean(pdfState.lessonId || "");
+          // /pdf/info resolves .space_pdf to _assets/pdf/*.pdf; lesson identity remains stable across that handoff.
+          if (sourceLessonId && currentLessonId) return currentLessonId === sourceLessonId;
+          return normalizeServerPathValue(pdfState.path || "") === sourcePath;
+        };
         if (pdfSourceFileWarmPromises.has(key)) {
           return await pdfSourceFileWarmPromises.get(key).catch(() => null);
         }
         const warmPromise = (async () => {
           const expectedBytes = pdfSourceFileExpectedBytes(sourceInfo);
+          if (options && options.trackProgress && isCurrentSource()) {
+            setPdfPageLoadProgress({
+              loaded: 0,
+              total: expectedBytes,
+              percent: 0,
+              done: false,
+              page: pdfState && pdfState.page || 1,
+              surface: "PDF file",
+              chunkLabel: "CHECKING SOURCE CACHE",
+            });
+          }
           const cached = await readPdfSourceFileCache(key, expectedBytes);
           if (cached && cached.blob) {
             if (isCurrentSource()) setPdfSourceFileBlob(cached.blob, key, true);
@@ -19891,19 +20251,12 @@
                 done: true,
                 page: pdfState && pdfState.page || 1,
                 surface: "PDF file",
+                chunkIndex: 1,
+                chunkCount: 1,
+                cached: true,
               });
             }
             return { cached: true, key, bytes: cached.blob.size };
-          }
-          if (options && options.trackProgress && isCurrentSource()) {
-            setPdfPageLoadProgress({
-              loaded: 0,
-              total: expectedBytes,
-              percent: expectedBytes > 0 ? 0 : 6,
-              done: false,
-              page: pdfState && pdfState.page || 1,
-              surface: "PDF file",
-            });
           }
           const query = new URLSearchParams();
           query.set("path", sourcePath);
@@ -20011,14 +20364,21 @@
           return null;
         }
         const isStillCurrent = options && typeof options.isCurrent === "function" ? options.isCurrent : null;
+        const trackLocalProgress = Boolean(options && options.trackProgress);
+        // Added 2026-08-02: reports only completed local PDF.js milestones after the network graph resets.
+        const reportLocalProgress = (overallPercent, phase, done = false) => {
+          if (trackLocalProgress) setPdfPageLoadProgress({ overallPercent, phase, done });
+        };
         const scale = Math.max(0.5, Number(snapshot.scale || pdfState.scale || 2) || 2);
         const startedAt = (window.performance && typeof window.performance.now === "function") ? window.performance.now() : Date.now();
+        reportLocalProgress(10, "LOADING PDF.JS DOCUMENT");
         const document = await getPdfJsDocument(snapshot, {
           trackProgress: Boolean(options && options.trackProgress),
         });
         if (!document) {
           return null;
         }
+        reportLocalProgress(40, "PDF.JS DOCUMENT READY");
         if (pdfState && pdfState.mode === "pdf") {
           const pageCount = Math.max(1, Math.floor(Number(document.numPages || pdfState.pages || 1) || 1));
           if (pageCount !== Math.max(1, Math.floor(Number(pdfState.pages || 1) || 1))) {
@@ -20032,6 +20392,7 @@
           return null;
         }
         const page = await document.getPage(Math.max(1, Math.floor(Number(pageNumber) || 1)));
+        reportLocalProgress(60, "FIRST PAGE READY");
         const viewport = page.getViewport({ scale });
         const canvas = window.document.createElement("canvas");
         const width = Math.max(1, Math.ceil(Number(viewport.width || 0) || 1));
@@ -20043,10 +20404,12 @@
           throw new Error("Browser canvas is not available.");
         }
         await page.render({ canvasContext: context, viewport }).promise;
+        reportLocalProgress(90, "CANVAS RENDERED");
         if (isStillCurrent && !isStillCurrent()) {
           return null;
         }
         const blob = await canvasToPdfPageBlob(canvas);
+        reportLocalProgress(100, "LOCAL PAGE READY", true);
         const endedAt = (window.performance && typeof window.performance.now === "function") ? window.performance.now() : Date.now();
         const entry = {
           url: URL.createObjectURL(blob),
@@ -20261,7 +20624,13 @@
         const minScale = qualityLevel === 2 ? 8.8 : 4.2;
         const maxScale = qualityLevel === 2 ? 15.5 : 7.5;
         const desired = (visibleWidth * dpr * qualityFactor) / pagePointWidth;
-        const scale = Math.max(minScale, Math.min(maxScale, desired));
+        const pagePointHeight = Math.max(320, Number(pdfState.pagePointHeight || 0) || 842);
+        // Updated 2026-08-03: retain Q2 sharpness without allocating an unsafe
+        // canvas on unusually large pages or memory-constrained browsers.
+        const safeDimensionScale = Math.min(8192 / pagePointWidth, 8192 / pagePointHeight);
+        const safePixelScale = Math.sqrt((24 * 1024 * 1024) / Math.max(1, pagePointWidth * pagePointHeight));
+        const safeMaxScale = Math.max(2.5, Math.min(maxScale, safeDimensionScale, safePixelScale));
+        const scale = Math.max(Math.min(minScale, safeMaxScale), Math.min(safeMaxScale, desired));
         return Math.round(scale * 10) / 10;
       };
 
@@ -20354,7 +20723,8 @@
           prunePdfPageCache();
           return persistentEntry;
         }
-        // Updated 2026-07-22: PDF.js owns the first render too; server PNG is fallback only.
+        // Updated 2026-08-03: PDF.js owns every PDF page render again; the
+        // server page endpoint remains a bounded fallback if local rendering fails.
         const shouldUseLocalPdfRender = stateSnapshot.mode !== "picture";
         if (shouldUseLocalPdfRender) {
           try {

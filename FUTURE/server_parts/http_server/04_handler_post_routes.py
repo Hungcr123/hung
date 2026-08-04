@@ -6,11 +6,25 @@ def do_POST(self):
     self._future_handler_is_first_request = not bool(getattr(self, "_future_handler_seen_request", False))
     self._future_handler_seen_request = True
     path = urlparse(self.path).path.rstrip("/") or "/"
+    if not future_worker_listener_allows(self, path, "POST"):
+        return
     self.completion_trace_begin(path)
     self.record_security_poll_stat(path, "POST")
     if not self.enforce_security_block(path):
         return
     if path.startswith("/distributed-worker/") and not self.enforce_worker_endpoint_flood_guard(path):
+        return
+    if path.startswith("/builder/") and self.is_local_admin_request():
+        server_data_manifest_build_hold_note_activity(path)
+    if path == "/builder/session":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Builder session bridge chi cho may server local."})
+            return
+        try:
+            result = server_data_manifest_builder_session_event(self.read_json_body())
+            self.send_json(200, {"ok": True, "build_hold": result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
         return
     if not (path.startswith("/distributed-worker/") or path.startswith("/builder/")):
         if not self.enforce_anti_robot_rate(path, "POST"):
@@ -20,6 +34,7 @@ def do_POST(self):
     if path == "/distributed-worker/register":
         try:
             payload = self.read_json_body()
+            payload["_server_listener"] = "lan-8890" if bool(getattr(self.server, "future_worker_only", False)) else "web-8877"
             result = distributed_worker_register(
                 payload,
                 client_ip=clean(self.client_address[0] if self.client_address else ""),
@@ -34,6 +49,7 @@ def do_POST(self):
     if path == "/distributed-worker/poll":
         try:
             payload = self.read_json_body()
+            payload["_server_listener"] = "lan-8890" if bool(getattr(self.server, "future_worker_only", False)) else "web-8877"
             wait_seconds = max(0.0, min(30.0, float(payload.get("wait_seconds", 20) or 20)))
             result = distributed_worker_poll(
                 payload,
@@ -108,15 +124,40 @@ def do_POST(self):
         if not self.is_local_admin_request():
             self.send_json(403, {"ok": False, "error": "Builder worker bridge chi cho may server local."})
             return
+        builder_gate_lock = getattr(self.server, "_future_request_accept_times_lock", None)
+        builder_registered = False
+        learner_requests = 0
+        if builder_gate_lock is not None:
+            with builder_gate_lock:
+                active_requests = max(0, int(getattr(self.server, "_future_active_requests", 0) or 0))
+                active_builder = max(0, int(getattr(self.server, "_future_active_builder_requests", 0) or 0))
+                learner_requests = max(0, active_requests - active_builder - 1)
+                self.server._future_active_builder_requests = active_builder + 1
+                builder_registered = True
         try:
             payload = self.read_json_body()
             source_text = str(payload.get("text", "") or "")
             voice = clean(payload.get("voice", "")) or "kokoro:am_adam"
-            raw = None
-            try:
-                raw = distributed_worker_try_tts_raw(source_text, voice, timeout_seconds=90)
-            except Exception as exc:
-                stt_debug_log("builder_distributed_tts_fallback", voice=voice, error=str(exc))
+            throttle_state = durable_tts_background_throttle_state() if callable(globals().get("durable_tts_background_throttle_state")) else {}
+            throttle_for_users = learner_requests > 0 or bool(throttle_state.get("cpu_high"))
+            # Added 2026-08-02: serialize durable builder enqueues only while learner traffic is active.
+            def submit_builder_job():
+                return durable_tts_submit_raw(
+                    source_text,
+                    voice,
+                    priority=3,
+                    source=clean(payload.get("source", "")) or "builder_tts",
+                    # Keep builder HTTP occupancy short while learner traffic or high CPU is active.
+                    # The durable P3 job remains queued and retries reuse its build_id.
+                    timeout_seconds=0 if throttle_for_users else 8,
+                    build_id=clean(payload.get("build_id", payload.get("buildId", ""))),
+                    params={"timeout_seconds": 0 if voice.lower().startswith("kokoro_vi:") else 90},
+                )
+            if throttle_for_users:
+                with BUILDER_TTS_ENQUEUE_LOCK:
+                    raw = submit_builder_job()
+            else:
+                raw = submit_builder_job()
             if raw:
                 audio_bytes = raw.get("audio_bytes") or b""
                 mime = clean(raw.get("audio_mime", "")) or clean(raw.get("mime", "")) or "audio/mpeg"
@@ -128,26 +169,13 @@ def do_POST(self):
                     "worker": clean(raw.get("worker_id", "")) or "distributed",
                 })
                 return
-            old_bridge_disabled = os.environ.get("FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED", "")
-            os.environ["FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED"] = "1"
-            try:
-                import future_lesson_builder_gui as builder  # type: ignore
-
-                audio_bytes, mime = builder.synthesize_embedded_audio(source_text, voice, lambda message: stt_debug_log("builder_local_tts", message=message))
-            finally:
-                if old_bridge_disabled:
-                    os.environ["FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED"] = old_bridge_disabled
-                else:
-                    os.environ.pop("FUTURE_BUILDER_SERVER2_BRIDGE_DISABLED", None)
-            self.send_json(200, {
-                "ok": True,
-                "audio_base64": base64.b64encode(bytes(audio_bytes or b"")).decode("ascii"),
-                "mime": mime,
-                "voice": builder.normalize_audio_voice_key(voice) or voice,
-                "worker": "server-local",
-            })
+            self.send_json(503, {"ok": False, "queued": True, "throttled_for_users": bool(throttle_for_users), "learner_requests": learner_requests, "error": "Builder TTS is queued; retry will reuse the same durable job."})
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
+        finally:
+            if builder_registered and builder_gate_lock is not None:
+                with builder_gate_lock:
+                    self.server._future_active_builder_requests = max(0, int(getattr(self.server, "_future_active_builder_requests", 1) or 1) - 1)
         return
     if path == "/builder/phonemize":
         if not self.is_local_admin_request():
@@ -292,7 +320,10 @@ def do_POST(self):
             return
         try:
             payload = self.read_json_body()
-            result = bump_frontend_reload_state(payload.get("reason", "dashboard_update"))
+            result = bump_frontend_reload_state(
+                payload.get("reason", "dashboard_update"),
+                payload.get("command", ""),
+            )
             self.send_json(200, {"ok": True, **result, **frontend_delivery_signature()})
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
@@ -396,10 +427,25 @@ def do_POST(self):
             return
         try:
             payload = self.read_json_body()
-            mode = clean(payload.get("mode", "dashboard-vietnamese-sot-refresh")) or "dashboard-vietnamese-sot-refresh"
-            self.send_json(202, {"ok": True, **start_qmdict_meaning_audio_refresh(mode=mode)})
+            mode = clean(payload.get("mode", "missing")) or "missing"
+            self.send_json(202, {"ok": True, **start_qmdict_meaning_audio_refresh(payload.get("keys"), mode=mode)})
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/qmdict/meaning-audio-refresh/cancel":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "QmDict Vietnamese audio refresh cancel is only available on the server machine."})
+            return
+        with QMDICT_AUDIO_REFRESH_LOCK:
+            if not QMDICT_AUDIO_REFRESH_JOB.get("running"):
+                self.send_json(200, {"ok": True, "cancelled": False, "audio_refresh": dict(QMDICT_AUDIO_REFRESH_JOB)})
+                return
+            QMDICT_AUDIO_REFRESH_JOB["cancel_requested"] = True
+            QMDICT_AUDIO_REFRESH_JOB["message"] = "Cancelling Vietnamese audio refresh."
+            QMDICT_AUDIO_REFRESH_JOB["updated_at"] = utc_timestamp()
+            snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
+        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
+        self.send_json(202, {"ok": True, "cancelled": True, "audio_refresh": snapshot})
         return
     if path == "/space-v/repair-qmdict":
         if not self.is_local_admin_request():
@@ -416,7 +462,25 @@ def do_POST(self):
             return
         try:
             payload = self.read_json_body()
-            self.send_json(202, {"ok": True, **start_qmdict_word_audio_refresh(payload.get("mode", "all"))})
+            self.send_json(202, {"ok": True, **start_qmdict_word_audio_refresh(payload.get("mode", "all"), payload.get("items"))})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
+    if path == "/qmdict/word-audio-refresh/cancel":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "QmDict word audio refresh cancel is only available on the server machine."})
+            return
+        try:
+            with QMDICT_WORD_AUDIO_REFRESH_LOCK:
+                if not QMDICT_WORD_AUDIO_REFRESH_JOB.get("running"):
+                    self.send_json(200, {"ok": True, "cancelled": False, "word_audio_refresh": dict(QMDICT_WORD_AUDIO_REFRESH_JOB)})
+                    return
+                QMDICT_WORD_AUDIO_REFRESH_JOB["cancel_requested"] = True
+                QMDICT_WORD_AUDIO_REFRESH_JOB["message"] = "Cancelling QmDict UK/US word audio refresh."
+                QMDICT_WORD_AUDIO_REFRESH_JOB["updated_at"] = utc_timestamp()
+                snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+            write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
+            self.send_json(202, {"ok": True, "cancelled": True, "word_audio_refresh": snapshot})
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
         return
@@ -757,6 +821,7 @@ def do_POST(self):
             payload = self.read_json_body()
             text = sanitize_pdf_voice_text(payload.get("text", ""), limit=1400)
             voice = clean(payload.get("voice", "")) or "kokoro:am_adam"
+            client_source = clean(payload.get("client_source", payload.get("clientSource", ""))).lower()
             if not re.match(r"^(kokoro|kokoro_vi|sot|edge|microsoft):[A-Za-z0-9._:\-]+$", voice):
                 voice = "kokoro:am_adam"
             if not text:
@@ -765,9 +830,25 @@ def do_POST(self):
             if cached_audio:
                 self.send_json(200, {"ok": True, "text": text, **cached_audio})
                 return
-            if not enforce_user_heavy_quota_response(self, username, "tts"):
+            interactive_lesson_audio = client_source in {"lesson_audio", "space_v_audio", "space_w_audio"} and len(text) <= 240
+            if not interactive_lesson_audio and not enforce_user_heavy_quota_response(self, username, "tts"):
                 return
-            audio_payload = chat_synthesize_message_audio_queued(text, voice)
+            try:
+                audio_payload = chat_synthesize_message_audio_queued(
+                    text,
+                    voice,
+                    source="interactive_lesson_audio" if interactive_lesson_audio else "runtime_voice",
+                )
+            except Exception as generation_exc:
+                self.send_json(503, {
+                    "ok": False,
+                    "error": str(generation_exc),
+                    "reason": "tts_all_generation_failed",
+                    "worker_attempted": True,
+                    "server_fallback_attempted": True,
+                    "browser_fallback_allowed": True,
+                })
+                return
             self.send_json(200, {"ok": True, "text": text, **audio_payload})
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
@@ -1247,6 +1328,10 @@ def do_POST(self):
                 self.send_json(403, {"ok": False, "error": "Only admins can refresh the lesson manifest."})
                 return
             source = self.read_json_body()
+            if truthy(source.get("apply_pending"), False):
+                status = apply_server_data_manifest_build_hold("admin-apply")
+                self.send_json(202, {"ok": True, "mode": "apply-pending", "accepted": True, "build_hold": status})
+                return
             refresh_paths = [
                 clean_path_value(item)
                 for item in (source.get("paths") if isinstance(source.get("paths"), list) else [])
@@ -1281,7 +1366,7 @@ def do_POST(self):
             if not username:
                 self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
                 return
-            if not read_user_lines(username):
+            if not server_database_user_exists(username):
                 self.send_json(404, {"ok": False, "error": "Tài khoản không tồn tại.", "reason": "nouser"})
                 return
             # Added 2026-07-06: lets Codex inspect the local DOM as a real user without exposing a tunnel login bypass.
@@ -2112,6 +2197,18 @@ def do_POST(self):
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
         return
+    if path == "/dashboard/space-v-picture-settings":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc sua duong dan picture."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = save_server_settings({"space_v_picture_folder": payload.get("folder", payload.get("path", ""))})
+            picture = space_v_local_picture_settings_payload(force=True)
+            self.send_json(200, {"ok": True, "updated_at": result.get("updated_at", ""), **picture})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
     if path == "/settings":
         if not self.is_local_admin_request():
             self.send_json(403, {"ok": False, "error": "Chi may server moi duoc sua settings."})
@@ -2126,6 +2223,31 @@ def do_POST(self):
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
         return
+    if path == "/vocab/image-primary":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            payload = self.read_json_body()
+            word = lesson_task_notice_text(payload.get("word", ""), limit=180)
+            image_id = lesson_task_notice_text(payload.get("image_id") or payload.get("imageId") or "", limit=260)
+            if not word or not image_id:
+                raise RuntimeError("Missing vocabulary image selection.")
+            record = space_v_local_picture_asset(word, image_id=image_id)
+            if not record or clean(record.get("image_id", "")).casefold() != image_id.casefold():
+                raise RuntimeError("Vocabulary image no longer exists.")
+            result = server_database_save_vocab_image_selection(
+                session.get("username", ""),
+                vocab_key(word),
+                image_id,
+                payload.get("operation_id") or payload.get("operationId") or "",
+                payload.get("selected_epoch") or payload.get("selectedEpoch") or 0,
+            )
+            self.send_json(200, {"ok": True, "word": word, **result})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
     if path == "/vocab/scan-space-w":
         try:
             session = self.auth_session()
@@ -2135,7 +2257,7 @@ def do_POST(self):
             query = parse_qs(urlparse(self.path).query)
             compact_response = clean((query.get("response") or [""])[0]).lower() == "compact-v1"
             payload = self.read_json_body()
-            result = scan_space_w_vocabulary(payload.get("path", ""), session.get("username", ""), include_words=not compact_response)
+            result = scan_space_w_vocabulary(payload.get("path", ""), session.get("username", ""), include_words=not compact_response, lesson_id=payload.get("lesson_id") or payload.get("lessonId") or "")
             self.send_json(200, {
                 "ok": True,
                 "response_schema": "vocab-scan-compact-v1" if compact_response else "vocab-scan-full-v1",
@@ -2468,10 +2590,15 @@ def do_POST(self):
                 self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
                 return
             viewer = normalize_username(session.get("username", ""))
+            payload = self.read_json_body() or {}
+            action = clean(payload.get("action", "save")).lower()
+            if action == "ensure_audio":
+                result = ensure_space_pdf_ai_region_notice_audio(viewer, payload)
+                self.send_json(200, {"ok": True, "viewer": viewer, **result})
+                return
             if not is_admin_user(viewer):
                 self.send_json(403, {"ok": False, "error": "Only admins can update shared PDF/Picture AI notices."})
                 return
-            payload = self.read_json_body() or {}
             chat_mark_online(viewer)
             result = save_space_pdf_ai_region_notice(viewer, payload)
             mark_user_activity(viewer, {
@@ -3252,49 +3379,27 @@ def do_POST(self):
             self.send_json(400, {"ok": False, "error": str(exc)})
         return
     if path == "/lesson/complete":
-        completion_slot_acquired = False
-        completion_semaphore = globals().setdefault(
-            "_LESSON_COMPLETION_SEMAPHORE",
-            threading.BoundedSemaphore(bounded_env_int("FUTURE_LESSON_COMPLETE_MAX_ACTIVE", 12, 4, 24)),
-        )
         try:
             session = self.auth_session()
             if not session:
                 self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
                 return
             payload = self.read_json_body()
-            completion_queue_started = time.perf_counter()
-            completion_slot_acquired = completion_semaphore.acquire(timeout=30.0)
-            completion_queue_wait_ms = (time.perf_counter() - completion_queue_started) * 1000.0
-            if not completion_slot_acquired:
-                self.send_json(503, {"ok": False, "error": "Completion queue is busy. Please retry."})
-                return
             trace_id = clean(payload.get("completion_trace_id") or self.headers.get("X-Future-Completion-Trace", ""))[:160]
             completion_transaction_prepare = globals().get("postgres_request_transaction_prepare")
             completion_transaction_commit = globals().get("postgres_request_transaction_commit")
             completion_transaction_rollback = globals().get("postgres_request_transaction_rollback")
             if callable(completion_transaction_prepare):
                 completion_transaction_prepare()
-            completion_active = globals().get("space_leaderboard_completion_active")
-            if callable(completion_active):
-                completion_active(1)
-            try:
-                result = record_lesson_completion(
-                    payload.get("path", ""),
-                    session.get("username", ""),
-                    payload,
-                )
-                if callable(completion_transaction_commit):
-                    completion_transaction_commit()
-            finally:
-                if callable(completion_active):
-                    completion_active(-1)
+            result = record_lesson_completion(
+                payload.get("path", ""),
+                session.get("username", ""),
+                payload,
+            )
+            if callable(completion_transaction_commit):
+                completion_transaction_commit()
             if trace_id and isinstance(result, dict):
                 result["completion_trace_id"] = trace_id
-            if isinstance(result, dict):
-                timing = result.setdefault("timing_ms", {})
-                if isinstance(timing, dict):
-                    timing["server_queue_wait"] = round(completion_queue_wait_ms, 3)
             self.send_json(200, {"ok": True, **result})
         except Exception as exc:
             if callable(locals().get("completion_transaction_rollback")):
@@ -3303,9 +3408,6 @@ def do_POST(self):
                 except Exception:
                     pass
             self.send_json(400, {"ok": False, "error": str(exc)})
-        finally:
-            if completion_slot_acquired:
-                completion_semaphore.release()
         return
     if path == "/transcribe-zipformer-vi":
         try:

@@ -114,6 +114,9 @@
       "sha256": "d5b05a293198e7341faa32e4dccc8a686fabc0cf00bf5c5f5bac622733c832c3",
       "first": "@keyframes qAnimationToggleCharge",
       "last": "{ .ft-paragraph-mode"
+    },
+    {
+      "file": "13_lesson_entry_gate.css"
     }
   ]
 }

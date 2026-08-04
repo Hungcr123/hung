@@ -20,6 +20,42 @@ def normalize_space_w_voice(value: object) -> dict:
     }
 
 
+# Added 2026-07-30: stores the vocabulary accent per user with a monotonic timestamp so stale tabs cannot win.
+def normalize_vocab_audio_preference(value: object, existing: dict | None = None) -> dict:
+    source = value if isinstance(value, dict) else {}
+    base = existing if isinstance(existing, dict) else {}
+    raw_voice = clean(source.get("voice") or source.get("value") or source.get("key") or "")
+    if raw_voice:
+        voice = "sot:en-US" if "en-us" in raw_voice.lower() or raw_voice.lower() in {"us", "en-us"} else "sot:en-GB"
+    else:
+        voice = clean(base.get("voice")) or "sot:en-GB"
+    has_saved_value = bool(raw_voice or clean(base.get("voice")))
+    updated_at = clean(source.get("updated_at") or source.get("updatedAt") or base.get("updated_at") or "")
+    try:
+        updated_epoch = float(source.get("updated_epoch", source.get("updatedEpoch", 0)) or 0)
+    except Exception:
+        updated_epoch = 0.0
+    if updated_epoch <= 0 and updated_at:
+        updated_epoch = max(0.0, float(timestamp_to_epoch(updated_at) or 0))
+    try:
+        base_epoch = float(base.get("updated_epoch", 0) or timestamp_to_epoch(base.get("updated_at", "")) or 0)
+    except Exception:
+        base_epoch = 0.0
+    if base.get("voice") and updated_epoch and base_epoch and updated_epoch < base_epoch:
+        return {
+            "voice": "sot:en-US" if "en-us" in clean(base.get("voice")).lower() else "sot:en-GB",
+            "updated_at": clean(base.get("updated_at"))[:80],
+            "updated_epoch": base_epoch,
+        }
+    if not has_saved_value:
+        return {"voice": "sot:en-GB", "updated_at": "", "updated_epoch": 0.0}
+    if not updated_at:
+        updated_at = utc_timestamp()
+    if updated_epoch <= 0:
+        updated_epoch = max(0.0, float(timestamp_to_epoch(updated_at) or 0))
+    return {"voice": voice[:40], "updated_at": updated_at[:80], "updated_epoch": updated_epoch}
+
+
 # Added 2026-06-30: persists Ghost EN reading voice, accent, and playback speed per learner.
 def normalize_ghost_en_voice(value: object, existing: dict | None = None) -> dict:
     source = value if isinstance(value, dict) else {}
@@ -166,8 +202,17 @@ def user_preferences_cache_signature(username: str) -> tuple[int, int]:
         return 0, 0
 
 
-# Added 2026-07-20: make login/auth-me cache freshness follow the authoritative SQLite preference revision.
+# Added 2026-07-30: auth-me already trusts the PostgreSQL-backed RAM preference
+# cache; avoid a fresh PostgreSQL read just to compute its cache signature.
 def user_preferences_runtime_signature(username: str) -> tuple[int, str]:
+    cache_key = normalize_username(username).lower()
+    cached = USER_PREFERENCES_RAM_CACHE.get(cache_key)
+    if isinstance(cached, dict) and isinstance(cached.get("preferences"), dict):
+        preferences = cached["preferences"]
+        return (
+            max(0, int(cached.get("revision", preferences.get("_serverRevision", 0)) or 0)),
+            clean(preferences.get("updated_at", "")),
+        )
     row = server_database_load_user_preferences(username)
     return (
         max(0, int(row.get("server_revision", 0) or 0)) if isinstance(row, dict) else 0,
@@ -183,6 +228,7 @@ def clone_user_preferences_payload(preferences: dict | None = None) -> dict:
         "question_side_cards": dict(source.get("question_side_cards") if isinstance(source.get("question_side_cards"), dict) else {}),
         "question_animation": dict(source.get("question_animation") if isinstance(source.get("question_animation"), dict) else {}),
         "space_w_voice": dict(source.get("space_w_voice") if isinstance(source.get("space_w_voice"), dict) else {}),
+        "vocab_audio": dict(source.get("vocab_audio") if isinstance(source.get("vocab_audio"), dict) else {}),
         "ghost_en_voice": dict(source.get("ghost_en_voice") if isinstance(source.get("ghost_en_voice"), dict) else {}),
         "chat_voice": dict(source.get("chat_voice") if isinstance(source.get("chat_voice"), dict) else {}),
         "chat_voice_vi": dict(source.get("chat_voice_vi") if isinstance(source.get("chat_voice_vi"), dict) else {}),
@@ -289,6 +335,13 @@ def normalize_user_preferences(payload: dict, existing: dict | None = None) -> d
             break
     if not isinstance(space_w_voice, dict):
         space_w_voice = base.get("space_w_voice") if isinstance(base.get("space_w_voice"), dict) else {}
+    vocab_audio = None
+    for key in ("vocab_audio", "vocabAudio", "space_v_voice", "spaceVVoice"):
+        if key in source:
+            vocab_audio = source.get(key)
+            break
+    if not isinstance(vocab_audio, dict):
+        vocab_audio = base.get("vocab_audio") if isinstance(base.get("vocab_audio"), dict) else {}
     ghost_en_voice = None
     for key in ("ghost_en_voice", "ghostEnVoice", "ghost_en"):
         if key in source:
@@ -353,6 +406,7 @@ def normalize_user_preferences(payload: dict, existing: dict | None = None) -> d
         "question_side_cards": normalize_question_side_cards(question_side_cards),
         "question_animation": normalize_question_animation(question_animation),
         "space_w_voice": normalize_space_w_voice(space_w_voice),
+        "vocab_audio": normalize_vocab_audio_preference(vocab_audio, base.get("vocab_audio") if isinstance(base.get("vocab_audio"), dict) else {}),
         "ghost_en_voice": normalize_ghost_en_voice(
             ghost_en_voice,
             base.get("ghost_en_voice") if isinstance(base.get("ghost_en_voice"), dict) else {},
@@ -393,4 +447,7 @@ def save_user_preferences(username: str, preferences_payload: dict) -> dict:
             "revision": revision,
             "preferences": clone_user_preferences_payload(preferences),
         }
-    return clone_user_preferences_payload(preferences)
+    response = clone_user_preferences_payload(preferences)
+    if isinstance(result, dict) and result.get("conflict"):
+        response["_preferenceConflict"] = True
+    return response

@@ -61,9 +61,45 @@ def qmdict_audio_refresh_job_snapshot() -> dict:
         return dict(QMDICT_AUDIO_REFRESH_JOB)
 
 
+# Added 2026-07-31: share the same cancellable session contract with English audio refresh.
+def qmdict_audio_refresh_cancel_requested(job_id: object = "") -> bool:
+    with QMDICT_AUDIO_REFRESH_LOCK:
+        return bool(
+            QMDICT_AUDIO_REFRESH_JOB.get("running")
+            and clean(QMDICT_AUDIO_REFRESH_JOB.get("job_id")) == clean(job_id)
+            and QMDICT_AUDIO_REFRESH_JOB.get("cancel_requested")
+        )
+
+
 def qmdict_word_audio_refresh_job_snapshot() -> dict:
     with QMDICT_WORD_AUDIO_REFRESH_LOCK:
         return dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+
+
+# Added 2026-07-31: let dashboard shutdown cancel queued refresh work before the server exits.
+def qmdict_word_audio_refresh_cancel_requested(job_id: object = "") -> bool:
+    with QMDICT_WORD_AUDIO_REFRESH_LOCK:
+        return bool(
+            QMDICT_WORD_AUDIO_REFRESH_JOB.get("running")
+            and clean(QMDICT_WORD_AUDIO_REFRESH_JOB.get("job_id")) == clean(job_id)
+            and QMDICT_WORD_AUDIO_REFRESH_JOB.get("cancel_requested")
+        )
+
+
+# Added 2026-07-31: fail before queue creation when the lightweight audio runtime is unavailable.
+def verify_qmdict_word_audio_runtime() -> None:
+    try:
+        from module_main.Soundoftext_Api import Soundoftext_Api  # noqa: F401, PLC0415
+        from module_main.Data_Input.local_sound_loader import build_sound_file_name  # noqa: F401, PLC0415
+    except Exception as exc:
+        raise RuntimeError(f"QmDict audio runtime is not ready: {exc}") from exc
+    try:
+        QMLEARN_DATA_ROOT.mkdir(parents=True, exist_ok=True)
+        probe = QMLEARN_DATA_ROOT / f".future_qmdict_audio_preflight_{os.getpid()}.tmp"
+        probe.write_bytes(b"preflight")
+        probe.unlink(missing_ok=True)
+    except Exception as exc:
+        raise RuntimeError(f"QmDict audio folder is not writable: {exc}") from exc
 
 
 def write_qmdict_audio_refresh_progress(payload: dict) -> None:
@@ -91,6 +127,18 @@ def normalize_qmlearn_audio_voice_key(voice_key: object = "") -> str:
         "vi_VN": "vi-VN",
     }
     return aliases.get(text, text)
+
+
+# Added 2026-07-31: QmDict stores many headwords in all caps; title-case them before TTS
+# so Sound of Text speaks the word instead of treating it as an acronym.
+def normalize_qmdict_tts_word(text: object = "") -> str:
+    value = clean(text)
+    if value and any(char.isalpha() for char in value) and value == value.upper():
+        lowered = value.lower()
+        for index, char in enumerate(lowered):
+            if char.isalpha():
+                return lowered[:index] + char.upper() + lowered[index + 1:]
+    return value
 
 
 def qmlearn_audio_lang_candidates(voice_key: object = "") -> list[str]:
@@ -156,29 +204,82 @@ def synthesize_space_v_sound_of_text_bytes(text: object = "", voice_key: object 
             raise RuntimeError(f"{first_exc}; fallback: {second_exc}") from second_exc
         raise
 
+
+# Added 2026-07-31: bulk audio balances across all workers, then falls back per item on Server 2.
+def synthesize_bulk_audio_worker_first(text: object = "", voice_key: object = "", log=None) -> tuple[bytes, str]:
+    target_text = clean(text)
+    target_voice = clean(voice_key)
+    worker_voice = target_voice
+    if not worker_voice.lower().startswith(("sot:", "soundoftext:", "edge:", "kokoro:", "kokoro_vi:")):
+        normalized_voice = normalize_qmlearn_audio_voice_key(worker_voice)
+        if normalized_voice:
+            worker_voice = f"sot:{normalized_voice}"
+    worker_result = None
+    try:
+        worker_result = distributed_worker_try_tts_raw(
+            target_text,
+            worker_voice,
+            timeout_seconds=45.0,
+            preferred_user="",
+            # Interactive learner audio is P1 and builder work is P3.
+            priority=2,
+        )
+    except Exception as exc:
+        if callable(log):
+            log(f"Distributed worker failed: {exc}")
+    audio_bytes = worker_result.get("audio_bytes") if isinstance(worker_result, dict) else None
+    if isinstance(audio_bytes, (bytes, bytearray)) and audio_bytes:
+        return bytes(audio_bytes), "distributed_worker"
+    if callable(log):
+        log("No worker audio; falling back to Server 2.")
+    return synthesize_space_v_sound_of_text_bytes(target_text, target_voice, log), "server_fallback"
+
+
+# Added 2026-07-31: keep enough submissions in flight to fill every live TTS worker slot.
+def qmdict_bulk_audio_concurrency(remaining: object = 0) -> int:
+    total = max(0, int(remaining or 0))
+    if total <= 0:
+        return 0
+    try:
+        live_capacity = max(1, int(distributed_worker_effective_job_limit("tts") or 0))
+    except Exception:
+        live_capacity = max(QMDICT_WORD_AUDIO_REFRESH_MAX_WORKERS, QMDICT_AUDIO_REFRESH_MAX_WORKERS)
+    # The synthesis call includes LAN submit/claim and result wait. A window
+    # equal to capacity can under-fill workers when those calls are waking up
+    # at different times, so keep one bounded prefetch window behind the live
+    # capacity. The broker still enforces the per-worker slot limits.
+    return min(128, total, max(live_capacity, live_capacity * 2))
+
 def force_save_space_v_sound_audio(text: object = "", voice_key: object = "", audio_bytes: bytes | None = None, log=None) -> Path | None:
     target_text = clean(text)
     target_voice = normalize_qmlearn_audio_voice_key(voice_key) or "en-GB"
     if not target_text or not audio_bytes:
         return None
     try:
-        from module_main.Data_Input.local_sound_loader import clear_internal_cache, save_sound_bytes  # noqa: PLC0415
+        from module_main.Data_Input.local_sound_loader import build_sound_file_name, clear_internal_cache  # noqa: PLC0415
     except Exception as exc:
         if callable(log):
             log(f"Skip QMLearn/Data save {target_text}: {exc}")
         return None
     voice_dir = qmlearn_audio_voice_dir(f"sot:{target_voice}")
     voice_dir.mkdir(parents=True, exist_ok=True)
+    target = voice_dir / build_sound_file_name(target_text, target_voice, extension=".mp3")
+    temp_target = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
     try:
-        saved_path = clean(save_sound_bytes(target_text, target_voice, bytes(audio_bytes), data_dir=str(voice_dir), overwrite=True))
+        temp_target.write_bytes(bytes(audio_bytes))
+        if temp_target.stat().st_size <= 0:
+            raise RuntimeError("Generated audio file is empty.")
+        os.replace(temp_target, target)
         clear_internal_cache()
     except Exception as exc:
+        try:
+            temp_target.unlink(missing_ok=True)
+        except Exception:
+            pass
         if callable(log):
             log(f"Skip QMLearn/Data save {target_text}: {exc}")
         return None
-    if not saved_path:
-        return None
-    candidate = Path(saved_path)
+    candidate = target
     try:
         candidate = candidate.resolve()
         candidate.relative_to(QMLEARN_DATA_ROOT.resolve())
@@ -267,42 +368,57 @@ def qmlearn_audio_dir_index(root: Path) -> dict[str, Path]:
         cached = QMLEARN_AUDIO_DIR_INDEX.get(key)
         if cached is not None:
             return cached
+    # Fallback-only directory index for legacy files missing from the persisted
+    # logical asset index. Normal startup does not build this map.
     index: dict[str, Path] = {}
+    revisions: dict[str, str] = {}
     try:
-        if root_path.is_dir():
-            for child in root_path.iterdir():
+        with os.scandir(root_path) as entries:
+            for entry in entries:
                 try:
-                    if child.is_file() and child.suffix.lower() in {".mp3", ".txt"}:
-                        index.setdefault(child.name.lower(), child)
-                except Exception:
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    suffix = Path(entry.name).suffix.lower()
+                    if suffix not in {".mp3", ".txt"}:
+                        continue
+                    path = Path(entry.path)
+                    index[entry.name.lower()] = path
+                    stat = entry.stat(follow_symlinks=False)
+                    revisions[entry.name.lower()] = f"{int(stat.st_mtime_ns):x}-{int(stat.st_size):x}"
+                except OSError:
                     continue
-    except Exception:
+    except OSError:
         index = {}
+        revisions = {}
     with QMLEARN_AUDIO_DIR_INDEX_LOCK:
         QMLEARN_AUDIO_DIR_INDEX[key] = index
+        QMLEARN_AUDIO_DIR_REVISION_INDEX[key] = revisions
     return index
 
 
-# Added 2026-07-14: warms UK/US QMLearn audio filename indexes without loading audio bytes into RAM.
+# Added 2026-07-31: audio paths are deterministic; startup records only the
+# cheap QmDict signature and never loads or rebuilds a full audio registry.
 def warm_qmlearn_voice_audio_index_async(delay_seconds: float = 0.0) -> None:
-    # Added 2026-07-21: load the persisted root stem set before warm-ready so first lessons never scan the huge flat audio folder.
-    root_stems = qmdict_audio_stem_index_shared()
-
     def _worker() -> None:
         try:
             if delay_seconds and delay_seconds > 0:
                 time.sleep(min(10.0, max(0.0, float(delay_seconds or 0.0))))
             started = time.perf_counter()
-            warmed: dict[str, int] = {}
-            for voice in ("sot:en-GB", "sot:en-US"):
-                voice_dir = qmlearn_audio_voice_dir(voice)
-                index = qmlearn_audio_dir_index(voice_dir)
-                warmed[voice] = len(index)
+            signature = qmdict_source_signature_key()
             SERVER_STATE["qmlearn_voice_index_ready"] = True
-            SERVER_STATE["qmlearn_voice_index_warmed"] = warmed
-            SERVER_STATE["qmlearn_root_audio_stems"] = len(root_stems)
+            SERVER_STATE["qmlearn_voice_index_warmed"] = {
+                "assets": 0,
+                "qmdict_signature": list(signature),
+                "directory_scanned": False,
+            }
             SERVER_STATE["qmlearn_voice_index_ms"] = int((time.perf_counter() - started) * 1000)
-            stt_debug_log("qmlearn_voice_audio_index_warm_done", **warmed, elapsed_ms=SERVER_STATE["qmlearn_voice_index_ms"])
+            SERVER_STATE["qmlearn_audio_index_mode"] = "deterministic-exact-path"
+            stt_debug_log(
+                "qmlearn_voice_audio_index_warm_done",
+                qmdict_signature=signature,
+                directory_scanned=False,
+                elapsed_ms=SERVER_STATE["qmlearn_voice_index_ms"],
+            )
         except Exception as exc:
             SERVER_STATE["qmlearn_voice_index_ready"] = False
             SERVER_STATE["qmlearn_voice_index_error"] = str(exc)
@@ -322,11 +438,20 @@ def qmlearn_cached_word_audio_payload(text: object = "", voice_key: object = "")
     rel_path = qmlearn_data_relative_path(audio_path)
     if not rel_path:
         return {}
+    revision = qmlearn_audio_file_revision(audio_path)
+    accent_key = "u" if target_voice.lower().endswith("en-us") else "g"
+    asset = {
+        "path": audio_path,
+        "revision": revision or "missing",
+        "asset_id": f"v2:w:{vocab_key(target_text)}:{accent_key}:{revision or 'missing'}",
+    }
     sound_url = qmlearn_sound_url_for_audio_path(audio_path, f"/server-data/qm-sound?path={quote(rel_path, safe='')}")
     return {
         "audio_path": sound_url,
-        "audio": {"path": sound_url, "mime": "audio/mpeg", "voice": target_voice, "cached": True},
+        "audio": {"path": sound_url, "mime": "audio/mpeg", "voice": target_voice, "asset_id": clean(asset.get("asset_id")), "cached": True},
         "audio_mime": "audio/mpeg",
+        "asset_id": clean(asset.get("asset_id")),
+        "revision": clean(asset.get("revision")),
         "voice": target_voice,
         "voice_label": "Sound of Text | Female US" if target_voice.lower().endswith("en-us") else "Sound of Text | Female UK",
         "cached": True,
@@ -344,10 +469,13 @@ def qmlearn_audio_direct_candidates(text: object = "", voice_key: object = "") -
         stem = clean(build_sound_storage_stem(target_text)) if build_sound_storage_stem else target_text
     except Exception:
         stem = target_text
-    roots = [QMLEARN_DATA_ROOT]
     voice_dir = qmlearn_audio_voice_dir(voice_key)
-    if voice_dir != QMLEARN_DATA_ROOT:
-        roots.append(voice_dir)
+    roots = [voice_dir]
+    normalized_voice = normalize_qmlearn_audio_voice_key(voice_key).lower()
+    # Added 2026-07-31: English SOT assets are canonical only in their accent
+    # folder; the Data root contains legacy/broken clips and must not win.
+    if voice_dir != QMLEARN_DATA_ROOT and normalized_voice not in {"en-gb", "en-us"}:
+        roots.append(QMLEARN_DATA_ROOT)
     langs = qmlearn_audio_lang_candidates(voice_key)
     candidates: list[Path] = []
     seen: set[str] = set()
@@ -402,7 +530,11 @@ def fast_qmlearn_audio_path(text: object = "", voice_key: object = "sot:en-GB", 
                 break
         except Exception:
             continue
-    if found is None and use_index:
+    # Added 2026-07-31: do not materialize the persisted asset map for a cold
+    # learner request. Startup warms directory indexes in the background; until
+    # then, the exact asset index and direct candidates are sufficient and avoid
+    # copying a large 95k-entry map while opening Space_V.
+    if found is None and use_index and allow_scan:
         for candidate in direct_candidates:
             try:
                 resolved_candidate = candidate.resolve()
@@ -468,6 +600,60 @@ def fast_qmlearn_audio_path(text: object = "", voice_key: object = "sot:en-GB", 
     return found
 
 
+# Added 2026-07-30: cache one content revision per resolved QMLearn audio file so clients invalidate only changed words.
+def qmlearn_audio_file_revision(audio_path: object = None) -> str:
+    try:
+        target = Path(audio_path).resolve()
+        target.relative_to(QMLEARN_DATA_ROOT.resolve())
+        cache_key = str(target).lower()
+        stat = target.stat()
+        mtime_ns = int(stat.st_mtime_ns)
+        size = int(stat.st_size)
+    except Exception:
+        return ""
+    with QMLEARN_AUDIO_REVISION_CACHE_LOCK:
+        cached = QMLEARN_AUDIO_REVISION_CACHE.get(cache_key)
+        if cached and cached[0] == mtime_ns and cached[1] == size:
+            return cached[2]
+        revision = f"{mtime_ns:x}-{size:x}"
+        QMLEARN_AUDIO_REVISION_CACHE[cache_key] = (mtime_ns, size, revision)
+        if len(QMLEARN_AUDIO_REVISION_CACHE) > 24000:
+            for key in list(QMLEARN_AUDIO_REVISION_CACHE.keys())[:6000]:
+                QMLEARN_AUDIO_REVISION_CACHE.pop(key, None)
+        return revision
+
+
+def qmlearn_word_audio_asset(word: object = "", voice_key: object = "") -> dict:
+    target_word = clean(word)
+    target_voice = normalize_space_v_refresh_voice(voice_key)
+    # Shared by Space V/W, PDF/Picture, QM City and direct qm-sound requests.
+    # The shared resolver must never block a learner on a full folder scan.
+    audio_path = fast_qmlearn_audio_path(target_word, target_voice, allow_scan=False, use_index=True)
+    revision = qmlearn_audio_file_revision(audio_path) if audio_path else ""
+    accent_key = "u" if target_voice.lower().endswith("en-us") else "g"
+    base_asset_id = f"v2:w:{vocab_key(target_word)}:{accent_key}"
+    return {
+        "path": audio_path,
+        "revision": revision or "missing",
+        "asset_id": f"{base_asset_id}:{revision or 'missing'}",
+        "voice": target_voice,
+    }
+
+
+# Added 2026-07-30: meaning clips share the same revisioned identity contract
+# as English word clips instead of a permanent text-only cache key.
+def qmlearn_meaning_audio_asset(meaning: object = "") -> dict:
+    text = clean(meaning)
+    path = qmdict_meaning_audio_local_path(text) if text else None
+    revision = qmlearn_audio_file_revision(path) if path else ""
+    digest = hashlib.sha256(text.lower().encode("utf-8")).hexdigest()[:32] if text else ""
+    return {
+        "path": path,
+        "revision": revision or "missing",
+        "asset_id": f"v2:m:{digest}:{revision or 'missing'}" if digest else "",
+    }
+
+
 def normalize_space_v_refresh_voice(voice_key: object = "") -> str:
     raw = clean(voice_key).strip().lower()
     if raw in {"us", "en-us", "sot:en-us", "sot-en-us"}:
@@ -526,6 +712,40 @@ def release_space_v_audio_refresh_quota(actor: str, day_key: str, *, admin: bool
                 SPACE_V_AUDIO_REFRESH_RATE.pop(actor, None)
 
 
+def refresh_qmlearn_audio_dir_index_entry(text: object = "", voice_key: object = "") -> None:
+    """Update one warm voice-directory index entry without rescanning all audio."""
+    target_text = clean(text)
+    target_voice = clean(voice_key) or "sot:en-GB"
+    if not target_text:
+        return
+    voice_dir = qmlearn_audio_voice_dir(target_voice)
+    try:
+        voice_key_text = str(voice_dir.resolve()).lower()
+    except Exception:
+        return
+    target = None
+    for path in qmlearn_audio_direct_candidates(target_text, target_voice):
+        try:
+            if str(path.parent.resolve()).lower() == voice_key_text and path.is_file():
+                target = path.resolve()
+                break
+        except Exception:
+            continue
+    if target is None:
+        return
+    try:
+        stat = target.stat()
+        revision = f"{int(stat.st_mtime_ns):x}-{int(stat.st_size):x}"
+    except Exception:
+        revision = ""
+    with QMLEARN_AUDIO_DIR_INDEX_LOCK:
+        index = QMLEARN_AUDIO_DIR_INDEX.setdefault(voice_key_text, {})
+        index[target.name.lower()] = target
+        revisions = QMLEARN_AUDIO_DIR_REVISION_INDEX.setdefault(voice_key_text, {})
+        if revision:
+            revisions[target.name.lower()] = revision
+
+
 def invalidate_qmlearn_audio_path_cache(text: object = "", voice_key: object = "") -> None:
     target_text = clean(text)
     target_voice = clean(voice_key) or "sot:en-GB"
@@ -537,12 +757,14 @@ def invalidate_qmlearn_audio_path_cache(text: object = "", voice_key: object = "
             if rel_path:
                 with QMLEARN_AUDIO_URL_CACHE_LOCK:
                     QMLEARN_AUDIO_URL_CACHE.pop(rel_path.lower(), None)
-    try:
-        voice_dir = qmlearn_audio_voice_dir(target_voice).resolve()
-        with QMLEARN_AUDIO_DIR_INDEX_LOCK:
-            QMLEARN_AUDIO_DIR_INDEX.pop(str(voice_dir).lower(), None)
-    except Exception:
-        pass
+            try:
+                cache_key = str(candidate.resolve()).lower()
+                with QMLEARN_AUDIO_REVISION_CACHE_LOCK:
+                    QMLEARN_AUDIO_REVISION_CACHE.pop(cache_key, None)
+            except Exception:
+                pass
+    # Directory indexes are repair-only. A worker write updates only the exact
+    # RAM path/revision entries used by learner audio requests.
 
 
 def invalidate_space_v_audio_payload_cache_for_word(word: object = "") -> int:
@@ -576,23 +798,26 @@ def space_v_audio_refresh_result_payload(
 ) -> dict:
     short_key = "us" if target_voice.lower().endswith("en-us") else "uk"
     rel_path = qmlearn_data_relative_path(audio_path)
-    version = int(time.time() * 1000)
-    try:
-        if audio_path and Path(audio_path).is_file():
-            version = int(Path(audio_path).stat().st_mtime_ns)
-    except Exception:
-        pass
+    if audio_path:
+        asset = {"path": audio_path, "revision": qmlearn_audio_file_revision(audio_path) or "missing"}
+        accent_key = "u" if target_voice.lower().endswith("en-us") else "g"
+        asset["asset_id"] = f"v2:w:{vocab_key(target_word)}:{accent_key}:{asset['revision']}"
+    else:
+        asset = qmlearn_word_audio_asset(target_word, target_voice)
+    version = clean(asset.get("revision")) or "missing"
     if rel_path:
         clip = {
             "m": "audio/mpeg",
-            "u": f"/server-data/qm-sound?path={quote(rel_path, safe='')}&v={version}",
+            "u": qm_sound_protocol_url(rel_path=rel_path, file_revision=version),
+            "aid": clean(asset.get("asset_id")),
             "src": "QMLearn/Data/refreshed",
             "voice": target_voice,
         }
     else:
         clip = {
             "m": "audio/mpeg",
-            "u": f"/server-data/qm-sound?word={quote(target_word, safe='')}&voice={quote(target_voice, safe='')}&v={version}",
+            "u": qm_sound_protocol_url(word=target_word, voice=target_voice, file_revision=version),
+            "aid": clean(asset.get("asset_id")),
             "src": "QMLearn/Data/refreshed-lazy",
             "voice": target_voice,
         }
@@ -686,7 +911,7 @@ def release_space_v_audio_refresh_slot() -> None:
 
 def refresh_space_v_word_audio(username: object = "", word: object = "", voice_key: object = "", *, admin: bool = False) -> dict:
     actor = normalize_username(username)
-    target_word = clean(word)
+    target_word = normalize_qmdict_tts_word(word)
     target_voice = normalize_space_v_refresh_voice(voice_key)
     if not actor:
         raise RuntimeError("Chua dang nhap.")
@@ -695,7 +920,7 @@ def refresh_space_v_word_audio(username: object = "", word: object = "", voice_k
     singleflight_wait = wait_for_space_v_audio_refresh_singleflight(target_word, target_voice)
     if singleflight_wait:
         if singleflight_wait.get("timeout"):
-            audio_path = fast_qmlearn_audio_path(target_word, target_voice, allow_scan=True, use_index=False)
+            audio_path = fast_qmlearn_audio_path(target_word, target_voice, allow_scan=False, use_index=False)
             if audio_path:
                 return space_v_audio_refresh_result_payload(target_word, target_voice, audio_path, coalesced=True)
             raise RuntimeError("Dang co may khac sua audio tu nay, hay thu lai sau vai giay.")
@@ -714,7 +939,7 @@ def refresh_space_v_word_audio(username: object = "", word: object = "", voice_k
         finish_space_v_audio_refresh_singleflight(target_word, target_voice, error=message)
         raise RuntimeError(message)
     try:
-        audio_bytes = synthesize_space_v_sound_of_text_bytes(
+        audio_bytes, audio_source = synthesize_bulk_audio_worker_first(
             target_word,
             target_voice,
             lambda message: stt_debug_log("space_v_audio_refresh", username=actor, word=target_word, voice=target_voice, message=message),
@@ -725,6 +950,7 @@ def refresh_space_v_word_audio(username: object = "", word: object = "", voice_k
             audio_bytes,
             lambda message: stt_debug_log("space_v_audio_refresh", username=actor, word=target_word, voice=target_voice, message=message),
         )
+        refresh_qmlearn_audio_dir_index_entry(target_word, target_voice)
     except Exception as exc:
         release_space_v_audio_refresh_quota(actor, day_key, admin=admin)
         finish_space_v_audio_refresh_singleflight(target_word, target_voice, error=f"Khong sua duoc audio Space_V: {exc}")
@@ -734,7 +960,7 @@ def refresh_space_v_word_audio(username: object = "", word: object = "", voice_k
     try:
         invalidate_qmlearn_audio_path_cache(target_word, target_voice)
         invalidated_payloads = invalidate_space_v_audio_payload_cache_for_word(target_word)
-        audio_path = saved_path if saved_path and Path(saved_path).is_file() else fast_qmlearn_audio_path(target_word, target_voice, allow_scan=True, use_index=False)
+        audio_path = saved_path if saved_path and Path(saved_path).is_file() else fast_qmlearn_audio_path(target_word, target_voice, allow_scan=False, use_index=False)
         result = space_v_audio_refresh_result_payload(
             target_word,
             target_voice,
@@ -742,6 +968,7 @@ def refresh_space_v_word_audio(username: object = "", word: object = "", voice_k
             invalidated_payloads=invalidated_payloads,
             quota={"limit": daily_limit, "remaining": remaining, "admin": bool(admin), "day": day_key},
         )
+        result["source"] = audio_source
         finish_space_v_audio_refresh_singleflight(target_word, target_voice, result=result)
         return result
     except Exception as exc:
@@ -749,10 +976,127 @@ def refresh_space_v_word_audio(username: object = "", word: object = "", voice_k
         raise
 
 
-def qmdict_word_audio_refresh_entries(mode: str = "all") -> list[tuple[str, str, str]]:
+def qmdict_ocr_audio_priority_words(progress=None, cancelled=None, force: bool = False) -> list[str]:
+    """Load the persisted OCR-first order; build it only on the first explicit refresh."""
+    try:
+        if not force:
+            try:
+                saved = json.loads(QMDICT_OCR_AUDIO_PRIORITY_FILE.read_text(encoding="utf-8-sig", errors="replace"))
+                saved_words = saved.get("words") if isinstance(saved, dict) else None
+                if isinstance(saved_words, list):
+                    words = [clean(word) for word in saved_words if clean(word)]
+                    if callable(progress):
+                        progress(int(saved.get("pages", 0) or 0), int(saved.get("pages", 0) or 0), len(words))
+                    return words
+            except Exception:
+                pass
+            # The persisted list is intentionally opt-in; normal refreshes never rescan OCR.
+            return []
+        ocr_revision = int(ocr_cache_revision_ns() or 0)
+        qmdict_revision = qmdict_source_signature_key()
+        signature = (ocr_revision, qmdict_revision)
+        with QMDICT_OCR_AUDIO_PRIORITY_LOCK:
+            cached = QMDICT_OCR_AUDIO_PRIORITY_CACHE
+            if not force and cached.get("signature") == signature and isinstance(cached.get("words"), list):
+                if callable(progress):
+                    progress(int(cached.get("pages", 0) or 0), int(cached.get("pages", 0) or 0), len(cached.get("words", [])))
+                return list(cached.get("words", []))
+        _revision, texts = ocr_cache_text_snapshot()
+        _runtime, qmdict = qmdict_runtime_and_dict()
+        if not isinstance(qmdict, dict) or not qmdict:
+            return []
+        lookup: dict[str, str] = {}
+        for raw_word in qmdict.keys():
+            word = clean(raw_word)
+            key = pdf_vocab_word_key(word)
+            if word and key and key not in lookup:
+                lookup[key] = word
+        try:
+            viewer_vocab_runtime = qmdict_runtime_module()
+        except Exception as exc:
+            stt_debug_log("qmdict_ocr_audio_priority_runtime_failed", error=str(exc))
+            return []
+        priority: list[str] = []
+        seen: set[str] = set()
+        total_pages = len(texts)
+        # Tokenize the complete OCR snapshot once, then reuse the repository's
+        # morphology/normalization validator for each unique token.
+        token_seen: set[str] = set()
+        tokens: list[str] = []
+        for text in texts:
+            for token in re.findall(r"[A-Za-z]+(?:[-'][A-Za-z]+)*", str(text or "")):
+                normalized = pdf_vocab_word_key(token)
+                if normalized and normalized not in token_seen:
+                    token_seen.add(normalized)
+                    tokens.append(normalized)
+        if callable(progress):
+            progress(0, len(tokens), 0)
+        line_to_word: dict[str, str] = {}
+        for raw_word, raw_line in qmdict.items():
+            canonical = clean(raw_word)
+            if canonical:
+                line_to_word.setdefault(str(raw_line), canonical)
+        for token_index, token in enumerate(tokens, 1):
+            if callable(cancelled) and cancelled():
+                return priority
+            valid_lines: list[object] = []
+            try:
+                viewer_vocab_runtime.is_valid_word(token, qmdict, valid_lines, number="1")
+            except Exception as exc:
+                stt_debug_log("qmdict_ocr_audio_priority_token_failed", token=token, error=str(exc))
+                continue
+            for line in valid_lines:
+                canonical = line_to_word.get(str(line))
+                if canonical and canonical not in seen:
+                    seen.add(canonical)
+                    priority.append(canonical)
+            if callable(progress) and (token_index == len(tokens) or token_index % 250 == 0):
+                progress(token_index, len(tokens), len(priority))
+        with QMDICT_OCR_AUDIO_PRIORITY_LOCK:
+            QMDICT_OCR_AUDIO_PRIORITY_CACHE.update(
+                {"signature": signature, "words": list(priority), "pages": total_pages, "built_at": utc_timestamp()}
+            )
+        atomic_write_json(
+            QMDICT_OCR_AUDIO_PRIORITY_FILE,
+            {"version": 1, "source": "postgresql_ocr_cache", "words": priority, "pages": total_pages, "built_at": utc_timestamp()},
+            indent=2,
+        )
+        return priority
+    except Exception as exc:
+        stt_debug_log("qmdict_ocr_audio_priority_failed", error=str(exc))
+        return []
+
+
+def qmdict_word_audio_refresh_entries(mode: str = "all", priority_words: object = None) -> list[tuple[str, str, str]]:
     clean_mode = clean(mode).strip().lower()
     entries: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str]] = set()
+    if clean_mode == "resume":
+        try:
+            payload = json.loads(QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE.read_text(encoding="utf-8-sig", errors="replace"))
+            raw_entries = payload.get("entries", []) if isinstance(payload, dict) else []
+            if not raw_entries:
+                requested_items = payload.get("requested_items") if isinstance(payload, dict) else None
+                session_mode = clean(payload.get("session_mode") or payload.get("mode")).lower() if isinstance(payload, dict) else ""
+                if isinstance(requested_items, list):
+                    raw_entries = qmdict_selected_word_audio_refresh_entries(requested_items)
+                elif session_mode in {"all", "force", "missing"}:
+                    raw_entries = qmdict_word_audio_refresh_entries(session_mode, priority_words=priority_words)
+            completed = {
+                (clean(row.get("word")).lower(), clean(row.get("voice")).lower())
+                for row in (payload.get("items", []) if isinstance(payload, dict) else [])
+                if isinstance(row, dict) and clean(row.get("status")).lower() in {"refreshed", "already_present"}
+            }
+            for raw in raw_entries:
+                if not isinstance(raw, (list, tuple)) or len(raw) < 3:
+                    continue
+                key, word, voice = clean(raw[0]).upper(), clean(raw[1]), normalize_space_v_refresh_voice(raw[2])
+                if word and (word.lower(), voice.lower()) not in completed and (word.lower(), voice.lower()) not in seen:
+                    seen.add((word.lower(), voice.lower()))
+                    entries.append((key or word.upper(), word, voice))
+        except Exception:
+            return []
+        return entries
     if clean_mode in {"failed", "retry", "retry-failed"}:
         try:
             payload = json.loads(QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE.read_text(encoding="utf-8-sig", errors="replace"))
@@ -778,10 +1122,22 @@ def qmdict_word_audio_refresh_entries(mode: str = "all") -> list[tuple[str, str,
             entries = []
         return entries
     _runtime, qmdict = qmdict_runtime_and_dict()
-    for raw_key, _raw_row in list(qmdict.items()):
+    qmdict_lookup = {clean(raw_word).lower(): clean(raw_word) for raw_word in qmdict.keys() if clean(raw_word)}
+    ordered_words: list[str] = []
+    seen_words: set[str] = set()
+    for raw_word in priority_words if isinstance(priority_words, (list, tuple, set)) else []:
+        key = clean(raw_word).lower()
+        word = qmdict_lookup.get(key, "")
+        if word and key not in seen_words:
+            seen_words.add(key)
+            ordered_words.append(word)
+    for raw_key in qmdict.keys():
         word = clean(raw_key)
-        if not word:
-            continue
+        key = word.lower()
+        if word and key not in seen_words:
+            seen_words.add(key)
+            ordered_words.append(word)
+    for word in ordered_words:
         for voice in ("sot:en-GB", "sot:en-US"):
             pair = (word.lower(), voice.lower())
             if pair in seen:
@@ -791,114 +1147,381 @@ def qmdict_word_audio_refresh_entries(mode: str = "all") -> list[tuple[str, str,
     return entries
 
 
-def refresh_qmdict_word_audio_item(key: object = "", word: object = "", voice_key: object = "") -> dict:
+def qmdict_selected_word_audio_refresh_entries(items: object = None) -> list[tuple[str, str, str]]:
+    entries: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in items if isinstance(items, list) else []:
+        if isinstance(row, dict):
+            word = clean(row.get("word") or row.get("key"))
+            voices = row.get("voices") if isinstance(row.get("voices"), list) else [row.get("voice")]
+        else:
+            word = clean(row)
+            voices = ["sot:en-GB", "sot:en-US"]
+        for raw_voice in voices:
+            if not clean(raw_voice):
+                raw_voice = "sot:en-GB"
+            try:
+                voice = normalize_space_v_refresh_voice(raw_voice)
+            except Exception:
+                continue
+            pair = (word.lower(), voice.lower())
+            if word and pair not in seen:
+                seen.add(pair)
+                entries.append((word.upper(), word, voice))
+    return entries
+
+
+def synthesize_qmdict_word_audio_item(key: object = "", word: object = "", voice_key: object = "", job_id: object = "", force: bool = True) -> dict:
+    """Synthesize one bulk item without doing file, index, or report I/O."""
     target_key = clean(key).upper()
-    target_word = clean(word)
+    target_word = normalize_qmdict_tts_word(word)
     target_voice = normalize_space_v_refresh_voice(voice_key)
     row = {"key": target_key or target_word.upper(), "word": target_word, "voice": target_voice, "status": ""}
     if not target_word:
         row.update({"status": "failed", "error": "Missing QmDict word."})
-        return row
+        return {"row": row, "audio_bytes": b"", "audio_source": "", "attempts": 0}
+    if not force:
+        existing_path = fast_qmlearn_audio_path(target_word, target_voice, allow_scan=False, use_index=True)
+        if existing_path is not None and Path(existing_path).is_file() and Path(existing_path).stat().st_size > 0:
+            row.update({"status": "already_present", "path": qmlearn_data_relative_path(existing_path), "attempts": 0})
+            return {"row": row, "audio_bytes": b"", "audio_source": "", "attempts": 0}
     last_error = ""
     for attempt in range(1, 4):
+        if qmdict_word_audio_refresh_cancel_requested(job_id):
+            row.update({"status": "cancelled", "error": "Refresh cancelled."})
+            return {"row": row, "audio_bytes": b"", "audio_source": "", "attempts": attempt}
         try:
             invalidate_qmlearn_audio_path_cache(target_word, target_voice)
-            from future_vocab_builder_gui import force_save_local_sound_bytes, synthesize_sound_of_text_reliable  # noqa: PLC0415
-
-            audio_bytes = synthesize_sound_of_text_reliable(
+            audio_bytes, audio_source = synthesize_bulk_audio_worker_first(
                 target_word,
                 target_voice,
-                lambda message: stt_debug_log("qmdict_word_audio_refresh", key=target_key, word=target_word, voice=target_voice, attempt=attempt, message=message),
+                lambda message: stt_debug_log(
+                    "qmdict_word_audio_refresh",
+                    key=target_key,
+                    word=target_word,
+                    voice=target_voice,
+                    attempt=attempt,
+                    message=message,
+                ),
             )
-            saved_path = force_save_local_sound_bytes(
+            return {"row": row, "audio_bytes": audio_bytes, "audio_source": audio_source, "attempts": attempt}
+        except Exception as exc:
+            last_error = str(exc)
+            if attempt < 3 and not qmdict_word_audio_refresh_cancel_requested(job_id):
+                time.sleep(0.7 * attempt)
+    row.update({"status": "failed", "error": last_error or "Unknown audio synthesis error.", "attempts": 3})
+    return {"row": row, "audio_bytes": b"", "audio_source": "", "attempts": 3}
+
+
+# Added 2026-07-31: bounded writer stage keeps distributed TTS slots full while
+# MP3 replacement, revision invalidation, and registry updates complete behind it.
+def persist_qmdict_word_audio_item(result: dict, job_id: object = "") -> dict:
+    row = dict(result.get("row") if isinstance(result, dict) and isinstance(result.get("row"), dict) else {})
+    target_word = clean(row.get("word"))
+    target_voice = clean(row.get("voice"))
+    target_key = clean(row.get("key")).upper()
+    if clean(row.get("status")) in {"already_present", "cancelled", "failed"}:
+        return row
+    audio_bytes = result.get("audio_bytes") if isinstance(result, dict) else b""
+    audio_source = clean(result.get("audio_source")) if isinstance(result, dict) else ""
+    synthesis_attempts = max(1, int(result.get("attempts", 1) or 1)) if isinstance(result, dict) else 1
+    if not target_word or not target_voice or not isinstance(audio_bytes, (bytes, bytearray)) or not audio_bytes:
+        row.update({"status": "failed", "error": "Audio synthesis returned no bytes.", "attempts": synthesis_attempts})
+        return row
+    last_error = ""
+    for persist_attempt in range(1, 4):
+        if qmdict_word_audio_refresh_cancel_requested(job_id):
+            row.update({"status": "cancelled", "error": "Refresh cancelled."})
+            return row
+        try:
+            saved_path = force_save_space_v_sound_audio(
                 target_word,
                 target_voice,
                 audio_bytes,
-                lambda message: stt_debug_log("qmdict_word_audio_refresh", key=target_key, word=target_word, voice=target_voice, attempt=attempt, message=message),
+                lambda message: stt_debug_log("qmdict_word_audio_refresh", key=target_key, word=target_word, voice=target_voice, attempt=synthesis_attempts, message=message),
             )
+            refresh_qmlearn_audio_dir_index_entry(target_word, target_voice)
             invalidate_qmlearn_audio_path_cache(target_word, target_voice)
-            audio_path = saved_path if saved_path and Path(saved_path).is_file() else fast_qmlearn_audio_path(target_word, target_voice, allow_scan=True, use_index=False)
+            invalidate_space_v_audio_payload_cache_for_word(target_word)
+            audio_path = saved_path if saved_path and Path(saved_path).is_file() else fast_qmlearn_audio_path(target_word, target_voice, allow_scan=False, use_index=False)
             if audio_path is not None and Path(audio_path).is_file():
-                row.update({"status": "refreshed", "path": qmlearn_data_relative_path(audio_path), "attempts": attempt})
+                row.update(
+                    {
+                        "status": "refreshed",
+                        "path": qmlearn_data_relative_path(audio_path),
+                        "attempts": synthesis_attempts,
+                        "persist_attempts": persist_attempt,
+                        "source": audio_source,
+                    }
+                )
                 return row
             raise RuntimeError("Audio file was not saved after synthesis.")
         except Exception as exc:
             last_error = str(exc)
-            if attempt < 3:
-                time.sleep(0.7 * attempt)
-    row.update({"status": "failed", "error": last_error or "Unknown audio refresh error.", "attempts": 3})
+            if persist_attempt < 3 and not qmdict_word_audio_refresh_cancel_requested(job_id):
+                time.sleep(0.25 * persist_attempt)
+    row.update({"status": "failed", "error": last_error or "Unknown audio persistence error.", "attempts": synthesis_attempts, "persist_attempts": 3})
     return row
 
 
-def run_qmdict_word_audio_refresh_job(job_id: str, mode: str = "all") -> None:
-    done = refreshed = failed = scanned = 0
+def refresh_qmdict_word_audio_item(key: object = "", word: object = "", voice_key: object = "", job_id: object = "", force: bool = True) -> dict:
+    return persist_qmdict_word_audio_item(
+        synthesize_qmdict_word_audio_item(key, word, voice_key, job_id, force),
+        job_id,
+    )
+
+
+def run_qmdict_word_audio_refresh_job(job_id: str, mode: str = "all", requested_items: object = None) -> None:
+    done = refreshed = failed = scanned = priority_done = 0
+    resume_done_offset = resume_refreshed_offset = resume_failed_offset = 0
+    resume_session_total = 0
+    resume_requested_items = None
     report_rows: list[dict] = []
     try:
+        verify_qmdict_word_audio_runtime()
         ensure_qmdict_runtime_fresh(force=True)
-        entries = qmdict_word_audio_refresh_entries(mode)
+        session_mode = mode
+        resume_has_selected_items = False
+        if mode == "resume":
+            try:
+                previous_report = json.loads(QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE.read_text(encoding="utf-8-sig", errors="replace"))
+                session_mode = clean(previous_report.get("session_mode") or previous_report.get("mode")).lower() or "missing"
+                resume_requested_items = previous_report.get("requested_items") if isinstance(previous_report.get("requested_items"), list) else None
+                resume_has_selected_items = isinstance(resume_requested_items, list)
+                resume_session_total = max(0, int(previous_report.get("session_base_total", previous_report.get("session_total", previous_report.get("total", 0))) or 0))
+                resume_done_offset = max(0, int(previous_report.get("session_done", previous_report.get("done", 0)) or 0))
+                resume_refreshed_offset = max(0, int(previous_report.get("session_refreshed", previous_report.get("refreshed", 0)) or 0))
+                resume_failed_offset = max(0, int(previous_report.get("session_failed", previous_report.get("failed", 0)) or 0))
+            except Exception:
+                session_mode = "missing"
+        priority_words: list[str] = []
+        if (
+            not isinstance(requested_items, list)
+            and not resume_has_selected_items
+            and session_mode in {"all", "force", "missing"}
+            and QMDICT_OCR_AUDIO_PRIORITY_FILE.is_file()
+        ):
+            def update_priority_progress(page_done: int, page_total: int, word_total: int) -> None:
+                with QMDICT_WORD_AUDIO_REFRESH_LOCK:
+                    if clean(QMDICT_WORD_AUDIO_REFRESH_JOB.get("job_id")) != clean(job_id):
+                        return
+                    QMDICT_WORD_AUDIO_REFRESH_JOB.update(
+                        {
+                            "phase": "prioritizing",
+                            "message": "Matching unique PostgreSQL OCR tokens with QmDict.",
+                            "scan_total": max(0, int(page_total or 0)),
+                            "scan_done": max(0, int(page_done or 0)),
+                            "priority_total": max(0, int(word_total or 0)) * 2,
+                            "priority_done": 0,
+                            "updated_at": utc_timestamp(),
+                        }
+                    )
+                    priority_snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+                write_qmdict_word_audio_refresh_progress({"version": 1, **priority_snapshot})
+
+            priority_words = qmdict_ocr_audio_priority_words(
+                progress=update_priority_progress,
+                cancelled=lambda: qmdict_word_audio_refresh_cancel_requested(job_id),
+            )
+        entries = [] if qmdict_word_audio_refresh_cancel_requested(job_id) else (
+            qmdict_selected_word_audio_refresh_entries(requested_items)
+            if isinstance(requested_items, list)
+            else qmdict_word_audio_refresh_entries(mode, priority_words=priority_words)
+        )
+        if mode == "resume":
+            if resume_has_selected_items:
+                resume_session_total = len(qmdict_selected_word_audio_refresh_entries(resume_requested_items))
+            elif session_mode in {"all", "force"}:
+                resume_session_total = len(qmdict_word_audio_refresh_entries("all"))
+            resume_session_total = max(len(entries), resume_session_total)
+            # Remaining entries already include every failed/cancelled item that
+            # must be retried; derive the stable checkpoint from the session scope.
+            resume_done_offset = max(0, resume_session_total - len(entries))
+            resume_refreshed_offset = min(resume_refreshed_offset, resume_done_offset)
+            resume_failed_offset = 0
+        force_refresh = mode in {"all", "force", "selected-force"}
+        if mode == "resume":
+            force_refresh = session_mode in {"all", "force", "selected-force"}
+        if mode in {"missing", "selected-missing"}:
+            missing_entries = []
+            scan_candidates = len(entries)
+            for scan_index, item in enumerate(entries, 1):
+                if qmdict_word_audio_refresh_cancel_requested(job_id):
+                    missing_entries = []
+                    break
+                audio_path = fast_qmlearn_audio_path(item[1], item[2], allow_scan=False, use_index=True)
+                try:
+                    valid = audio_path is not None and Path(audio_path).is_file() and Path(audio_path).stat().st_size > 0
+                except OSError:
+                    valid = False
+                if not valid:
+                    missing_entries.append(item)
+                if scan_index == scan_candidates or scan_index % 250 == 0:
+                    with QMDICT_WORD_AUDIO_REFRESH_LOCK:
+                        QMDICT_WORD_AUDIO_REFRESH_JOB.update(
+                            {
+                                "phase": "scanning",
+                                "message": "Checking existing UK/US audio files in OCR-first order.",
+                                "scan_total": scan_candidates,
+                                "scan_done": scan_index,
+                                "total": len(missing_entries),
+                                "updated_at": utc_timestamp(),
+                            }
+                        )
+                        scan_snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+                    write_qmdict_word_audio_refresh_progress({"version": 1, **scan_snapshot})
+            entries = missing_entries
+        priority_word_keys = {clean(word).lower() for word in priority_words if clean(word)}
+        priority_entry_keys = {
+            (clean(word).lower(), clean(voice).lower())
+            for _key, word, voice in entries
+            if clean(word).lower() in priority_word_keys
+        }
+        priority_total = len(priority_entry_keys)
         total = len(entries)
-        worker_count = min(QMDICT_WORD_AUDIO_REFRESH_MAX_WORKERS, total) if total else 0
+        session_total = resume_session_total if mode == "resume" and resume_session_total else total
+        report_requested_items = requested_items if isinstance(requested_items, list) else resume_requested_items
+        worker_count = qmdict_bulk_audio_concurrency(total)
         with QMDICT_WORD_AUDIO_REFRESH_LOCK:
             QMDICT_WORD_AUDIO_REFRESH_JOB.update(
                 {
                     "phase": "downloading" if total else "complete",
-                    "message": f"Refreshing QmDict UK/US word audio with {worker_count} workers." if total else "No QmDict word audio needs retry.",
+                    "message": f"Refreshing QmDict UK/US word audio with {worker_count} SOT slots." if total else "No QmDict word audio needs retry.",
                     "scan_total": total,
                     "scan_done": total,
                     "workers": worker_count,
-                    "total": total,
-                    "done": 0,
-                    "refreshed": 0,
-                    "failed": 0,
+                    "total": session_total,
+                    "done": resume_done_offset,
+                    "refreshed": resume_refreshed_offset,
+                    "failed": resume_failed_offset,
+                    "session_total": session_total,
+                    "session_base_total": session_total,
+                    "session_done": resume_done_offset,
+                    "session_refreshed": resume_refreshed_offset,
+                    "session_failed": resume_failed_offset,
+                    "priority_total": priority_total,
+                    "priority_done": 0,
                     "last_key": "",
                     "last_word": "",
                     "last_voice": "",
                     "updated_at": utc_timestamp(),
                     "error": "",
+                    "cancel_requested": bool(QMDICT_WORD_AUDIO_REFRESH_JOB.get("cancel_requested")),
                 }
             )
             snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+        atomic_write_json(QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE, {"version": 1, **snapshot, "session_mode": session_mode, "entries": entries, "requested_items": report_requested_items, "items": []}, indent=2)
         write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
         if entries:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="qmdict-word-audio") as executor:
-                future_map = {executor.submit(refresh_qmdict_word_audio_item, key, word, voice): (key, word, voice) for key, word, voice in entries}
-                for future in concurrent.futures.as_completed(future_map):
-                    key, word, voice = future_map[future]
+            synthesis_executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(128, total), thread_name_prefix="qmdict-word-synthesis")
+            writer_workers = max(1, min(int(QMDICT_WORD_AUDIO_WRITER_WORKERS or 8), total))
+            writer_executor = concurrent.futures.ThreadPoolExecutor(max_workers=writer_workers, thread_name_prefix="qmdict-word-writer")
+            result_buffer_limit = max(writer_workers, int(QMDICT_WORD_AUDIO_RESULT_BUFFER or 128))
+            synthesis_futures = {}
+            writer_futures = {}
+            next_index = 0
+
+            def fill_word_audio_capacity() -> None:
+                nonlocal next_index, worker_count
+                desired = qmdict_bulk_audio_concurrency(len(entries) - done)
+                worker_count = desired
+                while not qmdict_word_audio_refresh_cancel_requested(job_id) and len(synthesis_futures) < desired and next_index < len(entries):
+                    key, word, voice = entries[next_index]
+                    next_index += 1
+                    synthesis_futures[synthesis_executor.submit(synthesize_qmdict_word_audio_item, key, word, voice, job_id, force_refresh)] = (key, word, voice)
+                with QMDICT_WORD_AUDIO_REFRESH_LOCK:
+                    QMDICT_WORD_AUDIO_REFRESH_JOB.update(
+                        {
+                            "workers": desired,
+                            "writers": writer_workers,
+                            "writer_pending": len(writer_futures),
+                            "result_buffer_limit": result_buffer_limit,
+                        }
+                    )
+
+            def record_word_audio_row(row: dict, key: str, word: str, voice: str) -> None:
+                nonlocal done, refreshed, failed, scanned, priority_done, snapshot
+                status = clean(row.get("status", "")).lower()
+                if status != "cancelled":
                     done += 1
                     scanned += 1
-                    try:
-                        row = future.result()
-                    except Exception as exc:
-                        row = {"key": key, "word": word, "voice": voice, "status": "failed", "error": str(exc)}
-                    status = clean(row.get("status", "")).lower()
-                    if status == "refreshed":
-                        refreshed += 1
-                    else:
-                        failed += 1
-                    report_rows.append(row)
-                    with QMDICT_WORD_AUDIO_REFRESH_LOCK:
-                        QMDICT_WORD_AUDIO_REFRESH_JOB.update(
-                            {
-                                "done": done,
-                                "scan_done": scanned,
-                                "refreshed": refreshed,
-                                "failed": failed,
-                                "last_key": clean(row.get("key") or key),
-                                "last_word": clean(row.get("word") or word)[:180],
-                                "last_voice": clean(row.get("voice") or voice),
-                                "updated_at": utc_timestamp(),
-                            }
-                        )
-                        snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
-                    if done == total or done % 10 == 0 or status != "refreshed":
-                        write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
+                if status == "refreshed":
+                    refreshed += 1
+                elif status not in {"cancelled", "already_present"}:
+                    failed += 1
+                report_rows.append(row)
+                if (clean(row.get("word") or word).lower(), clean(row.get("voice") or voice).lower()) in priority_entry_keys:
+                    priority_done += 1
+                with QMDICT_WORD_AUDIO_REFRESH_LOCK:
+                    QMDICT_WORD_AUDIO_REFRESH_JOB.update(
+                        {
+                            "done": resume_done_offset + done,
+                            "scan_done": scanned,
+                            "refreshed": resume_refreshed_offset + refreshed,
+                            "failed": resume_failed_offset + failed,
+                            "session_total": session_total,
+                            "session_done": resume_done_offset + done,
+                            "session_refreshed": resume_refreshed_offset + refreshed,
+                            "session_failed": resume_failed_offset + failed,
+                            "priority_done": priority_done,
+                            "writer_pending": len(writer_futures),
+                            "last_key": clean(row.get("key") or key),
+                            "last_word": clean(row.get("word") or word)[:180],
+                            "last_voice": clean(row.get("voice") or voice),
+                            "updated_at": utc_timestamp(),
+                        }
+                    )
+                    snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+                if done == total or (status != "cancelled" and done % 50 == 0) or status not in {"refreshed", "cancelled"}:
+                    atomic_write_json(QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE, {"version": 1, **snapshot, "session_mode": session_mode, "entries": entries, "requested_items": report_requested_items, "items": report_rows}, indent=2)
+                    write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
+
+            fill_word_audio_capacity()
+            try:
+                while synthesis_futures or writer_futures:
+                    if qmdict_word_audio_refresh_cancel_requested(job_id):
+                        for future in synthesis_futures:
+                            future.cancel()
+                    ready_writers = {future for future in writer_futures if future.done()}
+                    if not ready_writers and writer_futures and (len(writer_futures) >= result_buffer_limit or not synthesis_futures):
+                        ready_writers, _pending = concurrent.futures.wait(writer_futures, timeout=1.0, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for future in ready_writers:
+                        key, word, voice = writer_futures.pop(future)
+                        try:
+                            row = future.result()
+                        except concurrent.futures.CancelledError:
+                            row = {"key": key, "word": word, "voice": voice, "status": "cancelled", "error": "Refresh cancelled."}
+                        except Exception as exc:
+                            row = {"key": key, "word": word, "voice": voice, "status": "failed", "error": str(exc)}
+                        record_word_audio_row(row, key, word, voice)
+                    if synthesis_futures and len(writer_futures) < result_buffer_limit:
+                        ready_synthesis, _pending = concurrent.futures.wait(synthesis_futures, timeout=0.05, return_when=concurrent.futures.FIRST_COMPLETED)
+                        available_writer_slots = max(0, result_buffer_limit - len(writer_futures))
+                        for future in list(ready_synthesis)[:available_writer_slots]:
+                            key, word, voice = synthesis_futures.pop(future)
+                            try:
+                                result = future.result()
+                            except concurrent.futures.CancelledError:
+                                result = {"row": {"key": key, "word": word, "voice": voice, "status": "cancelled", "error": "Refresh cancelled."}}
+                            except Exception as exc:
+                                result = {"row": {"key": key, "word": word, "voice": voice, "status": "failed", "error": str(exc)}}
+                            writer_futures[writer_executor.submit(persist_qmdict_word_audio_item, result, job_id)] = (key, word, voice)
+                            # Refill immediately after the worker returns bytes; file,
+                            # index and report work continues in the bounded writer stage.
+                            fill_word_audio_capacity()
+                    elif not ready_writers:
+                        time.sleep(0.01)
+            finally:
+                synthesis_executor.shutdown(wait=True, cancel_futures=True)
+                writer_executor.shutdown(wait=True, cancel_futures=True)
+        cancelled = qmdict_word_audio_refresh_cancel_requested(job_id)
         completed_at = utc_timestamp()
         with QMDICT_WORD_AUDIO_REFRESH_LOCK:
             QMDICT_WORD_AUDIO_REFRESH_JOB.update(
                 {
                     "running": False,
-                    "phase": "complete",
-                    "message": "QmDict UK/US word audio refresh complete.",
+                    "phase": "cancelled" if cancelled else "complete",
+                    "message": "QmDict UK/US word audio refresh cancelled." if cancelled else "QmDict UK/US word audio refresh complete.",
                     "completed_at": completed_at,
                     "updated_at": completed_at,
                 }
@@ -906,11 +1529,11 @@ def run_qmdict_word_audio_refresh_job(job_id: str, mode: str = "all") -> None:
             final_snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
         atomic_write_json(
             QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE,
-            {"version": 1, **final_snapshot, "items": report_rows[-5000:]},
+            {"version": 1, **final_snapshot, "session_mode": session_mode, "entries": entries, "requested_items": report_requested_items, "items": report_rows},
             indent=2,
         )
         write_qmdict_word_audio_refresh_progress({"version": 1, **final_snapshot})
-        stt_debug_log("qmdict_word_audio_refresh_done", job_id=job_id, mode=mode, total=total, refreshed=refreshed, failed=failed)
+        stt_debug_log("qmdict_word_audio_refresh_done", job_id=job_id, mode=mode, total=total, refreshed=refreshed, failed=failed, cancelled=cancelled)
     except Exception as exc:
         with QMDICT_WORD_AUDIO_REFRESH_LOCK:
             QMDICT_WORD_AUDIO_REFRESH_JOB.update(
@@ -920,6 +1543,7 @@ def run_qmdict_word_audio_refresh_job(job_id: str, mode: str = "all") -> None:
                     "message": "QmDict UK/US word audio refresh failed.",
                     "updated_at": utc_timestamp(),
                     "error": str(exc),
+                    "cancel_requested": False,
                 }
             )
             snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
@@ -927,12 +1551,33 @@ def run_qmdict_word_audio_refresh_job(job_id: str, mode: str = "all") -> None:
         stt_debug_log("qmdict_word_audio_refresh_failed", job_id=job_id, mode=mode, error=str(exc))
 
 
-def start_qmdict_word_audio_refresh(mode: str = "all") -> dict:
+def start_qmdict_word_audio_refresh(mode: str = "all", items: object = None) -> dict:
     clean_mode = clean(mode).strip().lower() or "all"
-    if clean_mode not in {"all", "failed", "retry", "retry-failed"}:
+    selected_items = items if isinstance(items, list) else None
+    if selected_items is not None:
+        selected_items = selected_items[:1000]
+        if clean_mode in {"force", "all"}:
+            clean_mode = "selected-force"
+        elif clean_mode == "missing":
+            clean_mode = "selected-missing"
+        else:
+            clean_mode = "selected"
+    if clean_mode not in {"all", "force", "missing", "failed", "retry", "retry-failed", "resume", "selected", "selected-force", "selected-missing"}:
         clean_mode = "all"
     if clean_mode in {"retry", "retry-failed"}:
         clean_mode = "failed"
+    resume_seed = {}
+    if clean_mode == "resume":
+        try:
+            saved = json.loads(QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE.read_text(encoding="utf-8-sig", errors="replace"))
+            resume_seed = {
+                "total": max(0, int(saved.get("session_total", saved.get("total", 0)) or 0)),
+                "done": max(0, int(saved.get("session_done", saved.get("done", 0)) or 0)),
+                "refreshed": max(0, int(saved.get("session_refreshed", saved.get("refreshed", 0)) or 0)),
+                "failed": max(0, int(saved.get("session_failed", saved.get("failed", 0)) or 0)),
+            }
+        except Exception:
+            resume_seed = {}
     with QMDICT_WORD_AUDIO_REFRESH_LOCK:
         if QMDICT_WORD_AUDIO_REFRESH_JOB.get("running"):
             return {"started": False, "word_audio_refresh": dict(QMDICT_WORD_AUDIO_REFRESH_JOB)}
@@ -951,24 +1596,43 @@ def start_qmdict_word_audio_refresh(mode: str = "all") -> dict:
                 "scan_total": 0,
                 "scan_done": 0,
                 "workers": 0,
-                "total": 0,
-                "done": 0,
-                "refreshed": 0,
-                "failed": 0,
+                "total": int(resume_seed.get("total", 0) or 0),
+                "done": int(resume_seed.get("done", 0) or 0),
+                "refreshed": int(resume_seed.get("refreshed", 0) or 0),
+                "failed": int(resume_seed.get("failed", 0) or 0),
+                "priority_total": 0,
+                "priority_done": 0,
                 "last_key": "",
                 "last_word": "",
                 "last_voice": "",
                 "error": "",
+                "cancel_requested": False,
             }
         )
         snapshot = dict(QMDICT_WORD_AUDIO_REFRESH_JOB)
+    if clean_mode not in {"resume", "failed"}:
+        seed_entries = qmdict_selected_word_audio_refresh_entries(selected_items) if selected_items is not None else []
+        atomic_write_json(
+            QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE,
+            {
+                "version": 1,
+                **snapshot,
+                "session_mode": clean_mode,
+                "entries": seed_entries,
+                "requested_items": selected_items,
+                "items": [],
+            },
+            indent=2,
+        )
+        write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
     threading.Thread(
         target=run_qmdict_word_audio_refresh_job,
-        args=(job_id, clean_mode),
+        args=(job_id, clean_mode, selected_items),
         name=f"qmdict-word-audio-refresh-{job_id[:8]}",
         daemon=True,
     ).start()
-    write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
+    if clean_mode in {"resume", "failed"}:
+        write_qmdict_word_audio_refresh_progress({"version": 1, **snapshot})
     return {"started": True, "word_audio_refresh": snapshot}
 
 
@@ -1022,13 +1686,73 @@ def ensure_qmlearn_data_sound_plain_mp3(target: Path | None) -> Path | None:
 
 def qmdict_meaning_audio_dynamic_clip(meaning: object = "") -> dict:
     text = clean(meaning)
-    if not text or not qmdict_meaning_has_local_audio_stem(text, qmdict_audio_stem_index_shared()):
+    # Exact resolver/index lookup avoids rebuilding the legacy root stem scan.
+    if not text or qmdict_meaning_audio_local_path(text) is None:
         return {}
+    asset = qmlearn_meaning_audio_asset(text)
+    revision = clean(asset.get("revision")) or "0"
     return {
         "m": "audio/mpeg",
-        "u": f"/server-data/qm-sound?meaning={quote(text, safe='')}",
-        "aid": f"v1:m:{hashlib.sha256(text.lower().encode('utf-8')).hexdigest()[:32]}",
+        "u": qm_sound_protocol_url(meaning=text, file_revision=revision),
+        "aid": clean(asset.get("asset_id")),
         "src": "QMLearn/Data/meaning-lazy",
+    }
+
+
+# Added 2026-07-31: every shared QmSound URL carries one durable epoch and exact file revision.
+def qm_sound_protocol_url(
+    *,
+    word: object = "",
+    voice: object = "",
+    meaning: object = "",
+    rel_path: object = "",
+    file_revision: object = "",
+) -> str:
+    parts = []
+    if clean(meaning):
+        parts.append(f"meaning={quote(clean(meaning), safe='')}")
+    elif clean(word):
+        parts.append(f"word={quote(clean(word), safe='')}")
+        parts.append(f"voice={quote(clean(voice), safe='')}")
+    elif clean_path_value(rel_path):
+        parts.append(f"path={quote(clean_path_value(rel_path), safe='')}")
+    revision = clean(file_revision) or "0"
+    parts.append(f"audio_epoch={global_audio_cache_epoch()}")
+    parts.append(f"file_rev={quote(revision, safe='')}")
+    return "/server-data/qm-sound?" + "&".join(parts)
+
+
+# Added 2026-07-31: direct frontend callers resolve one exact immutable URL before fetching audio.
+def qm_sound_protocol_descriptor(
+    *,
+    word: object = "",
+    voice: object = "",
+    meaning: object = "",
+    rel_path: object = "",
+) -> dict:
+    target = None
+    if clean(meaning):
+        target = qmlearn_meaning_audio_asset(meaning).get("path")
+    elif clean(word):
+        target = qmlearn_word_audio_asset(word, voice).get("path")
+    elif clean_path_value(rel_path):
+        target = safe_qmlearn_data_sound_path(clean_path_value(rel_path))
+    if not target or not Path(target).is_file():
+        raise RuntimeError("Audio QMLearn khong ton tai.")
+    revision = qmlearn_audio_file_revision(target)
+    if not revision:
+        raise RuntimeError("Khong doc duoc revision audio QMLearn.")
+    return {
+        "path": target,
+        "audio_epoch": global_audio_cache_epoch(),
+        "file_revision": revision,
+        "url": qm_sound_protocol_url(
+            word=word,
+            voice=voice,
+            meaning=meaning,
+            rel_path=rel_path,
+            file_revision=revision,
+        ),
     }
 
 
@@ -1036,20 +1760,16 @@ def qmlearn_sound_url_for_audio_path(audio_path: object = None, fallback_query: 
     rel_path = qmlearn_data_relative_path(audio_path)
     if rel_path:
         cache_key = rel_path.lower()
+        version = qmlearn_audio_file_revision(audio_path)
+        protocol_signature = f"{global_audio_cache_epoch()}|{version}"
         with QMLEARN_AUDIO_URL_CACHE_LOCK:
             cached = QMLEARN_AUDIO_URL_CACHE.get(cache_key)
-            if cached and cached[1]:
+            if cached and cached[0] == protocol_signature and cached[1]:
                 return cached[1]
-        version = 0
-        try:
-            version = int(Path(audio_path).stat().st_mtime)
-        except Exception:
-            version = 0
-        suffix = f"&v={version}" if version else ""
-        url = f"/server-data/qm-sound?path={quote(rel_path, safe='')}{suffix}"
+        url = qm_sound_protocol_url(rel_path=rel_path, file_revision=version)
         if version:
             with QMLEARN_AUDIO_URL_CACHE_LOCK:
-                QMLEARN_AUDIO_URL_CACHE[cache_key] = (version, url)
+                QMLEARN_AUDIO_URL_CACHE[cache_key] = (protocol_signature, url)
                 if len(QMLEARN_AUDIO_URL_CACHE) > 20000:
                     for key in list(QMLEARN_AUDIO_URL_CACHE.keys())[:5000]:
                         QMLEARN_AUDIO_URL_CACHE.pop(key, None)
@@ -1063,19 +1783,30 @@ def qmdict_space_v_dynamic_audio_map(word: object = "", meaning: object = "") ->
     try:
         for _label, voice_key, short_key in SPACE_V_DEFAULT_VOICES:
             if target_word:
-                # Added 2026-07-21: resolve audio only when the client plays/prefetches it, not while opening every word in the lesson.
                 normalized_voice = clean(voice_key)
-                sound_url = f"/server-data/qm-sound?word={quote(target_word, safe='')}&voice={quote(normalized_voice, safe='')}"
+                accent_key = "u" if normalized_voice.lower().endswith("en-us") else "g"
+                asset = qmlearn_word_audio_asset(target_word, normalized_voice)
+                revision = clean(asset.get("revision")) or "0"
+                sound_url = qm_sound_protocol_url(word=target_word, voice=normalized_voice, file_revision=revision)
                 clip = {
                     "m": "audio/mpeg",
                     "u": sound_url,
-                    "aid": f"v1:w:{vocab_key(target_word)}:{'u' if normalized_voice.lower().endswith('en-us') else 'g'}",
-                    "src": "QMLearn/Data/lazy",
+                    "aid": f"v3:w:{vocab_key(target_word)}:{accent_key}:{global_audio_cache_epoch()}:{revision}",
+                    "src": "QMLearn/Data/epoch-revision",
                 }
                 audio[voice_key] = clip
                 audio[short_key] = clip
-        meaning_clip = qmdict_meaning_audio_dynamic_clip(meaning)
-        if meaning_clip:
+        meaning_text = clean(meaning)
+        if meaning_text:
+            digest = hashlib.sha256(meaning_text.lower().encode("utf-8")).hexdigest()[:32]
+            meaning_asset = qmlearn_meaning_audio_asset(meaning_text)
+            meaning_revision = clean(meaning_asset.get("revision")) or "0"
+            meaning_clip = {
+                "m": "audio/mpeg",
+                "u": qm_sound_protocol_url(meaning=meaning_text, file_revision=meaning_revision),
+                "aid": f"v3:m:{digest}:{global_audio_cache_epoch()}:{meaning_revision}",
+                "src": "QMLearn/Data/meaning-epoch-revision",
+            }
             audio["sot:vi-VN"] = meaning_clip
             audio["vi-VN"] = meaning_clip
             audio["vi"] = meaning_clip
@@ -1121,249 +1852,219 @@ def qmdict_space_v_dynamic_detail(word: object = "", summary: object = None) -> 
     return {"src": "qmdict", "key": target_word, "items": items} if items else {}
 
 
-SPACE_V_DYNAMIC_IMAGE_CACHE_LOCK = threading.Lock()
-SPACE_V_DYNAMIC_IMAGE_CACHE: dict[str, dict] = {}
-SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOADED = False
-SPACE_V_DYNAMIC_IMAGE_INFLIGHT: dict[str, float] = {}
-SPACE_V_DYNAMIC_IMAGE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=6, thread_name_prefix="space-v-image-fetch")
-SPACE_V_DYNAMIC_IMAGE_CACHE_MAX = 2048
-SPACE_V_DYNAMIC_IMAGE_INFLIGHT_MAX = 512
-SPACE_V_DYNAMIC_IMAGE_POSITIVE_TTL_SECONDS = 86400.0
-SPACE_V_DYNAMIC_IMAGE_NEGATIVE_TTL_SECONDS = 600.0
-SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOCK = threading.Lock()
-SPACE_V_DYNAMIC_IMAGE_POSTGRES_PENDING: dict[str, dict] = {}
-SPACE_V_DYNAMIC_IMAGE_POSTGRES_SCHEDULED = False
-SPACE_V_IMAGE_PREFETCH_LOCK = threading.Lock()
-SPACE_V_IMAGE_PREFETCH_PENDING: dict[str, str] = {}
-SPACE_V_IMAGE_PREFETCH_ACTIVE_KEYS: set[str] = set()
-SPACE_V_IMAGE_PREFETCH_SCHEDULED = False
-SPACE_V_IMAGE_PREFETCH_MAX_PENDING = 192
-SPACE_V_IMAGE_PREFETCH_BATCH_SIZE = 12
-SPACE_V_IMAGE_PREFETCH_MAX_INFLIGHT = 12
+SPACE_V_LOCAL_PICTURE_INDEX_LOCK = threading.RLock()
+SPACE_V_LOCAL_PICTURE_INDEX_STATE = {
+    "folder": "",
+    "folder_signature": None,
+    "entries": {},
+    "indexed_files": 0,
+    "duplicate_words": 0,
+    "ignored_files": 0,
+    "exists": False,
+    "built_at": "",
+    "next_check_at": 0.0,
+}
+SPACE_V_LOCAL_PICTURE_INDEX_CHECK_SECONDS = 5.0
+SPACE_V_LOCAL_PICTURE_SUFFIX_PRIORITY = {
+    ".png": 0,
+    ".webp": 1,
+    ".jpg": 2,
+    ".jpeg": 3,
+    ".jfif": 4,
+    ".gif": 5,
+    ".bmp": 6,
+}
 
 
-def _space_v_dynamic_image_cached_row(key: str) -> dict | None:
-    global SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOADED
-    now = time.monotonic()
-    with SPACE_V_DYNAMIC_IMAGE_CACHE_LOCK:
-        if not SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOADED:
-            epoch_now = time.time()
-            for stored in server_database_load_vocab_image_cache_rows(SPACE_V_DYNAMIC_IMAGE_CACHE_MAX):
-                stored_key = clean(stored.get("word_key", "")).lower()
-                expires_epoch = float(stored.get("expires_epoch", 0) or 0)
-                if not stored_key or expires_epoch <= epoch_now:
-                    continue
-                SPACE_V_DYNAMIC_IMAGE_CACHE[stored_key] = {
-                    "image": dict(stored.get("image") or {}),
-                    "expires_at": time.monotonic() + max(0.1, expires_epoch - epoch_now),
-                }
-            SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOADED = True
-        cached = SPACE_V_DYNAMIC_IMAGE_CACHE.get(key)
-        if cached and float(cached.get("expires_at", 0) or 0) > now:
-            return cached
-        if cached:
-            SPACE_V_DYNAMIC_IMAGE_CACHE.pop(key, None)
-        return None
+# Added 2026-07-30: invalidate one shared local picture index after the PostgreSQL-backed folder setting changes.
+def invalidate_space_v_local_picture_index() -> None:
+    with SPACE_V_LOCAL_PICTURE_INDEX_LOCK:
+        SPACE_V_LOCAL_PICTURE_INDEX_STATE.update({
+            "folder": "",
+            "folder_signature": None,
+            "entries": {},
+            "indexed_files": 0,
+            "duplicate_words": 0,
+            "ignored_files": 0,
+            "exists": False,
+            "built_at": "",
+            "next_check_at": 0.0,
+        })
 
 
-def _queue_space_v_dynamic_image_postgres(word_key: str, image: dict, expires_epoch: float) -> None:
-    global SPACE_V_DYNAMIC_IMAGE_POSTGRES_SCHEDULED
-    with SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOCK:
-        SPACE_V_DYNAMIC_IMAGE_POSTGRES_PENDING[word_key] = {
-            "word_key": word_key,
-            "image": dict(image),
-            "expires_epoch": float(expires_epoch),
-        }
-        if SPACE_V_DYNAMIC_IMAGE_POSTGRES_SCHEDULED:
-            return
-        SPACE_V_DYNAMIC_IMAGE_POSTGRES_SCHEDULED = True
-
-    def worker() -> None:
-        global SPACE_V_DYNAMIC_IMAGE_POSTGRES_SCHEDULED
-        while True:
-            time.sleep(1.0)
-            with SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOCK:
-                batch = list(SPACE_V_DYNAMIC_IMAGE_POSTGRES_PENDING.values())
-                SPACE_V_DYNAMIC_IMAGE_POSTGRES_PENDING.clear()
-            try:
-                server_database_store_vocab_image_cache_batch(batch)
-            except Exception as exc:
-                stt_debug_log("space_v_dynamic_image_cache_write_failed", error=str(exc), rows=len(batch))
-            with SPACE_V_DYNAMIC_IMAGE_POSTGRES_LOCK:
-                if SPACE_V_DYNAMIC_IMAGE_POSTGRES_PENDING:
-                    continue
-                SPACE_V_DYNAMIC_IMAGE_POSTGRES_SCHEDULED = False
-                return
-
-    threading.Thread(target=worker, name="space-v-image-cache-write", daemon=True).start()
-
-
-def _fetch_space_v_dynamic_image(target_word: str, key: str) -> None:
-    result: dict = {}
-    ttl = SPACE_V_DYNAMIC_IMAGE_NEGATIVE_TTL_SECONDS
-
+def _space_v_local_picture_folder_signature(folder: Path) -> tuple[int, int]:
     try:
-        query = f"q={quote(key, safe='')}&page_size=8&mature=false&format=json"
-        request = Request(
-            f"https://api.openverse.org/v1/images/?{query}",
-            headers={"Accept": "application/json", "User-Agent": "QMLearnFutureVocabulary/1.0 (Server 2)"},
-        )
-        with urlopen(request, timeout=8) as response:
-            payload = json.loads(response.read().decode("utf-8", "replace"))
-        for item in payload.get("results") or []:
-            filetype = clean(item.get("filetype", "")).lower()
-            image_url = clean(item.get("thumbnail") or item.get("url") or "")
-            if not image_url.startswith(("http://", "https://")) or filetype in {"tif", "tiff", "djvu"}:
-                continue
-            result = {
-                "u": image_url,
-                "s": f"Openverse/{clean(item.get('provider') or item.get('source') or 'image')}",
-                "c": clean(item.get("title") or target_word),
-            }
-            break
-        if result:
-            ttl = SPACE_V_DYNAMIC_IMAGE_POSITIVE_TTL_SECONDS
-    except Exception as exc:
-        stt_debug_log("space_v_dynamic_image_failed", word=target_word, error=str(exc))
-    finally:
-        expires_epoch = time.time() + ttl
-        with SPACE_V_DYNAMIC_IMAGE_CACHE_LOCK:
-            SPACE_V_DYNAMIC_IMAGE_CACHE[key] = {"image": dict(result), "expires_at": time.monotonic() + ttl}
-            while len(SPACE_V_DYNAMIC_IMAGE_CACHE) > SPACE_V_DYNAMIC_IMAGE_CACHE_MAX:
-                SPACE_V_DYNAMIC_IMAGE_CACHE.pop(next(iter(SPACE_V_DYNAMIC_IMAGE_CACHE)), None)
-            SPACE_V_DYNAMIC_IMAGE_INFLIGHT.pop(key, None)
-        _queue_space_v_dynamic_image_postgres(key, result, expires_epoch)
+        stat = folder.stat()
+        return int(stat.st_mtime_ns), int(getattr(stat, "st_ino", 0) or 0)
+    except Exception:
+        return 0, 0
 
 
-# Added 2026-07-20: return cold image misses immediately while one bounded shared pool fetches and persists them.
-def qmdict_space_v_image_lookup(word: object = "") -> dict:
+def _space_v_local_picture_build(folder: Path) -> dict:
+    grouped_entries: dict[str, dict[int, dict]] = {}
+    indexed_files = 0
+    duplicate_words = 0
+    ignored_files = 0
+    if folder.is_dir():
+        try:
+            with os.scandir(folder) as iterator:
+                for item in iterator:
+                    try:
+                        if not item.is_file(follow_symlinks=False):
+                            continue
+                        path = Path(item.path)
+                        suffix = path.suffix.lower()
+                        priority = SPACE_V_LOCAL_PICTURE_SUFFIX_PRIORITY.get(suffix)
+                        stem_match = re.fullmatch(r"(.+?)(\d+)?", path.stem.strip())
+                        base_stem = clean(stem_match.group(1) if stem_match else path.stem)
+                        variant = max(0, int(stem_match.group(2) or 0)) if stem_match else 0
+                        key = vocab_key(base_stem)
+                        if priority is None or not key:
+                            ignored_files += 1
+                            continue
+                        stat = item.stat(follow_symlinks=False)
+                        candidate = {
+                            "path": str(path),
+                            "name": item.name,
+                            "size": int(stat.st_size),
+                            "mtime_ns": int(stat.st_mtime_ns),
+                            "priority": int(priority),
+                            "variant": variant,
+                            "word": base_stem,
+                            "image_id": item.name.casefold(),
+                        }
+                        candidate["revision"] = f"{candidate['mtime_ns']:x}-{candidate['size']:x}"
+                        variants = grouped_entries.setdefault(key, {})
+                        current = variants.get(variant)
+                        if current is not None:
+                            duplicate_words += 1
+                            current_order = (int(current.get("priority", 99)), clean(current.get("name", "")).casefold())
+                            candidate_order = (priority, item.name.casefold())
+                            if candidate_order >= current_order:
+                                continue
+                        variants[variant] = candidate
+                        indexed_files += 1
+                    except OSError:
+                        ignored_files += 1
+        except OSError as exc:
+            stt_debug_log("space_v_local_picture_scan_failed", folder=str(folder), error=str(exc))
+    entries = {
+        key: [dict(record) for _variant, record in sorted(variants.items(), key=lambda item: (int(item[0]), clean(item[1].get("name", "")).casefold()))]
+        for key, variants in grouped_entries.items()
+        if variants
+    }
+    return {
+        "folder": str(folder),
+        "folder_signature": _space_v_local_picture_folder_signature(folder),
+        "entries": entries,
+        "indexed_files": indexed_files,
+        "duplicate_words": duplicate_words,
+        "ignored_files": ignored_files,
+        "exists": folder.is_dir(),
+        "built_at": utc_timestamp(),
+        "next_check_at": time.monotonic() + SPACE_V_LOCAL_PICTURE_INDEX_CHECK_SECONDS,
+    }
+
+
+# Added 2026-07-30: scan the configured flat folder once, then reuse immutable RAM metadata for O(1) word lookup.
+def ensure_space_v_local_picture_index(force: bool = False) -> dict:
+    now = time.monotonic()
+    with SPACE_V_LOCAL_PICTURE_INDEX_LOCK:
+        state = SPACE_V_LOCAL_PICTURE_INDEX_STATE
+        folder_text = clean(state.get("folder", ""))
+        if not folder_text:
+            settings = load_server_settings()
+            folder_text = normalize_space_v_picture_folder(settings.get("space_v_picture_folder", ""))
+        folder = Path(folder_text)
+        if not force and clean(state.get("folder", "")) == folder_text:
+            if float(state.get("next_check_at", 0) or 0) > now:
+                return state
+            signature = _space_v_local_picture_folder_signature(folder)
+            if state.get("folder_signature") == signature:
+                state["next_check_at"] = now + SPACE_V_LOCAL_PICTURE_INDEX_CHECK_SECONDS
+                return state
+        next_state = _space_v_local_picture_build(folder)
+        state.clear()
+        state.update(next_state)
+        return state
+
+
+def space_v_local_picture_assets(word: object = "") -> list[dict]:
+    # Added 2026-08-04: one O(1) word lookup returns its pre-indexed word/word1/word2 gallery without rescanning the folder.
     target_word = clean(word)
     key = vocab_key(target_word)
     if not key:
-        return {"image": {}, "pending": False, "retry_after_ms": 0}
-    cached = _space_v_dynamic_image_cached_row(key)
-    if cached is not None:
-        image = cached.get("image")
-        return {"image": dict(image) if isinstance(image, dict) else {}, "pending": False, "retry_after_ms": 0}
-    with SPACE_V_DYNAMIC_IMAGE_CACHE_LOCK:
-        if key in SPACE_V_DYNAMIC_IMAGE_INFLIGHT:
-            return {"image": {}, "pending": True, "retry_after_ms": 1400}
-        if len(SPACE_V_DYNAMIC_IMAGE_INFLIGHT) >= SPACE_V_DYNAMIC_IMAGE_INFLIGHT_MAX:
-            return {"image": {}, "pending": True, "retry_after_ms": 5000}
-        SPACE_V_DYNAMIC_IMAGE_INFLIGHT[key] = time.monotonic()
-    SPACE_V_DYNAMIC_IMAGE_EXECUTOR.submit(_fetch_space_v_dynamic_image, target_word, key)
-    return {"image": {}, "pending": True, "retry_after_ms": 1400}
+        return []
+    ensure_space_v_local_picture_index()
+    with SPACE_V_LOCAL_PICTURE_INDEX_LOCK:
+        entries = SPACE_V_LOCAL_PICTURE_INDEX_STATE.get("entries", {})
+        records = entries.get(key) if isinstance(entries, dict) else None
+        return [dict(record) for record in records if isinstance(record, dict)] if isinstance(records, list) else []
+
+
+def space_v_local_picture_asset(word: object = "", image_id: object = "") -> dict:
+    records = space_v_local_picture_assets(word)
+    wanted = clean(image_id).casefold()
+    if wanted:
+        for record in records:
+            if clean(record.get("image_id", "")).casefold() == wanted:
+                return record
+        return {}
+    return records[0] if records else {}
+
+
+def qmdict_space_v_image_lookup(word: object = "") -> dict:
+    target_word = clean(word)
+    records = space_v_local_picture_assets(target_word)
+    images = [{
+        "id": clean(record.get("image_id", "")),
+        "u": f"/vocab/image-file?word={quote(target_word, safe='')}&image_id={quote(clean(record.get('image_id', '')), safe='')}&rev={quote(clean(record.get('revision', '')), safe='')}",
+        "s": "Local picture folder",
+        "c": target_word,
+        "n": max(0, int(record.get("variant", 0) or 0)),
+        "revision": clean(record.get("revision", "")),
+    } for record in records]
+    return {"image": images[0] if images else {}, "images": images, "pending": False, "retry_after_ms": 0}
 
 
 def qmdict_space_v_dynamic_image(word: object = "") -> dict:
     return dict(qmdict_space_v_image_lookup(word).get("image") or {})
 
 
-def load_space_v_image_cache_light() -> dict:
-    try:
-        stat = VOCAB_IMAGE_CACHE_FILE.stat()
-        signature = (int(stat.st_mtime_ns), int(stat.st_size))
-    except Exception:
-        signature = (0, -1)
-    with SPACE_V_IMAGE_CACHE_LOCK:
-        if SPACE_V_IMAGE_CACHE_STATE.get("signature") == signature:
-            cached_payload = SPACE_V_IMAGE_CACHE_STATE.get("payload")
-            return cached_payload if isinstance(cached_payload, dict) else {}
-        payload = {}
-        if signature[1] >= 0:
-            try:
-                loaded = json.loads(VOCAB_IMAGE_CACHE_FILE.read_text(encoding="utf-8-sig", errors="replace"))
-                payload = loaded if isinstance(loaded, dict) else {}
-            except Exception:
-                payload = {}
-        SPACE_V_IMAGE_CACHE_STATE["signature"] = signature
-        SPACE_V_IMAGE_CACHE_STATE["payload"] = payload
-        return payload
-
-
 def qmdict_space_v_cached_image(word: object = "") -> dict:
-    target_word = clean(word)
-    key = vocab_key(target_word)
-    if not key:
-        return {}
-    try:
-        cache = load_space_v_image_cache_light()
-        cached = dict(cache.get(key) or {}) if isinstance(cache, dict) else {}
-        return cached if clean(cached.get("u") or cached.get("url") or "") else {}
-    except Exception:
-        return {}
+    return qmdict_space_v_dynamic_image(word)
+
+
+def space_v_local_picture_settings_payload(force: bool = False) -> dict:
+    ensure_space_v_local_picture_index(force=force)
+    with SPACE_V_LOCAL_PICTURE_INDEX_LOCK:
+        state = SPACE_V_LOCAL_PICTURE_INDEX_STATE
+        return {
+            "folder": clean(state.get("folder", "")),
+            "exists": bool(state.get("exists")),
+            "indexed_files": max(0, int(state.get("indexed_files", 0) or 0)),
+            "matched_words": len(state.get("entries", {})) if isinstance(state.get("entries"), dict) else 0,
+            "gallery_images": sum(len(records) for records in state.get("entries", {}).values() if isinstance(records, list)) if isinstance(state.get("entries"), dict) else 0,
+            "duplicate_words": max(0, int(state.get("duplicate_words", 0) or 0)),
+            "ignored_files": max(0, int(state.get("ignored_files", 0) or 0)),
+            "built_at": clean(state.get("built_at", "")),
+        }
+
+
+def warm_space_v_local_picture_index_async(delay_seconds: float = 0.0) -> None:
+    def worker() -> None:
+        if delay_seconds > 0:
+            time.sleep(max(0.0, float(delay_seconds)))
+        try:
+            space_v_local_picture_settings_payload(force=True)
+        except Exception as exc:
+            stt_debug_log("space_v_local_picture_warm_failed", error=str(exc))
+
+    threading.Thread(target=worker, name="space-v-local-picture-index", daemon=True).start()
 
 
 def prefetch_space_v_images_for_entries(entries: object, limit: int = 120) -> None:
-    global SPACE_V_IMAGE_PREFETCH_SCHEDULED
-    words: list[str] = []
-    seen: set[str] = set()
-    for entry in entries if isinstance(entries, list) else []:
-        if isinstance(entry, dict):
-            word = clean(entry.get("word") or entry.get("w") or entry.get("en") or entry.get("e") or "")
-        else:
-            word = clean(getattr(entry, "word", ""))
-        key = vocab_key(word)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        words.append(word)
-        if len(words) >= min(24, max(1, int(limit or 120))):
-            break
-    if not words:
-        return
-    with SPACE_V_IMAGE_PREFETCH_LOCK:
-        for word in words:
-            key = vocab_key(word)
-            if not key or key in SPACE_V_IMAGE_PREFETCH_ACTIVE_KEYS:
-                continue
-            if len(SPACE_V_IMAGE_PREFETCH_PENDING) >= SPACE_V_IMAGE_PREFETCH_MAX_PENDING:
-                break
-            SPACE_V_IMAGE_PREFETCH_PENDING[key] = word
-            SPACE_V_IMAGE_PREFETCH_ACTIVE_KEYS.add(key)
-        if SPACE_V_IMAGE_PREFETCH_SCHEDULED or not SPACE_V_IMAGE_PREFETCH_PENDING:
-            return
-        SPACE_V_IMAGE_PREFETCH_SCHEDULED = True
-
-    # One coalesced worker prevents every opened file from creating its own thread pool.
-    def worker() -> None:
-        global SPACE_V_IMAGE_PREFETCH_SCHEDULED
-        try:
-            while True:
-                with SPACE_V_IMAGE_PREFETCH_LOCK:
-                    batch = list(SPACE_V_IMAGE_PREFETCH_PENDING.items())[:SPACE_V_IMAGE_PREFETCH_BATCH_SIZE]
-                    for key, _word in batch:
-                        SPACE_V_IMAGE_PREFETCH_PENDING.pop(key, None)
-                    if not batch:
-                        SPACE_V_IMAGE_PREFETCH_SCHEDULED = False
-                        return
-                postponed: list[tuple[str, str]] = []
-                for key, word in batch:
-                    with SPACE_V_DYNAMIC_IMAGE_CACHE_LOCK:
-                        saturated = len(SPACE_V_DYNAMIC_IMAGE_INFLIGHT) >= SPACE_V_IMAGE_PREFETCH_MAX_INFLIGHT
-                    if saturated:
-                        postponed.append((key, word))
-                        continue
-                    try:
-                        qmdict_space_v_dynamic_image(word)
-                    except Exception:
-                        pass
-                    finally:
-                        with SPACE_V_IMAGE_PREFETCH_LOCK:
-                            SPACE_V_IMAGE_PREFETCH_ACTIVE_KEYS.discard(key)
-                if postponed:
-                    with SPACE_V_IMAGE_PREFETCH_LOCK:
-                        for key, word in postponed:
-                            if len(SPACE_V_IMAGE_PREFETCH_PENDING) >= SPACE_V_IMAGE_PREFETCH_MAX_PENDING:
-                                break
-                            SPACE_V_IMAGE_PREFETCH_PENDING.setdefault(key, word)
-                time.sleep(0.25 if postponed else 0.08)
-        except Exception as exc:
-            stt_debug_log("space_v_image_prefetch_failed", error=str(exc))
-            with SPACE_V_IMAGE_PREFETCH_LOCK:
-                SPACE_V_IMAGE_PREFETCH_SCHEDULED = False
-
-    threading.Thread(target=worker, name="space-v-image-prefetch", daemon=True).start()
+    ensure_space_v_local_picture_index()
 
 
 def space_v_audio_clip_signature(clip: object = None) -> str:
@@ -1572,200 +2273,242 @@ def cleanup_orphan_qmdict_vietnamese_audio(entries: list[tuple[str, str]]) -> di
 
 
 def run_qmdict_meaning_audio_refresh_job(job_id: str, keys: object = None, mode: str = "qmdict-missing") -> None:
-    downloaded = cached = failed = done = scanned = missing_count = 0
+    downloaded = cached = failed = done = scanned = 0
+    resume_done_offset = resume_downloaded_offset = resume_failed_offset = 0
+    resume_session_total = 0
+    resume_requested_keys = None
     report_rows: list[dict] = []
-    missing_entries: list[tuple[str, str]] = []
     try:
+        verify_qmdict_word_audio_runtime()
         ensure_qmdict_runtime_fresh(force=True)
+        clean_mode = clean(mode).lower() or "missing"
+        session_mode = clean_mode
+        force_refresh = clean_mode == "force"
+        resume = clean_mode == "resume"
         entries = qmdict_audio_refresh_entries(keys)
+        if resume:
+            try:
+                saved = json.loads(QMDICT_AUDIO_REFRESH_REPORT_FILE.read_text(encoding="utf-8-sig", errors="replace"))
+                session_mode = clean(saved.get("session_mode") or saved.get("mode")).lower() or "missing"
+                force_refresh = session_mode == "force"
+                resume_requested_keys = saved.get("requested_keys") if isinstance(saved.get("requested_keys"), list) else None
+                resume_session_total = max(0, int(saved.get("session_base_total", saved.get("session_total", saved.get("total", 0))) or 0))
+                resume_downloaded_offset = max(0, int(saved.get("session_downloaded", saved.get("downloaded", 0)) or 0))
+                resume_failed_offset = max(0, int(saved.get("session_failed", saved.get("failed", 0)) or 0))
+                raw_entries = saved.get("entries", []) if isinstance(saved, dict) else []
+                if not raw_entries:
+                    raw_entries = qmdict_audio_refresh_entries(saved.get("requested_keys") if isinstance(saved, dict) else None)
+                completed = {(clean(row.get("key")).upper(), clean(row.get("meaning")).lower()) for row in saved.get("items", []) if isinstance(row, dict) and clean(row.get("status")).lower() in {"downloaded", "cached-late", "cached-mp3"}}
+                entries = [(clean(row[0]).upper(), clean(row[1])) for row in raw_entries if isinstance(row, (list, tuple)) and len(row) > 1 and clean(row[0]).upper() and clean(row[1]) and (clean(row[0]).upper(), clean(row[1]).lower()) not in completed]
+            except Exception:
+                session_mode = "missing"
+                entries = []
         scan_total = len(entries)
-        existing_audio_stems = qmdict_local_vietnamese_audio_stem_index()
-        with QMDICT_AUDIO_REFRESH_LOCK:
-            QMDICT_AUDIO_REFRESH_JOB.update(
-                {
-                    "phase": "scanning",
-                    "message": "Comparing QmDict meanings with the local MP3 audio index.",
-                    "scan_total": scan_total,
-                    "scan_done": 0,
-                    "workers": 0,
-                    "cleanup_total": 0,
-                    "cleanup_done": 0,
-                    "cleanup_deleted": 0,
-                    "total": 0,
-                    "done": 0,
-                    "cached": 0,
-                    "missing": 0,
-                    "downloaded": 0,
-                    "failed": 0,
-                    "updated_at": utc_timestamp(),
-                    "error": "",
-                }
-            )
-            snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
-        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
-
+        missing_entries: list[tuple[str, str]] = []
         for key, meaning in entries:
             scanned += 1
-            row = {"key": key, "meaning": meaning, "status": ""}
+            present = False
             try:
-                if qmdict_meaning_has_local_audio_stem(meaning, existing_audio_stems):
-                    cached += 1
-                    row["status"] = "cached-mp3"
-                else:
-                    missing_entries.append((key, meaning))
-                    missing_count += 1
-                    row["status"] = "missing-local"
-            except Exception as exc:
+                present = qmdict_meaning_audio_local_path(meaning) is not None
+            except Exception:
+                present = False
+            if force_refresh or not present:
                 missing_entries.append((key, meaning))
-                missing_count += 1
-                row["status"] = "local-check-failed"
-                row["error"] = str(exc)
-            if not clean(row["status"]).startswith("cached"):
-                report_rows.append(row)
-            if scanned == scan_total or scanned % 100 == 0 or ((not clean(row["status"]).startswith("cached")) and missing_count <= 20):
+            else:
+                cached += 1
+            if scanned == scan_total or scanned % 100 == 0:
+                with QMDICT_AUDIO_REFRESH_LOCK:
+                    QMDICT_AUDIO_REFRESH_JOB.update({"phase": "scanning", "scan_total": scan_total, "scan_done": scanned, "cached": cached, "missing": len(missing_entries), "last_key": key, "last_meaning": meaning[:180], "updated_at": utc_timestamp()})
+                    snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
+                write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
+        remaining_total = len(missing_entries)
+        if resume:
+            if session_mode == "force" and not resume_requested_keys:
+                resume_session_total = len(qmdict_audio_refresh_entries())
+            resume_session_total = max(remaining_total, resume_session_total)
+            resume_done_offset = max(0, resume_session_total - remaining_total)
+            resume_downloaded_offset = min(resume_downloaded_offset, resume_done_offset)
+            resume_failed_offset = 0
+            downloaded = resume_downloaded_offset
+            cached = max(cached, resume_done_offset - resume_downloaded_offset)
+        session_total = resume_session_total if resume and resume_session_total else remaining_total
+        session_entries = list(missing_entries)
+        report_requested_keys = keys if isinstance(keys, list) else resume_requested_keys
+        worker_count = qmdict_bulk_audio_concurrency(remaining_total)
+        with QMDICT_AUDIO_REFRESH_LOCK:
+            QMDICT_AUDIO_REFRESH_JOB.update({"phase": "downloading" if remaining_total else "complete", "message": f"Downloading Vietnamese audio with {worker_count} workers." if remaining_total else "All Vietnamese audio is already present.", "scan_total": scan_total, "scan_done": scanned, "workers": worker_count, "cleanup_total": 0, "cleanup_done": 0, "cleanup_deleted": 0, "total": session_total, "done": resume_done_offset, "cached": cached, "missing": remaining_total, "downloaded": downloaded, "failed": resume_failed_offset, "session_base_total": session_total, "session_total": session_total, "session_done": resume_done_offset, "session_downloaded": downloaded, "session_failed": resume_failed_offset, "updated_at": utc_timestamp()})
+            snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
+        atomic_write_json(QMDICT_AUDIO_REFRESH_REPORT_FILE, {"version": 1, **snapshot, "session_mode": session_mode, "entries": session_entries, "requested_keys": report_requested_keys, "items": report_rows}, indent=2)
+        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
+
+        def synthesize_meaning(item: tuple[str, str]) -> dict:
+            key, meaning = item
+            row = {"key": key, "meaning": meaning, "status": ""}
+            if qmdict_audio_refresh_cancel_requested(job_id):
+                row["status"] = "cancelled"
+                return {"row": row, "audio_bytes": b"", "audio_source": ""}
+            try:
+                if not force_refresh:
+                    local_path = qmdict_meaning_audio_local_path(meaning)
+                    if local_path is not None:
+                        ensure_qmlearn_data_sound_plain_mp3(local_path)
+                        row["status"] = "cached-late"
+                        return {"row": row, "audio_bytes": b"", "audio_source": ""}
+                audio_bytes, audio_source = synthesize_bulk_audio_worker_first(
+                    meaning,
+                    "vi-VN",
+                    lambda message: stt_debug_log("qmdict_audio_refresh", key=key, meaning=meaning, message=message),
+                )
+                return {"row": row, "audio_bytes": audio_bytes, "audio_source": audio_source}
+            except Exception as exc:
+                row.update({"status": "failed", "error": str(exc)})
+                return {"row": row, "audio_bytes": b"", "audio_source": ""}
+
+        def persist_meaning(result: dict) -> dict:
+            row = dict(result.get("row") if isinstance(result, dict) and isinstance(result.get("row"), dict) else {})
+            key = clean(row.get("key")).upper()
+            meaning = clean(row.get("meaning"))
+            if clean(row.get("status")) in {"cached-late", "cancelled", "failed"}:
+                return row
+            if qmdict_audio_refresh_cancel_requested(job_id):
+                row["status"] = "cancelled"
+                return row
+            try:
+                audio_bytes = result.get("audio_bytes") if isinstance(result, dict) else b""
+                audio_source = clean(result.get("audio_source")) if isinstance(result, dict) else ""
+                if not isinstance(audio_bytes, (bytes, bytearray)) or not audio_bytes:
+                    raise RuntimeError("Vietnamese synthesis returned no bytes.")
+                saved_path = force_save_space_v_sound_audio(meaning, "vi-VN", audio_bytes)
+                refresh_qmlearn_audio_dir_index_entry(meaning, "vi-VN")
+                if saved_path and Path(saved_path).is_file():
+                    row["status"] = "downloaded"
+                    row["path"] = qmlearn_data_relative_path(saved_path)
+                    row["source"] = audio_source
+                else:
+                    row["status"] = "missing"
+            except Exception as exc:
+                row.update({"status": "failed", "error": str(exc)})
+            return row
+
+        if missing_entries:
+            synthesis_executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(128, remaining_total), thread_name_prefix="qmdict-vi-synthesis")
+            writer_workers = max(1, min(int(QMDICT_WORD_AUDIO_WRITER_WORKERS or 8), remaining_total))
+            writer_executor = concurrent.futures.ThreadPoolExecutor(max_workers=writer_workers, thread_name_prefix="qmdict-vi-writer")
+            result_buffer_limit = max(writer_workers, int(QMDICT_WORD_AUDIO_RESULT_BUFFER or 128))
+            synthesis_futures = {}
+            writer_futures = {}
+            next_index = 0
+
+            def fill_meaning_audio_capacity() -> None:
+                nonlocal next_index, worker_count
+                desired = qmdict_bulk_audio_concurrency(len(missing_entries) - done)
+                worker_count = desired
+                while not qmdict_audio_refresh_cancel_requested(job_id) and len(synthesis_futures) < desired and next_index < len(missing_entries):
+                    item = missing_entries[next_index]
+                    next_index += 1
+                    synthesis_futures[synthesis_executor.submit(synthesize_meaning, item)] = item
                 with QMDICT_AUDIO_REFRESH_LOCK:
                     QMDICT_AUDIO_REFRESH_JOB.update(
                         {
-                            "scan_done": scanned,
+                            "workers": desired,
+                            "writers": writer_workers,
+                            "writer_pending": len(writer_futures),
+                            "result_buffer_limit": result_buffer_limit,
+                        }
+                    )
+
+            def record_meaning_row(row: dict, key: str, meaning: str) -> None:
+                nonlocal done, downloaded, cached, failed, snapshot
+                status = clean(row.get("status")).lower()
+                if status != "cancelled":
+                    done += 1
+                if status == "downloaded":
+                    downloaded += 1
+                elif status == "cached-late":
+                    cached += 1
+                elif status not in {"cancelled"}:
+                    failed += 1
+                report_rows.append(row)
+                with QMDICT_AUDIO_REFRESH_LOCK:
+                    QMDICT_AUDIO_REFRESH_JOB.update(
+                        {
+                            "done": resume_done_offset + done,
                             "cached": cached,
-                            "missing": missing_count,
+                            "downloaded": downloaded,
+                            "failed": failed,
+                            "session_done": resume_done_offset + done,
+                            "session_downloaded": downloaded,
+                            "session_failed": failed,
+                            "writer_pending": len(writer_futures),
                             "last_key": key,
                             "last_meaning": meaning[:180],
                             "updated_at": utc_timestamp(),
                         }
                     )
                     snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
-                write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
+                if done == remaining_total or (status != "cancelled" and done % 50 == 0) or status in {"failed", "missing"}:
+                    atomic_write_json(QMDICT_AUDIO_REFRESH_REPORT_FILE, {"version": 1, **snapshot, "session_mode": session_mode, "entries": session_entries, "requested_keys": report_requested_keys, "items": report_rows}, indent=2)
+                    write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
 
-        cleanup_result = cleanup_orphan_qmdict_vietnamese_audio(entries)
-
-        total = len(missing_entries)
-        worker_count = min(QMDICT_AUDIO_REFRESH_MAX_WORKERS, total) if total else 0
-        with QMDICT_AUDIO_REFRESH_LOCK:
-            QMDICT_AUDIO_REFRESH_JOB.update(
-                {
-                    "phase": "downloading" if total else "complete",
-                    "message": f"Downloading only missing Vietnamese audio with {worker_count} background workers."
-                    if total
-                    else "All Vietnamese audio is already cached.",
-                    "scan_done": scanned,
-                    "scan_total": scan_total,
-                    "workers": worker_count,
-                    "cleanup_total": int(cleanup_result.get("total", 0) or 0),
-                    "cleanup_done": int(cleanup_result.get("done", 0) or 0),
-                    "cleanup_deleted": int(cleanup_result.get("deleted", 0) or 0),
-                    "total": total,
-                    "done": 0,
-                    "missing": total,
-                    "cached": cached,
-                    "downloaded": 0,
-                    "failed": 0,
-                    "updated_at": utc_timestamp(),
-                }
-            )
-            snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
-        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
-
-        def download_missing_meaning(item: tuple[str, str]) -> dict:
-            key, meaning = item
-            row = {"key": key, "meaning": meaning, "status": ""}
+            fill_meaning_audio_capacity()
             try:
-                # A parallel edit/build may have created the file after the scan.
-                local_audio_path = qmdict_meaning_audio_local_path(meaning)
-                if local_audio_path is not None:
-                    ensure_qmlearn_data_sound_plain_mp3(local_audio_path)
-                    row["status"] = "cached-late"
-                else:
-                    clip = qmdict_space_v_meaning_audio_map(meaning)
-                    if clip:
-                        row["status"] = "downloaded"
-                    else:
-                        row["status"] = "missing"
-            except Exception as exc:
-                row["status"] = "failed"
-                row["error"] = str(exc)
-            return row
-
-        if missing_entries:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="qmdict-audio") as executor:
-                future_map = {executor.submit(download_missing_meaning, item): item for item in missing_entries}
-                for future in concurrent.futures.as_completed(future_map):
-                    key, meaning = future_map[future]
-                    done += 1
-                    try:
-                        row = future.result()
-                    except Exception as exc:
-                        row = {"key": key, "meaning": meaning, "status": "failed", "error": str(exc)}
-                    status = clean(row.get("status", ""))
-                    if status == "cached-late":
-                        cached += 1
-                    elif status == "downloaded":
-                        downloaded += 1
-                    else:
-                        failed += 1
-                    report_rows.append(row)
-                    with QMDICT_AUDIO_REFRESH_LOCK:
-                        QMDICT_AUDIO_REFRESH_JOB.update(
-                            {
-                                "done": done,
-                                "cached": cached,
-                                "downloaded": downloaded,
-                                "failed": failed,
-                                "last_key": key,
-                                "last_meaning": meaning[:180],
-                                "updated_at": utc_timestamp(),
-                            }
-                        )
-                        snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
-                    if done == total or done % 10 == 0 or status in {"failed", "missing"}:
-                        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
-        if downloaded > 0:
-            qmdict_local_vietnamese_audio_stem_index(force=True)
+                while synthesis_futures or writer_futures:
+                    if qmdict_audio_refresh_cancel_requested(job_id):
+                        for future in synthesis_futures:
+                            future.cancel()
+                    ready_writers = {future for future in writer_futures if future.done()}
+                    if not ready_writers and writer_futures and (len(writer_futures) >= result_buffer_limit or not synthesis_futures):
+                        ready_writers, _pending = concurrent.futures.wait(writer_futures, timeout=1.0, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for future in ready_writers:
+                        key, meaning = writer_futures.pop(future)
+                        try:
+                            row = future.result()
+                        except concurrent.futures.CancelledError:
+                            row = {"key": key, "meaning": meaning, "status": "cancelled"}
+                        except Exception as exc:
+                            row = {"key": key, "meaning": meaning, "status": "failed", "error": str(exc)}
+                        record_meaning_row(row, key, meaning)
+                    if synthesis_futures and len(writer_futures) < result_buffer_limit:
+                        ready_synthesis, _pending = concurrent.futures.wait(synthesis_futures, timeout=0.05, return_when=concurrent.futures.FIRST_COMPLETED)
+                        available_writer_slots = max(0, result_buffer_limit - len(writer_futures))
+                        for future in list(ready_synthesis)[:available_writer_slots]:
+                            key, meaning = synthesis_futures.pop(future)
+                            try:
+                                result = future.result()
+                            except concurrent.futures.CancelledError:
+                                result = {"row": {"key": key, "meaning": meaning, "status": "cancelled"}}
+                            except Exception as exc:
+                                result = {"row": {"key": key, "meaning": meaning, "status": "failed", "error": str(exc)}}
+                            writer_futures[writer_executor.submit(persist_meaning, result)] = (key, meaning)
+                            fill_meaning_audio_capacity()
+                    elif not ready_writers:
+                        time.sleep(0.01)
+            finally:
+                synthesis_executor.shutdown(wait=True, cancel_futures=True)
+                writer_executor.shutdown(wait=True, cancel_futures=True)
+        cancelled = qmdict_audio_refresh_cancel_requested(job_id)
         completed_at = utc_timestamp()
         with QMDICT_AUDIO_REFRESH_LOCK:
-            QMDICT_AUDIO_REFRESH_JOB.update(
-                {
-                    "running": False,
-                    "phase": "complete",
-                    "message": "Vietnamese audio refresh complete.",
-                    "completed_at": completed_at,
-                    "updated_at": completed_at,
-                }
-            )
+            QMDICT_AUDIO_REFRESH_JOB.update({"running": False, "phase": "cancelled" if cancelled else "complete", "message": "Vietnamese audio refresh cancelled." if cancelled else "Vietnamese audio refresh complete.", "completed_at": completed_at, "updated_at": completed_at})
             final_snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
-        atomic_write_json(
-            QMDICT_AUDIO_REFRESH_REPORT_FILE,
-            {"version": 1, **final_snapshot, "items": report_rows[-1000:]},
-            indent=2,
-        )
+        atomic_write_json(QMDICT_AUDIO_REFRESH_REPORT_FILE, {"version": 1, **final_snapshot, "session_mode": session_mode, "entries": session_entries, "requested_keys": report_requested_keys, "items": report_rows}, indent=2)
         write_qmdict_audio_refresh_progress({"version": 1, **final_snapshot})
-        stt_debug_log(
-            "qmdict_audio_refresh_done",
-            job_id=job_id,
-            mode=mode,
-            scanned=scanned,
-            missing=total,
-            cached=cached,
-            downloaded=downloaded,
-            failed=failed,
-        )
+        stt_debug_log("qmdict_audio_refresh_done", job_id=job_id, mode=mode, total=session_total, downloaded=downloaded, failed=failed, cancelled=cancelled)
     except Exception as exc:
         with QMDICT_AUDIO_REFRESH_LOCK:
-            QMDICT_AUDIO_REFRESH_JOB.update(
-                {
-                    "running": False,
-                    "phase": "failed",
-                    "message": "Vietnamese audio refresh failed.",
-                    "updated_at": utc_timestamp(),
-                    "error": str(exc),
-                }
-            )
+            QMDICT_AUDIO_REFRESH_JOB.update({"running": False, "phase": "failed", "message": "Vietnamese audio refresh failed.", "updated_at": utc_timestamp(), "error": str(exc)})
             snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
         write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
         stt_debug_log("qmdict_audio_refresh_failed", job_id=job_id, mode=mode, error=str(exc))
 
 
 def start_qmdict_meaning_audio_refresh(keys: object = None, mode: str = "qmdict-missing") -> dict:
+    clean_mode = clean(mode).strip().lower() or "missing"
+    if clean_mode in {"qmdict-missing", "dashboard-vietnamese-sot-refresh", "missing-only"}:
+        clean_mode = "missing"
+    if clean_mode not in {"missing", "force", "resume"}:
+        clean_mode = "missing"
+    requested_keys = keys[:1000] if isinstance(keys, list) else None
     with QMDICT_AUDIO_REFRESH_LOCK:
         if QMDICT_AUDIO_REFRESH_JOB.get("running"):
             return {"started": False, "audio_refresh": dict(QMDICT_AUDIO_REFRESH_JOB)}
@@ -1775,7 +2518,7 @@ def start_qmdict_meaning_audio_refresh(keys: object = None, mode: str = "qmdict-
             {
                 "running": True,
                 "job_id": job_id,
-                "mode": mode,
+                "mode": clean_mode,
                 "phase": "queued",
                 "message": "Waiting to scan local Vietnamese audio.",
                 "started_at": started_at,
@@ -1796,17 +2539,33 @@ def start_qmdict_meaning_audio_refresh(keys: object = None, mode: str = "qmdict-
                 "last_key": "",
                 "last_meaning": "",
                 "error": "",
+                "cancel_requested": False,
             }
         )
         snapshot = dict(QMDICT_AUDIO_REFRESH_JOB)
+    if clean_mode != "resume":
+        atomic_write_json(
+            QMDICT_AUDIO_REFRESH_REPORT_FILE,
+            {
+                "version": 1,
+                **snapshot,
+                "session_mode": clean_mode,
+                "entries": [],
+                "requested_keys": requested_keys,
+                "items": [],
+            },
+            indent=2,
+        )
+        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
     thread = threading.Thread(
         target=run_qmdict_meaning_audio_refresh_job,
-        args=(job_id, keys, mode),
+        args=(job_id, requested_keys, clean_mode),
         name=f"qmdict-audio-refresh-{job_id[:8]}",
         daemon=True,
     )
     thread.start()
-    write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
+    if clean_mode == "resume":
+        write_qmdict_audio_refresh_progress({"version": 1, **snapshot})
     return {"started": True, "audio_refresh": snapshot}
 
 
@@ -1914,6 +2673,16 @@ def qmdict_lookup_summary_space_v_fast(word: object = "", surface: str = "") -> 
                 out = dict(stored)
                 out["surface"] = clean(surface) or text
                 return out
+    # Added 2026-07-31: a warmed in-process QmDict lookup is milliseconds faster
+    # than sending an inflected/missing key through the heavy worker queue while
+    # opening Space_V. Keep the worker fallback for cold or unavailable runtime.
+    if bool(SERVER_STATE.get("qmdict_runtime_ready")):
+        try:
+            direct = qmdict_lookup_summary(text, surface)
+            if isinstance(direct, dict) and direct:
+                return direct
+        except Exception:
+            pass
     return qmdict_lookup_summary_queued(text, surface)
 
 

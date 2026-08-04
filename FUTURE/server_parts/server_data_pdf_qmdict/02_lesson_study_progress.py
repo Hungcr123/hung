@@ -899,11 +899,15 @@ def lesson_progress_done_count(record: dict, space: str = "", node_count_hint: i
     return done, total
 
 
-def lesson_progress_node_detail(record: dict) -> tuple[int, int]:
+def lesson_progress_node_detail(record: dict, space: str = "") -> tuple[int, int]:
     source = record if isinstance(record, dict) else {}
     state = source.get("state") if isinstance(source.get("state"), dict) else {}
     total = max(0, space_w_int(state.get("totalNodes", source.get("nodeCount", state.get("nodeCount", 0))), 0))
     done = max(0, space_w_int(state.get("completedNodes", 0), 0))
+    if space == "Space_Q":
+        if total:
+            done = max(0, min(done, total))
+        return done, total
     node_index = max(0, space_w_int(source.get("nodeIndex", state.get("currentIndex", state.get("index", state.get("nodeIndex", 0)))), 0))
     pointer = max(0, space_w_int(state.get("nodePointer", 0), 0))
     queue = state.get("queue") if isinstance(state.get("queue"), list) else []
@@ -1004,7 +1008,7 @@ def build_lesson_progress_summary(best: dict, space: str = "", node_count_hint: 
         "savedAt": clean(best.get("savedAt", "")),
         "updatedAt": clean(best.get("updatedAt", "")),
     }
-    node_done, node_total = lesson_progress_node_detail(best)
+    node_done, node_total = lesson_progress_node_detail(best, space)
     if node_total:
         summary.update({
             "node_done": node_done,
@@ -1338,6 +1342,9 @@ def lesson_progress_snapshot_for_client(username: str = "", trace: dict | None =
             "savedAt": saved_at,
             "updatedAt": updated_at,
         }
+        server_revision = max(0, space_w_int(record.get("server_revision", record.get("_serverRevision", state.get("server_revision", state.get("_serverRevision", 0)))), 0))
+        if server_revision:
+            item["server_revision"] = server_revision
         if record_file_id:
             item["lesson_id"] = record_file_id
             item["file_id"] = record_file_id
@@ -2904,6 +2911,109 @@ def learning_summary_path(username: str, create_parent: bool = True) -> Path:
         USER_ROOT.mkdir(parents=True, exist_ok=True)
         folder.mkdir(parents=True, exist_ok=True)
     return folder / LEARNING_SUMMARY_FILE_NAME
+
+
+# Added 2026-08-01: share revision-keyed zero-progress lesson summaries across new users.
+LESSON_EMPTY_PROGRESS_STUDY_CACHE: dict[tuple, dict] = {}
+LESSON_EMPTY_PROGRESS_STUDY_CACHE_LOCK = threading.RLock()
+# Added 2026-08-02: coalesce concurrent first-user cache misses without serializing unrelated lessons.
+LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT: dict[tuple, dict] = {}
+LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT_LOCK = threading.RLock()
+
+
+def summarize_lesson_study_cached_empty_progress(
+    path: Path,
+    username: str,
+    progress_index: dict | None,
+    time_index: dict | None,
+    *,
+    include_admin: bool = False,
+    progress_relative_path: str = "",
+    path_is_effective: bool = False,
+    progress_relative_paths: object = None,
+    strict_progress_paths: bool = False,
+    include_log: bool = False,
+    file_meta: dict | None = None,
+    lesson_id: str = "",
+) -> dict:
+    if progress_index or time_index or include_admin or include_log:
+        return summarize_lesson_study(
+            path,
+            username,
+            progress_index,
+            time_index,
+            include_admin=include_admin,
+            progress_relative_path=progress_relative_path,
+            path_is_effective=path_is_effective,
+            progress_relative_paths=progress_relative_paths,
+            strict_progress_paths=strict_progress_paths,
+            include_log=include_log,
+            file_meta=file_meta,
+            lesson_id=lesson_id,
+        )
+    meta = file_meta if isinstance(file_meta, dict) else {}
+    revision = (
+        clean(meta.get("mtime_ns", "")),
+        clean(meta.get("size", "")),
+        clean(meta.get("dependency_signature", "")),
+        clean(meta.get("structural_revision", "")),
+        clean(meta.get("lesson_id", "") or lesson_id),
+    )
+    raw_aliases = progress_relative_paths if isinstance(progress_relative_paths, (list, tuple, set)) else ([progress_relative_paths] if clean(progress_relative_paths) else [])
+    aliases = tuple(clean_path_value(item) for item in raw_aliases if clean_path_value(item))
+    key = (
+        str(path),
+        clean(lesson_id),
+        revision,
+        clean_path_value(progress_relative_path),
+        aliases,
+        bool(path_is_effective),
+        bool(strict_progress_paths),
+    )
+    with LESSON_EMPTY_PROGRESS_STUDY_CACHE_LOCK:
+        cached = LESSON_EMPTY_PROGRESS_STUDY_CACHE.get(key)
+        if isinstance(cached, dict):
+            return copy.deepcopy(cached)
+    with LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT_LOCK:
+        inflight = LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT.get(key)
+        if not isinstance(inflight, dict):
+            inflight = {"lock": threading.Lock(), "users": 0}
+            LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT[key] = inflight
+        inflight["users"] = int(inflight.get("users", 0) or 0) + 1
+        singleflight_lock = inflight["lock"]
+    try:
+        with singleflight_lock:
+            with LESSON_EMPTY_PROGRESS_STUDY_CACHE_LOCK:
+                cached = LESSON_EMPTY_PROGRESS_STUDY_CACHE.get(key)
+                if isinstance(cached, dict):
+                    return copy.deepcopy(cached)
+            summary = summarize_lesson_study(
+                path,
+                username,
+                {},
+                {},
+                include_admin=False,
+                progress_relative_path=progress_relative_path,
+                path_is_effective=path_is_effective,
+                progress_relative_paths=progress_relative_paths,
+                strict_progress_paths=strict_progress_paths,
+                include_log=False,
+                file_meta=file_meta,
+                lesson_id=lesson_id,
+            )
+            with LESSON_EMPTY_PROGRESS_STUDY_CACHE_LOCK:
+                LESSON_EMPTY_PROGRESS_STUDY_CACHE[key] = copy.deepcopy(summary)
+                if len(LESSON_EMPTY_PROGRESS_STUDY_CACHE) > 2048:
+                    oldest = next(iter(LESSON_EMPTY_PROGRESS_STUDY_CACHE))
+                    LESSON_EMPTY_PROGRESS_STUDY_CACHE.pop(oldest, None)
+            return summary
+    finally:
+        with LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT_LOCK:
+            current = LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT.get(key)
+            if current is inflight:
+                current["users"] = max(0, int(current.get("users", 0) or 0) - 1)
+                if not current["users"]:
+                    LESSON_EMPTY_PROGRESS_STUDY_SINGLEFLIGHT.pop(key, None)
 
 
 def normalize_lesson_learning_summary(payload: dict, username: str = "") -> dict:

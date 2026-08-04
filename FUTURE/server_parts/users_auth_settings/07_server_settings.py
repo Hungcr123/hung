@@ -463,6 +463,20 @@ def normalize_distributed_worker_job_limits(value) -> dict:
     return result
 
 
+# Added 2026-07-30: keep the Space_V picture source as one absolute local folder persisted in PostgreSQL settings.
+def normalize_space_v_picture_folder(value: object = "") -> str:
+    raw = str(value or "").strip().strip('"')
+    if not raw:
+        raw = str(DEFAULT_SETTINGS.get("space_v_picture_folder", DEFAULT_SPACE_V_PICTURE_FOLDER))
+    if "\x00" in raw or len(raw) > 1024:
+        raise RuntimeError("Duong dan picture khong hop le.")
+    expanded = os.path.expandvars(os.path.expanduser(raw))
+    try:
+        return str(Path(expanded).resolve(strict=False))
+    except Exception as exc:
+        raise RuntimeError(f"Khong the chuan hoa duong dan picture: {exc}") from exc
+
+
 # Added 2026-07-07: normalizes how many worker clients one machine should run.
 def normalize_distributed_worker_machine_limit(value) -> int:
     try:
@@ -551,6 +565,9 @@ def normalize_server_settings(payload: dict | None = None) -> dict:
         hud_lines = list(DEFAULT_SETTINGS["question_hud_lines"])
     public_hostname = normalize_cloudflare_public_hostname(source.get("cloudflare_public_hostname", DEFAULT_SETTINGS["cloudflare_public_hostname"]))
     tunnel_name = normalize_cloudflare_tunnel_name(source.get("cloudflare_tunnel_name", DEFAULT_SETTINGS["cloudflare_tunnel_name"]))
+    space_v_picture_folder = normalize_space_v_picture_folder(
+        source.get("space_v_picture_folder", source.get("spaceVPictureFolder", DEFAULT_SETTINGS["space_v_picture_folder"]))
+    )
     cloudflare_turn_key_id = clean(source.get("cloudflare_turn_key_id", source.get("cloudflareTurnKeyId", "")))[:120]
     cloudflare_turn_api_token = str(source.get("cloudflare_turn_api_token", source.get("cloudflareTurnApiToken", "")) or "").strip()[:240]
     webrtc_ice_servers = merge_webrtc_ice_servers(
@@ -598,6 +615,7 @@ def normalize_server_settings(payload: dict | None = None) -> dict:
         "qm_city_npc": qm_city_npc,
         "cloudflare_public_hostname": public_hostname,
         "cloudflare_tunnel_name": tunnel_name,
+        "space_v_picture_folder": space_v_picture_folder,
         "cloudflare_turn_key_id": cloudflare_turn_key_id,
         "cloudflare_turn_api_token": cloudflare_turn_api_token,
         "webrtc_ice_servers": webrtc_ice_servers,
@@ -737,6 +755,13 @@ def save_server_settings(payload: dict) -> dict:
         source = {**source, "cloudflare_public_hostname": normalize_cloudflare_public_hostname(raw_hostname)}
     if "cloudflare_tunnel_name" in source:
         source = {**source, "cloudflare_tunnel_name": normalize_cloudflare_tunnel_name(source.get("cloudflare_tunnel_name", ""))}
+    if "space_v_picture_folder" in source or "spaceVPictureFolder" in source:
+        picture_folder = normalize_space_v_picture_folder(source.get("space_v_picture_folder", source.get("spaceVPictureFolder", "")))
+        picture_path = Path(picture_folder)
+        if not picture_path.is_dir():
+            raise RuntimeError(f"Thu muc picture khong ton tai: {picture_folder}")
+        source = {**source, "space_v_picture_folder": picture_folder}
+        source.pop("spaceVPictureFolder", None)
     next_payload = {
         **current,
         **source,
@@ -753,6 +778,10 @@ def save_server_settings(payload: dict) -> dict:
     with SETTINGS_LOCK:
         SERVER_DATA_ROOT.mkdir(parents=True, exist_ok=True)
         atomic_write_json(SETTINGS_FILE, result, indent=2)
+    if "space_v_picture_folder" in source:
+        invalidate_picture_index = globals().get("invalidate_space_v_local_picture_index")
+        if callable(invalidate_picture_index):
+            invalidate_picture_index()
     invalidate_top_response = globals().get("invalidate_vocab_leaderboard_response_cache")
     if callable(invalidate_top_response):
         invalidate_top_response()

@@ -54,6 +54,8 @@ from future_postgres_structure_asset_store import (
     iter_structure_assets,
     ocr_cache_index,
     ocr_cache_page_text as structure_ocr_cache_page_text,
+    ocr_cache_revision_ns,
+    ocr_cache_text_snapshot,
     structure_asset_bytes,
     structure_asset_exists,
     structure_asset_gzip,
@@ -129,11 +131,12 @@ def set_future_server2_process_status(role: str = "main") -> None:
 
 
 QMDICT_SOURCE_FILE = PROGRAME_ROOT / "module_main" / "Data_Input" / "QmDict.py"
-VOCAB_IMAGE_CACHE_FILE = PROGRAME_ROOT / "programe_cache" / "future_vocab_builder" / "image_cache.json"
+DEFAULT_SPACE_V_PICTURE_FOLDER = SERVER_PICTURE_DIR / "picture"
 QMDICT_AUDIO_REFRESH_PROGRESS_FILE = SERVER_DATA_ROOT / "_future_qmdict_meaning_audio_refresh_progress.json"
 QMDICT_AUDIO_REFRESH_REPORT_FILE = SERVER_DATA_ROOT / "_future_qmdict_meaning_audio_refresh_report.json"
 QMDICT_WORD_AUDIO_REFRESH_PROGRESS_FILE = SERVER_DATA_ROOT / "_future_qmdict_word_audio_refresh_progress.json"
 QMDICT_WORD_AUDIO_REFRESH_REPORT_FILE = SERVER_DATA_ROOT / "_future_qmdict_word_audio_refresh_report.json"
+QMDICT_OCR_AUDIO_PRIORITY_FILE = SERVER_DATA_ROOT / "_future_qmdict_ocr_audio_priority.json"
 QMLEARN_AUDIO_STEM_INDEX_FILE = SERVER_DATA_ROOT / "_future_qmlearn_audio_stem_index.json"
 USER_ROOT = QMLEARN_ROOT / "users"
 MAIN_SERVER_USER_ROOT = QMLEARN_ROOT / "server_users"
@@ -302,8 +305,6 @@ QMDICT_VOCAB_STATS_CACHE_LIMIT = 500
 QMDICT_CHAT_TOKEN_CACHE_LIMIT = 16000
 SPACE_V_QMDICT_SYNC_LOCK = threading.RLock()
 SPACE_V_QMDICT_REPAIR_LOCK = threading.RLock()
-SPACE_V_IMAGE_CACHE_LOCK = threading.RLock()
-SPACE_V_IMAGE_CACHE_STATE = {"signature": None, "payload": {}}
 SPACE_V_DEFAULT_VOICES = (
     ("Sound of Text | Female UK", "sot:en-GB", "uk"),
     ("Sound of Text | Female US", "sot:en-US", "us"),
@@ -319,10 +320,17 @@ QMLEARN_AUDIO_PATH_CACHE_LOCK = threading.RLock()
 QMLEARN_AUDIO_PATH_CACHE: dict[tuple[str, str], Path | None] = {}
 QMLEARN_AUDIO_DIR_INDEX_LOCK = threading.RLock()
 QMLEARN_AUDIO_DIR_INDEX: dict[str, dict[str, Path]] = {}
+QMLEARN_AUDIO_DIR_REVISION_INDEX: dict[str, dict[str, str]] = {}
 QMLEARN_AUDIO_HELPERS_LOCK = threading.RLock()
 QMLEARN_AUDIO_HELPERS: dict[str, object] = {"loaded": False, "file_name": None, "stem": None}
 QMLEARN_AUDIO_URL_CACHE_LOCK = threading.RLock()
-QMLEARN_AUDIO_URL_CACHE: dict[str, tuple[int, str]] = {}
+QMLEARN_AUDIO_URL_CACHE: dict[str, tuple[str, str]] = {}
+QMLEARN_AUDIO_REVISION_CACHE_LOCK = threading.RLock()
+QMLEARN_AUDIO_REVISION_CACHE: dict[str, tuple[int, int, str]] = {}
+QMLEARN_HTTP_AUDIO_CACHE_LOCK = threading.RLock()
+QMLEARN_HTTP_AUDIO_CACHE: dict[str, dict] = {}
+QMLEARN_HTTP_AUDIO_CACHE_MAX_ITEMS = 512
+QMLEARN_HTTP_AUDIO_CACHE_MAX_BYTES = 160 * 1024 * 1024
 SPACE_V_QMDICT_REPAIR_JOB = {
     "running": False,
     "job_id": "",
@@ -348,7 +356,8 @@ QMDICT_RELOAD_STATE = {
 }
 QMDICT_AUDIO_REFRESH_LOCK = threading.RLock()
 QMDICT_AUDIO_REFRESH_INFLIGHT: set[str] = set()
-QMDICT_AUDIO_REFRESH_MAX_WORKERS = 50
+# Added 2026-07-31: Vietnamese refresh shares the bounded resumable audio session limit.
+QMDICT_AUDIO_REFRESH_MAX_WORKERS = 4
 QMDICT_AUDIO_STEM_INDEX_LOCK = threading.RLock()
 QMDICT_AUDIO_STEM_INDEX_CACHE = {"stems": set(), "loaded_at": 0.0}
 QMDICT_AUDIO_REFRESH_JOB = {
@@ -375,9 +384,18 @@ QMDICT_AUDIO_REFRESH_JOB = {
     "last_key": "",
     "last_meaning": "",
     "error": "",
+    "cancel_requested": False,
 }
 QMDICT_WORD_AUDIO_REFRESH_LOCK = threading.RLock()
-QMDICT_WORD_AUDIO_REFRESH_MAX_WORKERS = 16
+# Added 2026-07-31: keep bulk Sound of Text refresh bounded until a small batch proves healthy.
+QMDICT_WORD_AUDIO_REFRESH_MAX_WORKERS = 4
+# Added 2026-07-31: persist bulk audio behind the worker feeder so file/index I/O
+# cannot reduce the number of TTS jobs held by distributed workers.
+QMDICT_WORD_AUDIO_WRITER_WORKERS = 8
+QMDICT_WORD_AUDIO_RESULT_BUFFER = 128
+# Added 2026-07-31: cache the PostgreSQL OCR-first word order by OCR and QmDict revision.
+QMDICT_OCR_AUDIO_PRIORITY_LOCK = threading.RLock()
+QMDICT_OCR_AUDIO_PRIORITY_CACHE = {"signature": None, "words": [], "pages": 0, "built_at": ""}
 QMDICT_WORD_AUDIO_REFRESH_JOB = {
     "running": False,
     "job_id": "",
@@ -394,10 +412,13 @@ QMDICT_WORD_AUDIO_REFRESH_JOB = {
     "done": 0,
     "refreshed": 0,
     "failed": 0,
+    "priority_total": 0,
+    "priority_done": 0,
     "last_key": "",
     "last_word": "",
     "last_voice": "",
     "error": "",
+    "cancel_requested": False,
 }
 VOCAB_BUILD_JOBS: dict[str, dict] = {}
 VOCAB_BUILD_LOCK = threading.RLock()
@@ -471,6 +492,7 @@ DEFAULT_SETTINGS = {
     },
     "cloudflare_public_hostname": "",
     "cloudflare_tunnel_name": "future-whisper",
+    "space_v_picture_folder": str(DEFAULT_SPACE_V_PICTURE_FOLDER),
     "webrtc_ice_servers": [
         {"urls": ["stun:stun.l.google.com:19302"]},
         {"urls": ["stun:global.stun.twilio.com:3478"]},
@@ -594,6 +616,12 @@ LOCAL_SERVER_STATE_KEYS = {
     "shutdown_reason",
     "worker_url",
     "worker_last_error",
+    "distributed_worker_url",
+    "distributed_worker_listener",
+    "distributed_worker_host",
+    "distributed_worker_port",
+    "distributed_worker_http_max_threads",
+    "distributed_worker_listener_error",
     "space_pdf_progress_warm",
     "last_space_pdf_progress_post",
 }
@@ -768,6 +796,9 @@ TUNNEL_RESTART_TIMER = None
 TUNNEL_RESTART_ATTEMPTS = 0
 TUNNEL_MAX_RESTART_DELAY_SECONDS = 30
 SERVER_HTTPD = None
+# Added 2026-07-31: keep long-poll worker traffic on a LAN-only listener so
+# public web request threads are not held by hundreds of idle workers.
+DISTRIBUTED_WORKER_HTTPD = None
 ANTI_ROBOT_LOCK = threading.RLock()
 ANTI_ROBOT_BUCKETS: dict[str, dict] = {}
 SECURITY_ALERT_LOCK = threading.RLock()
@@ -983,6 +1014,17 @@ SERVER_DATA_MANIFEST_STATE = {
     "watch_rescan_timer": None,
     "watch_rescan_paths": set(),
     "monitor_thread": None,
+    "build_hold_active": False,
+    "build_hold_started_at": 0.0,
+    "build_hold_last_activity_at": 0.0,
+    "build_hold_until": 0.0,
+    "build_hold_timer": None,
+    "build_hold_requests": 0,
+    "build_hold_apply_requested": False,
+    "build_hold_requires_apply": False,
+    "build_sessions": {},
+    "build_hold_full_refresh_pending": False,
+    "build_hold_publish_in_progress": False,
 }
 MAIN_VOCAB_SYNC_STATE: dict[str, dict] = {}
 MAIN_VOCAB_SYNC_MIN_SECONDS = 10.0

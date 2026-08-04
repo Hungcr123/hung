@@ -2992,7 +2992,9 @@
           });
         }
         if (sequence.length) {
-          void playGrammarAudioSequence(sequence);
+          const play = () => void playGrammarAudioSequence(sequence);
+          if (typeof window.__ftRunAfterLessonEntryGateOpen === "function") window.__ftRunAfterLessonEntryGateOpen(play);
+          else play();
         }
       };
 

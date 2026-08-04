@@ -173,6 +173,12 @@ def public_health_payload(local_client: bool = False) -> dict:
         postgres_metrics = globals().get("postgres_metrics_snapshot")
         if callable(postgres_metrics):
             payload["postgres"] = postgres_metrics()
+        durable_tts_metrics = globals().get("durable_tts_queue_metrics")
+        if callable(durable_tts_metrics):
+            try:
+                payload["durable_tts_queue"] = durable_tts_metrics()
+            except Exception as exc:
+                payload["durable_tts_queue"] = {"error": clean(exc)}
         postgres_probe = globals().get("postgres_runtime_probe_snapshot")
         if callable(postgres_probe) and os.environ.get("FUTURE_READINESS_PROBE") == "1":
             payload["postgres_probe"] = postgres_probe()
@@ -184,6 +190,9 @@ def public_health_payload(local_client: bool = False) -> dict:
         rollout_snapshot = globals().get("canonical_identity_rollout_snapshot")
         if callable(rollout_snapshot):
             payload["canonical_identity_rollout"] = rollout_snapshot()
+        manifest_hold_snapshot = globals().get("server_data_manifest_build_hold_status")
+        if callable(manifest_hold_snapshot):
+            payload["manifest_build_hold"] = manifest_hold_snapshot()
         payload["security_alerts"] = security_rate_alerts_snapshot(20)
         payload["security_poll"] = security_poll_dashboard_snapshot(12)
     return payload

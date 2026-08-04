@@ -139,6 +139,12 @@ def safe_qmlearn_data_sound_path(relative_path: str = "") -> Path:
         target.relative_to(root)
     except ValueError as exc:
         raise RuntimeError("Chi duoc tai audio trong C:\\QMLearn\\Data.") from exc
+    # Added 2026-07-31: canonicalize legacy English root URLs so every caller
+    # reads UK/US audio from the same accent-specific SOT directory.
+    english_match = re.search(r"_en-(gb|us)(?:__[^.]*)?\.(?:mp3|txt)$", target.name, flags=re.IGNORECASE)
+    if english_match:
+        accent_dir = "sot-en-gb" if english_match.group(1).lower() == "gb" else "sot-en-us"
+        target = (root / accent_dir / target.name).resolve()
     if not target.is_file() and target.suffix.lower() == ".txt":
         mp3_target = target.with_suffix(".mp3")
         if mp3_target.is_file():

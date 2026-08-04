@@ -7,6 +7,8 @@ def do_GET(self):
     self._future_handler_seen_request = True
     parsed = urlparse(self.path)
     path = parsed.path.rstrip("/") or "/"
+    if not future_worker_listener_allows(self, path, "GET"):
+        return
     self.record_security_poll_stat(path, "GET")
     if not self.enforce_security_block(path):
         return
@@ -60,6 +62,8 @@ def do_GET(self):
                 "reload_token": reload_state.get("token", ""),
                 "reload_updated_at": reload_state.get("updated_at", ""),
                 "reload_reason": reload_state.get("reason", ""),
+                "reload_command": reload_state.get("command", ""),
+                "global_audio_cache_epoch": global_audio_cache_epoch(),
                 "etag": source_etag,
                 "mtime_ns": int(stat.st_mtime_ns),
                 "size": int(stat.st_size),
@@ -201,6 +205,15 @@ def do_GET(self):
                         if getattr(write_exc, "winerror", None) in {10053, 10054, 10058}:
                             break
                         raise
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/space-v-picture-settings":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc xem duong dan picture."})
+            return
+        try:
+            self.send_json(200, {"ok": True, **space_v_local_picture_settings_payload()})
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
         return

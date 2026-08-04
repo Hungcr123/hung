@@ -546,6 +546,10 @@ def space_progress_maybe_available(space: str = "", username: str = "") -> bool:
         row = SPACE_PROGRESS_STORE.get(key)
         if isinstance(row, dict) and isinstance(row.get("payload"), dict):
             return True
+    database_has_state = globals().get("server_database_user_has_lesson_state")
+    if callable(database_has_state) and database_has_state(username):
+        # PostgreSQL is authoritative even before this process has warmed its RAM progress cache.
+        return True
     progress_path = space_progress_existing_path(normalized_space, username)
     if progress_path.is_file():
         return True
@@ -1151,8 +1155,15 @@ def space_progress_lesson_vault_study_patch(record: dict, space: str = "") -> di
     if space == "Space_W":
         done, total = space_w_progress_work_counts(source)
     elif space == "Space_Q":
-        total = max(total, space_w_int(state.get("questionTotal", state.get("totalQuestions", 0)), 0))
-        done = max(done, space_w_int(state.get("questionDone", state.get("completedQuestions", state.get("questionsDone", 0))), 0))
+        explicit_question_total = next((state.get(key) for key in ("questionTotal", "totalQuestions") if key in state), None)
+        explicit_question_done = next((state.get(key) for key in ("questionDone", "completedQuestions", "questionsDone") if key in state), None)
+        question_total = max(0, space_w_int(explicit_question_total, 0))
+        if question_total:
+            # The resume pointer is navigation state. Never turn currentIndex=2 into two completed questions.
+            total = question_total
+            done = max(0, space_w_int(explicit_question_done, 0)) if explicit_question_done is not None else 0
+        else:
+            done = max(0, space_w_int(state.get("completedNodes", 0), 0))
     elif space in {"Space_P", "Space_S", "Space_L"}:
         total = max(total, space_w_int(state.get("totalSegments", state.get("segmentTotal", state.get("totalTokens", state.get("tokenTotal", 0)))), 0))
         done = max(done, space_w_int(state.get("completedSegments", state.get("segmentDone", state.get("completedTokens", state.get("tokenDone", 0)))), 0))
@@ -1161,6 +1172,8 @@ def space_progress_lesson_vault_study_patch(record: dict, space: str = "") -> di
     if total:
         done = max(0, min(done, total))
     percent = int(round((done / total) * 100)) if total else 0
+    active_run = bool(source.get("activeRun") or source.get("active_run") or state.get("activeRun") or state.get("active_run"))
+    run_id = clean(source.get("runId") or source.get("run_id") or state.get("runId") or state.get("run_id"))
     progress = {
         "space": space,
         "label": lesson_progress_label(space) if "lesson_progress_label" in globals() else space,
@@ -1169,10 +1182,22 @@ def space_progress_lesson_vault_study_patch(record: dict, space: str = "") -> di
         "percent": max(0, min(100, percent)),
         "text": f"{done}/{total}" if total else "",
         "completed": bool(total and done >= total),
-        "in_progress": bool(total and done < total and done > 0),
+        "in_progress": bool(total and done < total and (done > 0 or active_run)),
+        "activeRun": active_run,
+        "runId": run_id,
         "updatedAt": clean(source.get("updatedAt") or source.get("savedAt")),
         "savedAt": clean(source.get("savedAt") or source.get("updatedAt")),
     }
+    if space == "Space_Q":
+        node_total = max(0, space_w_int(state.get("totalNodes", source.get("nodeCount", state.get("nodeCount", 0))), 0))
+        node_done = max(0, space_w_int(state.get("completedNodes", 0), 0))
+        if node_total:
+            node_done = min(node_done, node_total)
+            progress.update({
+                "node_done": node_done,
+                "node_total": node_total,
+                "nodes_text": f"{node_done}/{node_total}",
+            })
     if space == "Space_W":
         reviewing = bool(source.get("reviewing") or source.get("reviewRun") or state.get("reviewing") or state.get("reviewRun") or state.get("reviewModeActive"))
         active_run = bool(source.get("activeRun") or source.get("active_run") or state.get("activeRun") or state.get("active_run"))
@@ -1230,6 +1255,13 @@ def invalidate_space_task_cache_after_space_progress(username: str, record: dict
         should_invalidate = bool(progress.get("completed"))
     if should_invalidate:
         invalidate_space_task(username)
+        return
+    if isinstance(record, dict):
+        patch_space_task = globals().get("patch_space_task_payload_cache_progress")
+        patched = patch_space_task(username, record, summary) if callable(patch_space_task) else 0
+        if not patched:
+            # The active lesson may not have occupied a cached slot yet; rebuild once so selection follows progress.
+            invalidate_space_task(username)
 
 
 def space_progress_completion_transition(existing: dict | None, incoming: dict | None, space: str = "") -> dict:

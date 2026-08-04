@@ -579,7 +579,7 @@ def list_server_data(
                 if defer_entry_study:
                     entry["study_deferred"] = True
                 else:
-                    entry["study"] = summarize_lesson_study(
+                    entry["study"] = summarize_lesson_study_cached_empty_progress(
                         item_path,
                         study_user,
                         progress_index,

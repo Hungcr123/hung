@@ -7,6 +7,8 @@ def do_GET(self):
     self._future_handler_seen_request = True
     parsed = urlparse(self.path)
     path = parsed.path.rstrip("/") or "/"
+    if not future_worker_listener_allows(self, path, "GET"):
+        return
     self.record_security_poll_stat(path, "GET")
     if not self.enforce_security_block(path):
         return
@@ -60,6 +62,8 @@ def do_GET(self):
                 "reload_token": reload_state.get("token", ""),
                 "reload_updated_at": reload_state.get("updated_at", ""),
                 "reload_reason": reload_state.get("reason", ""),
+                "reload_command": reload_state.get("command", ""),
+                "global_audio_cache_epoch": global_audio_cache_epoch(),
                 "etag": source_etag,
                 "mtime_ns": int(stat.st_mtime_ns),
                 "size": int(stat.st_size),
@@ -201,6 +205,15 @@ def do_GET(self):
                         if getattr(write_exc, "winerror", None) in {10053, 10054, 10058}:
                             break
                         raise
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
+    if path == "/dashboard/space-v-picture-settings":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc xem duong dan picture."})
+            return
+        try:
+            self.send_json(200, {"ok": True, **space_v_local_picture_settings_payload()})
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
         return
@@ -1034,7 +1047,7 @@ def do_GET(self):
             if not username:
                 self.send_json(400, {"ok": False, "error": "Vui lòng nhập tên tài khoản.", "reason": "missing_username"})
                 return
-            if not read_user_lines(username):
+            if not server_database_user_exists(username):
                 self.send_json(404, {"ok": False, "error": "Tài khoản không tồn tại.", "reason": "nouser"})
                 return
             # Added 2026-07-06: local-only browser test login for Codex DOM checks without normal password entry.
@@ -1212,6 +1225,7 @@ def do_GET(self):
                 "integrity_signature": clean(manifest.get("signature", "")),
                 "folder_count": len(folders),
                 "entry_count": sum(len(rows) for rows in folders.values() if isinstance(rows, list)),
+                "build_hold": server_data_manifest_build_hold_status(),
             })
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
@@ -1257,6 +1271,13 @@ def do_GET(self):
             else:
                 self.send_json(200, payload, extra_headers={"Server-Timing": server_timing} if server_timing else None)
         except Exception as exc:
+            stt_debug_log(
+                "server_data_list_request_failed",
+                user=normalize_username((locals().get("session") or {}).get("username", "")),
+                path=clean_path_value(locals().get("rel_path", "")),
+                error=str(exc),
+                traceback=traceback.format_exc(),
+            )
             self.send_json(500, {"ok": False, "error": str(exc)})
         return
     if path == "/server-data/last-file":
@@ -1694,7 +1715,8 @@ def do_GET(self):
                     file_in.seek(start_byte)
                 remaining = content_length
                 while remaining > 0:
-                    chunk = file_in.read(min(1024 * 1024, remaining))
+                    # Keep PDF Range responses observable as a smooth stream to XHR progress.
+                    chunk = file_in.read(min(64 * 1024, remaining))
                     if not chunk:
                         break
                     try:
@@ -1707,6 +1729,7 @@ def do_GET(self):
                         raise
                     sent += len(chunk)
                     remaining -= len(chunk)
+                    self.wfile.flush()
             stt_debug_log("pdf_file_response", path=rel_path, username=username, bytes=sent, total=file_size, range=range_header, status=status_code, ms=elapsed_ms)
         except PermissionError as exc:
             self.send_json(403, {"ok": False, "error": str(exc)})
@@ -2113,18 +2136,16 @@ def do_GET(self):
             etag = space_q_progress_etag(progress, username, rel_path, identity)
             request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
             if etag in request_etags or "*" in request_etags:
-                self.send_bytes(
-                    200,
-                    b"",
-                    "application/json; charset=utf-8",
-                    cache_control="private, no-cache, max-age=0, must-revalidate",
-                    etag=etag,
-                    extra_headers={"X-Future-Cache-Hit": "space-q-progress-etag"},
-                )
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, no-cache, max-age=0, must-revalidate")
+                self.send_header("X-Future-Cache-Hit", "space-q-progress-etag")
+                self.safe_finish_response()
                 return
+            summary = build_lesson_progress_summary(progress, "Space_Q", 0) if isinstance(progress, dict) else {}
             self.send_bytes(
                 200,
-                json_bytes({"ok": True, "username": username, "progress": progress}),
+                json_bytes({"ok": True, "username": username, "progress": progress, "summary": summary}),
                 "application/json; charset=utf-8",
                 cache_control="private, no-cache, max-age=0, must-revalidate",
                 etag=etag,
@@ -2234,6 +2255,58 @@ def do_GET(self):
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
         return
+    if path == "/vocab/image-file":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            word = lesson_task_notice_text((query.get("word") or [""])[0], limit=180)
+            image_id = lesson_task_notice_text((query.get("image_id") or query.get("image") or [""])[0], limit=260)
+            record = space_v_local_picture_asset(word, image_id=image_id)
+            target = Path(clean(record.get("path", ""))) if record else None
+            if not target or not target.is_file() or target.suffix.lower() not in SPACE_V_LOCAL_PICTURE_SUFFIX_PRIORITY:
+                self.send_json(404, {"ok": False, "error": "Khong co anh local cho tu nay."})
+                return
+            stat = target.stat()
+            content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+            if not content_type.startswith("image/"):
+                self.send_json(415, {"ok": False, "error": "File picture khong dung dinh dang anh."})
+                return
+            revision = f"{int(stat.st_mtime_ns):x}-{int(stat.st_size):x}"
+            etag = f'"space-v-picture-{hashlib.sha1((vocab_key(word) + "|" + clean(record.get("image_id", "")) + "|" + revision).encode("utf-8")).hexdigest()}"'
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag in request_etags or "*" in request_etags:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+                self.safe_finish_response()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(int(stat.st_size)))
+            self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+            self.send_header("ETag", etag)
+            self.send_header("Content-Disposition", inline_content_disposition_filename(target.name, "vocabulary-picture" + target.suffix.lower()))
+            if not self.safe_finish_response():
+                return
+            with target.open("rb") as file_in:
+                while True:
+                    chunk = file_in.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    try:
+                        self.wfile.write(chunk)
+                    except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+                        break
+                    except OSError as write_exc:
+                        if getattr(write_exc, "winerror", None) in {10053, 10054, 10058}:
+                            break
+                        raise
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
     if path == "/vocab/image":
         try:
             session = self.auth_session()
@@ -2245,13 +2318,26 @@ def do_GET(self):
             if not word:
                 self.send_json(400, {"ok": False, "error": "Missing word."})
                 return
-            cached = qmdict_space_v_cached_image(word)
-            lookup = {"image": cached, "pending": False, "retry_after_ms": 0} if cached else qmdict_space_v_image_lookup(word)
-            image = lookup.get("image") if isinstance(lookup, dict) else {}
+            lookup = qmdict_space_v_image_lookup(word)
+            images = lookup.get("images") if isinstance(lookup, dict) and isinstance(lookup.get("images"), list) else []
+            username = normalize_username(session.get("username", ""))
+            selection = server_database_load_vocab_image_selection(username, vocab_key(word))
+            selected_image_id = clean(selection.get("image_id", ""))
+            selected_index = next((index for index, item in enumerate(images) if clean(item.get("id", "")).casefold() == selected_image_id.casefold()), 0) if images else -1
+            image = images[selected_index] if selected_index >= 0 else {}
+            record = space_v_local_picture_asset(word, image_id=clean(image.get("id", "")))
             self.send_json(200, {
                 "ok": True,
                 "word": word,
                 "image": image if isinstance(image, dict) else {},
+                "images": images,
+                "selected_image_id": clean(image.get("id", "")) if isinstance(image, dict) else "",
+                "selected_index": selected_index,
+                "selection_revision": max(0, int(selection.get("server_revision", 0) or 0)),
+                "asset": {
+                    "asset_id": f"local-picture:{vocab_key(word)}:{clean(record.get('revision', ''))}",
+                    "metadata_revision": clean(record.get("revision", "")),
+                } if record else {},
                 "pending": bool((lookup or {}).get("pending")),
                 "retry_after_ms": max(0, int((lookup or {}).get("retry_after_ms", 0) or 0)),
             })
@@ -2499,26 +2585,91 @@ def do_GET(self):
         except Exception as exc:
             self.send_json(404, {"ok": False, "error": str(exc)})
         return
+    if path == "/server-data/qm-sound-meta":
+        try:
+            query = parse_qs(parsed.query)
+            descriptor = qm_sound_protocol_descriptor(
+                meaning=clean((query.get("meaning") or [""])[0]),
+                word=clean((query.get("word") or query.get("text") or [""])[0]),
+                voice=clean((query.get("voice") or [""])[0]),
+                rel_path=clean_path_value((query.get("path") or [""])[0]),
+            )
+            self.send_json(200, {
+                "ok": True,
+                "audio_epoch": descriptor["audio_epoch"],
+                "file_rev": descriptor["file_revision"],
+                "url": descriptor["url"],
+            }, extra_headers={"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate"})
+        except Exception as exc:
+            self.send_json(404, {"ok": False, "error": str(exc)}, extra_headers={"Cache-Control": "no-store"})
+        return
     if path == "/server-data/qm-sound":
         try:
             query = parse_qs(parsed.query)
+            requested_epoch = max(0, space_w_int((query.get("audio_epoch") or [0])[0], 0))
+            requested_file_revision = clean((query.get("file_rev") or [""])[0])
+            legacy_revision = clean((query.get("v") or query.get("revision") or [""])[0])
+            requested_revision = requested_file_revision or legacy_revision
+            current_epoch = global_audio_cache_epoch()
+            revision_identity = ""
             meaning = clean((query.get("meaning") or [""])[0])
+            word = clean((query.get("word") or query.get("text") or [""])[0])
+            voice = clean((query.get("voice") or [""])[0])
+            rel_path = clean_path_value((query.get("path") or [""])[0])
             if meaning:
-                payload, content_type = read_qmlearn_data_sound_by_text(meaning)
-            else:
-                word = clean((query.get("word") or query.get("text") or [""])[0])
-                voice = clean((query.get("voice") or [""])[0])
-                if word:
-                    payload, content_type = read_qmlearn_data_sound_by_voice_text(word, voice)
-                else:
-                    rel_path = clean_path_value((query.get("path") or [""])[0])
-                    payload, content_type = read_qmlearn_data_sound(rel_path)
+                revision_identity = f"meaning:{meaning.lower()}"
+            elif word:
+                revision_identity = f"word:{word.lower()}:{voice.lower()}"
+            elif rel_path:
+                revision_identity = f"path:{rel_path.lower()}"
+            immutable_cache_key = (
+                f"{revision_identity}|{requested_epoch}|{requested_file_revision}"
+                if revision_identity and requested_epoch and requested_file_revision and requested_file_revision.lower() not in {"missing", "0"}
+                else ""
+            )
+            descriptor = qm_sound_protocol_descriptor(word=word, voice=voice, meaning=meaning, rel_path=rel_path)
+            payload, content_type, current_revision = read_qmlearn_data_sound_file_revisioned(descriptor["path"])
+            revision_matches = bool(
+                requested_epoch == current_epoch
+                and requested_file_revision
+                and requested_file_revision == current_revision
+            )
+            etag_source = f"{revision_identity}|{current_epoch}|{current_revision}"
+            etag = f'"qm-sound-{hashlib.sha1(etag_source.encode("utf-8")).hexdigest()}"' if current_revision else ""
+            if revision_matches and immutable_cache_key:
+                cached_response = qmlearn_http_audio_cache_get_current(
+                    immutable_cache_key,
+                    requested_revision,
+                    current_revision,
+                )
+                if cached_response:
+                    self.send_bytes(
+                        200,
+                        cached_response["data"],
+                        cached_response.get("content_type", "audio/mpeg"),
+                        cache_control="public, max-age=31536000, immutable",
+                        accept_ranges=True,
+                        etag=clean(cached_response.get("etag", etag)),
+                        extra_headers={
+                            "X-Future-Audio-Cache-Epoch": str(current_epoch),
+                            "X-Future-Audio-Revision": current_revision,
+                            "X-Future-Audio-Cache-Source": "server-ram",
+                        },
+                    )
+                    return
+                qmlearn_http_audio_cache_put(immutable_cache_key, payload, content_type, current_revision, etag)
             self.send_bytes(
                 200,
                 payload,
                 content_type,
-                cache_control="public, max-age=31536000, immutable",
+                cache_control="public, max-age=31536000, immutable" if revision_matches else "no-store, no-cache, max-age=0, must-revalidate",
                 accept_ranges=content_type.startswith("audio/"),
+                etag=etag if revision_matches else "",
+                extra_headers={
+                    "X-Future-Audio-Cache-Epoch": str(current_epoch),
+                    "X-Future-Audio-Revision": current_revision,
+                    "X-Future-Audio-Cache-Source": "server-file",
+                } if current_revision else None,
             )
         except Exception as exc:
             self.send_json(404, {"ok": False, "error": str(exc)})

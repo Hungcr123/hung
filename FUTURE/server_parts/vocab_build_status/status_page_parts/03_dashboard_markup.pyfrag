@@ -9,6 +9,7 @@
           <button class="action" id="kill-other-servers" type="button">Kill old Future servers</button>
           <button class="action is-danger" id="clean-close-all-runtime" type="button">Close server + tunnel</button>
           <button class="action" id="frontend-update-clients" type="button">Update clients</button>
+          <button class="action audio-cache-action" id="frontend-clear-audio-cache" type="button">Clear audio cache</button>
           <button class="action" id="dashboard-close-server" type="button">Close server</button>
         </div>
       </div>
@@ -34,6 +35,15 @@
       <button class="tab" id="tab-qm-city-levels" type="button">QM-City levels</button>
     </nav>
     <section class="grid tab-panel" id="panel-main">
+      <div class="card wide">
+        <div class="label">Space_V picture folder</div>
+        <div class="setting-copy">Only local images are used. Each filename (without extension) must match the English vocabulary word.</div>
+        <div class="notice-actions">
+          <input class="setting-input" id="space-v-picture-folder-input" type="text" maxlength="1024" spellcheck="false" value="C:\\server data\\Picture\\picture" aria-label="Space V picture folder">
+          <button class="notice-save" id="space-v-picture-folder-save" type="button">Save</button>
+        </div>
+        <span class="notice-state" id="space-v-picture-folder-state">Loading local picture index...</span>
+      </div>
       <div class="card">
         <div class="label">Model</div>
         <div class="value" id="model">small</div>
@@ -169,26 +179,42 @@
           </div>
           <div class="setting-row">
             <div class="setting-copy">
-              QmDict UK/US word audio. Re-download Sound of Text audio for every word in QmDict and overwrite broken UK/US files.
+              English QmDict audio (UK + US). Force overwrites every file; Missing only downloads absent files; Resume continues the last interrupted session.
             </div>
             <div class="cpu-guard-control">
-              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-refresh" type="button">Refresh QmDict UK/US Audio</button>
-              <button class="notice-save cpu-guard-apply" id="qmdict-meaning-audio-refresh" type="button">Refresh Vietnamese SOT Audio</button>
-              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-retry" type="button">Retry Failed Audio</button>
-              <button class="notice-save cpu-guard-apply" id="qmdict-reload" type="button">Reload QmDict</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-force" type="button">Force Reload All UK/US</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-missing" type="button">Check Missing &amp; Download</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-resume" type="button">Resume UK/US Session</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-word-audio-cancel" type="button">Stop UK/US</button>
+            </div>
+            <div class="qmdict-audio-progress" id="qmdict-word-audio-progress" hidden>
+              <span class="qmdict-audio-bar"><i id="qmdict-word-audio-progress-fill"></i></span>
+              <span class="qmdict-audio-copy" id="qmdict-word-audio-progress-copy">UK/US audio refresh is idle.</span>
+            </div>
+            <div class="setting-copy">
+              Vietnamese QmDict meaning audio. Force overwrites every Vietnamese file; Missing only fills gaps; Resume continues its own saved session.
+            </div>
+            <div class="cpu-guard-control">
+              <button class="notice-save cpu-guard-apply" id="qmdict-meaning-audio-force" type="button">Force Reload All Vietnamese</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-meaning-audio-missing" type="button">Check Missing &amp; Download</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-meaning-audio-resume" type="button">Resume Vietnamese Session</button>
+              <button class="notice-save cpu-guard-apply" id="qmdict-meaning-audio-cancel" type="button">Stop Vietnamese</button>
+            </div>
+            <div class="qmdict-audio-progress" id="qmdict-meaning-audio-progress" hidden>
+              <span class="qmdict-audio-bar"><i id="qmdict-meaning-audio-progress-fill"></i></span>
+              <span class="qmdict-audio-copy" id="qmdict-meaning-audio-progress-copy">Vietnamese audio refresh is idle.</span>
+            </div>
+            <div class="cpu-guard-control">
+              <button class="notice-save cpu-guard-apply" id="qmdict-reload" type="button">Reload QmDict Dictionary</button>
             </div>
             <span class="notice-state" id="qmdict-reload-state">QmDict status is idle.</span>
-            <div class="qmdict-audio-progress" id="qmdict-audio-progress" hidden>
-              <span class="qmdict-audio-bar"><i id="qmdict-audio-progress-fill"></i></span>
-              <span class="qmdict-audio-copy" id="qmdict-audio-progress-copy">Vietnamese audio refresh is idle.</span>
-            </div>
           </div>
           <div class="setting-row">
             <div class="setting-copy">
               Lesson Vault manifest. Reload the cached server-data tree after adding, moving, or deleting files in C:\\server data.
             </div>
             <div class="cpu-guard-control">
-              <button class="notice-save cpu-guard-apply" id="server-data-manifest-refresh" type="button">Refresh Manifest</button>
+              <button class="notice-save cpu-guard-apply" id="server-data-manifest-refresh" type="button">Apply pending manifest updates</button>
             </div>
             <span class="notice-state" id="server-data-manifest-state">Manifest refresh is idle.</span>
           </div>

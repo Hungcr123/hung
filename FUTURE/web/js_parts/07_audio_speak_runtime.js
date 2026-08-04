@@ -616,6 +616,7 @@
         const tasks = [];
         const seen = new Set();
         const words = Array.isArray(normalized.words) ? normalized.words : [];
+        const excludedAudioKeys = new Set(Array.isArray(options.excludeAudioKeys) ? options.excludeAudioKeys.map((value) => clean(value)).filter(Boolean) : []);
         const startIndex = Math.max(0, Math.min(Math.max(0, words.length - 1), Math.floor(Number(options.startIndex ?? vocabCurrentIndex) || 0)));
         const wordLimit = Math.max(0, Math.floor(Number(options.wordLimit || options.nodeLimit || options.maxWords || 0) || 0));
         const allowedIndexes = wordLimit
@@ -627,7 +628,7 @@
             return;
           }
           const key = audioClipCacheKey(asset);
-          if (!key || seen.has(key)) {
+          if (!key || seen.has(key) || excludedAudioKeys.has(key)) {
             return;
           }
           seen.add(key);
@@ -697,7 +698,7 @@
             label,
             nodeIndex,
             priorityIndex: taskPriority(nodeIndex, slot),
-            run: () => preloadAudioClip(asset, null),
+            run: () => preloadAudioClip(asset, null, { forceReload: Boolean(options.forceReload) }),
           });
         };
         const addSequenceTasks = (sequence, nodeIndex = startIndex, labelPrefix = "Lesson clip", slot = 50) => {
@@ -1058,9 +1059,13 @@
           setPlaybackState(false);
           return played !== false;
         } catch (error) {
-          // Added 2026-07-15: fallback automatically when embedded Sound of Text blobs are blocked by CORS.
-          setPlaybackState(false, "Sound of Text bị chặn, đang fallback Browser Voice.", true);
-          window.setTimeout(() => playBrowserVoice(text), 220);
+          const serverExhausted = clean(error && error.reason).toLowerCase() === "tts_all_generation_failed";
+          setPlaybackState(false, serverExhausted
+            ? "Worker và Server 2 đều không tạo được audio; đang dùng Browser Voice cuối cùng."
+            : "Audio thật đang tạm thời không khả dụng; không dùng giọng trình duyệt thay thế.", true);
+          if (serverExhausted) {
+            window.setTimeout(() => playBrowserVoice(text), 220);
+          }
           return false;
         } finally {
           if (objectUrl) {
@@ -1085,8 +1090,13 @@
           await playAudioUrl(objectUrl, audio.timings);
           setPlaybackState(false);
         } catch (error) {
-          setPlaybackState(false, `${providerLabel} bi chan trong moi truong nhung nay, dang fallback Browser Voice.`, true);
-          window.setTimeout(() => playBrowserVoice(text), 260);
+          const serverExhausted = clean(error && error.reason).toLowerCase() === "tts_all_generation_failed";
+          setPlaybackState(false, serverExhausted
+            ? `${providerLabel}: worker va Server 2 deu that bai; dang dung Browser Voice cuoi cung.`
+            : `${providerLabel}: audio that dang tam thoi khong kha dung.`, true);
+          if (serverExhausted) {
+            window.setTimeout(() => playBrowserVoice(text), 260);
+          }
         } finally {
           if (objectUrl) {
             window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);

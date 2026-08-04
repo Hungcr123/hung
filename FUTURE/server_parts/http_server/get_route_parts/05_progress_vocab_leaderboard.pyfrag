@@ -278,18 +278,16 @@
             etag = space_q_progress_etag(progress, username, rel_path, identity)
             request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
             if etag in request_etags or "*" in request_etags:
-                self.send_bytes(
-                    200,
-                    b"",
-                    "application/json; charset=utf-8",
-                    cache_control="private, no-cache, max-age=0, must-revalidate",
-                    etag=etag,
-                    extra_headers={"X-Future-Cache-Hit": "space-q-progress-etag"},
-                )
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, no-cache, max-age=0, must-revalidate")
+                self.send_header("X-Future-Cache-Hit", "space-q-progress-etag")
+                self.safe_finish_response()
                 return
+            summary = build_lesson_progress_summary(progress, "Space_Q", 0) if isinstance(progress, dict) else {}
             self.send_bytes(
                 200,
-                json_bytes({"ok": True, "username": username, "progress": progress}),
+                json_bytes({"ok": True, "username": username, "progress": progress, "summary": summary}),
                 "application/json; charset=utf-8",
                 cache_control="private, no-cache, max-age=0, must-revalidate",
                 etag=etag,
@@ -399,6 +397,58 @@
         except Exception as exc:
             self.send_json(500, {"ok": False, "error": str(exc)})
         return
+    if path == "/vocab/image-file":
+        try:
+            session = self.auth_session()
+            if not session:
+                self.send_json(401, {"ok": False, "error": "Chua dang nhap."})
+                return
+            query = parse_qs(parsed.query)
+            word = lesson_task_notice_text((query.get("word") or [""])[0], limit=180)
+            image_id = lesson_task_notice_text((query.get("image_id") or query.get("image") or [""])[0], limit=260)
+            record = space_v_local_picture_asset(word, image_id=image_id)
+            target = Path(clean(record.get("path", ""))) if record else None
+            if not target or not target.is_file() or target.suffix.lower() not in SPACE_V_LOCAL_PICTURE_SUFFIX_PRIORITY:
+                self.send_json(404, {"ok": False, "error": "Khong co anh local cho tu nay."})
+                return
+            stat = target.stat()
+            content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+            if not content_type.startswith("image/"):
+                self.send_json(415, {"ok": False, "error": "File picture khong dung dinh dang anh."})
+                return
+            revision = f"{int(stat.st_mtime_ns):x}-{int(stat.st_size):x}"
+            etag = f'"space-v-picture-{hashlib.sha1((vocab_key(word) + "|" + clean(record.get("image_id", "")) + "|" + revision).encode("utf-8")).hexdigest()}"'
+            request_etags = [item.strip() for item in clean(self.headers.get("If-None-Match", "")).split(",") if item.strip()]
+            if etag in request_etags or "*" in request_etags:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+                self.safe_finish_response()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(int(stat.st_size)))
+            self.send_header("Cache-Control", "private, max-age=300, must-revalidate")
+            self.send_header("ETag", etag)
+            self.send_header("Content-Disposition", inline_content_disposition_filename(target.name, "vocabulary-picture" + target.suffix.lower()))
+            if not self.safe_finish_response():
+                return
+            with target.open("rb") as file_in:
+                while True:
+                    chunk = file_in.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    try:
+                        self.wfile.write(chunk)
+                    except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+                        break
+                    except OSError as write_exc:
+                        if getattr(write_exc, "winerror", None) in {10053, 10054, 10058}:
+                            break
+                        raise
+        except Exception as exc:
+            self.send_json(500, {"ok": False, "error": str(exc)})
+        return
     if path == "/vocab/image":
         try:
             session = self.auth_session()
@@ -410,13 +460,26 @@
             if not word:
                 self.send_json(400, {"ok": False, "error": "Missing word."})
                 return
-            cached = qmdict_space_v_cached_image(word)
-            lookup = {"image": cached, "pending": False, "retry_after_ms": 0} if cached else qmdict_space_v_image_lookup(word)
-            image = lookup.get("image") if isinstance(lookup, dict) else {}
+            lookup = qmdict_space_v_image_lookup(word)
+            images = lookup.get("images") if isinstance(lookup, dict) and isinstance(lookup.get("images"), list) else []
+            username = normalize_username(session.get("username", ""))
+            selection = server_database_load_vocab_image_selection(username, vocab_key(word))
+            selected_image_id = clean(selection.get("image_id", ""))
+            selected_index = next((index for index, item in enumerate(images) if clean(item.get("id", "")).casefold() == selected_image_id.casefold()), 0) if images else -1
+            image = images[selected_index] if selected_index >= 0 else {}
+            record = space_v_local_picture_asset(word, image_id=clean(image.get("id", "")))
             self.send_json(200, {
                 "ok": True,
                 "word": word,
                 "image": image if isinstance(image, dict) else {},
+                "images": images,
+                "selected_image_id": clean(image.get("id", "")) if isinstance(image, dict) else "",
+                "selected_index": selected_index,
+                "selection_revision": max(0, int(selection.get("server_revision", 0) or 0)),
+                "asset": {
+                    "asset_id": f"local-picture:{vocab_key(word)}:{clean(record.get('revision', ''))}",
+                    "metadata_revision": clean(record.get("revision", "")),
+                } if record else {},
                 "pending": bool((lookup or {}).get("pending")),
                 "retry_after_ms": max(0, int((lookup or {}).get("retry_after_ms", 0) or 0)),
             })

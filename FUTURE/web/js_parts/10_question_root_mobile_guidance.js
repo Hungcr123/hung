@@ -1046,6 +1046,7 @@
       const QUESTION_RESPONSIVE_BASE_HEIGHT = 900;
       const QUESTION_RESPONSIVE_MIN_SCALE = 0.72;
       const QUESTION_RESPONSIVE_LANDSCAPE_MIN_SCALE = 0.56;
+      const QUESTION_CARD_TOP_SAFE_INSET_PX = 76;
 
       const questionViewportSize = () => {
         const visualViewport = window.visualViewport || null;
@@ -1908,9 +1909,17 @@
         const maxScrollLeft = Math.max(0, stageNode.scrollWidth - stageNode.clientWidth);
         const topOffset = Number.isFinite(Number(options.topOffset)) ? Number(options.topOffset) : 0;
         const desiredViewportTop = stageRect.top + Math.max(0, topOffset);
-        const nextScrollTopRaw = options.alignY === "top"
+        let nextScrollTopRaw = options.alignY === "top"
           ? stageNode.scrollTop + verticalRect.top - desiredViewportTop
           : stageNode.scrollTop + targetCenterY - viewportCenterY;
+        const topSafeInset = Number.isFinite(Number(options.topSafeInset))
+          ? Math.max(0, Number(options.topSafeInset))
+          : (targetNode === qQuestionCard ? QUESTION_CARD_TOP_SAFE_INSET_PX : 0);
+        if (topSafeInset > 0) {
+          const safeViewportTop = stageRect.top + topSafeInset;
+          const maxScrollForSafeTop = stageNode.scrollTop + verticalRect.top - safeViewportTop;
+          nextScrollTopRaw = Math.min(nextScrollTopRaw, maxScrollForSafeTop);
+        }
         const nextScrollTop = Math.max(0, Math.min(maxScrollTop, nextScrollTopRaw));
         const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, stageNode.scrollLeft + targetCenterX - viewportCenterX));
         if ((options.behavior || "smooth") === "smooth") {
@@ -2044,6 +2053,7 @@
             applyQuestionCameraFocus(focusTarget, {
               behavior,
               duration: options.duration || 260,
+              topSafeInset: QUESTION_CARD_TOP_SAFE_INSET_PX,
             });
             if (remaining > 1) {
               run(remaining - 1);

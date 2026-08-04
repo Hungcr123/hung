@@ -1638,11 +1638,15 @@
           startDelayMs: 500,
         });
         refreshIpaForAccent(selectedVoiceAccent());
-        window.setTimeout(() => {
-          if (currentNode === nextNode) {
-            playNodeQuestionAudio(nextNode);
-          }
-        }, 180);
+          window.setTimeout(() => {
+            if (currentNode === nextNode) {
+              const play = () => {
+                if (currentNode === nextNode) playNodeQuestionAudio(nextNode);
+              };
+              if (typeof window.__ftRunAfterLessonEntryGateOpen === "function") window.__ftRunAfterLessonEntryGateOpen(play);
+              else play();
+            }
+          }, 180);
         queueSpaceWProgressSave(120);
         window.setTimeout(() => {
           if (currentNode === nextNode && !speakStepCompleted) {
@@ -4930,11 +4934,12 @@
           } catch (error) {
           }
         }, 80);
-        if (speakingMode) {
-          void playParagraphEnglishAudio(child);
-        } else {
-          playParagraphMeaningAudio(child);
-        }
+        const playInitialParagraphAudio = () => {
+          if (speakingMode) void playParagraphEnglishAudio(child);
+          else playParagraphMeaningAudio(child);
+        };
+        if (typeof window.__ftRunAfterLessonEntryGateOpen === "function") window.__ftRunAfterLessonEntryGateOpen(playInitialParagraphAudio);
+        else playInitialParagraphAudio();
       }
 
       async function playParagraphClip(clip, token, volume = 0.96, options = {}) {

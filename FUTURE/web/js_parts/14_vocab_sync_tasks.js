@@ -815,7 +815,21 @@
           spaceWServerProgressSaveTimer = 0;
         }
         pendingSpaceWServerProgressRecord = null;
-        currentSpaceWCache = { identity: "", progressKey: "", voiceKey: "", voiceValue: "", voiceLabel: "", voiceApplied: false, savedProgress: null };
+        currentSpaceWCache = {
+          identity: "",
+          progressKey: "",
+          voiceKey: "",
+          voiceValue: "",
+          voiceLabel: "",
+          voiceApplied: false,
+          savedProgress: null,
+          serverPayload: null,
+          serverEtag: "",
+          serverProgressPromise: null,
+          serverProgressResult: null,
+          serverProgressSettled: false,
+          vocabScanPromise: null,
+        };
         spaceWNodeProgress = {};
         spaceWAudioPreloadToken += 1;
         if (loadStartButton) {
@@ -922,7 +936,7 @@
         return mergedRecord;
       };
 
-      const refreshSpaceWServerProgress = async () => {
+      const refreshSpaceWServerProgress = async (options = {}) => {
         if (!canUseSpaceWProgressServer()) {
           return currentSpaceWCache.savedProgress || null;
         }
@@ -936,7 +950,8 @@
           const cachedRow = currentSpaceWCache.serverPayload && clean(currentSpaceWCache.serverEtag || "")
             ? { payload: currentSpaceWCache.serverPayload, etag: currentSpaceWCache.serverEtag }
             : null;
-          const result = await fetchProgressJsonFast(`/space-w/progress?${query.toString()}`, cachedRow);
+          const timeoutMs = Math.max(1200, Math.min(9000, Number(options.timeoutMs) || 9000));
+          const result = await fetchProgressJsonFast(`/space-w/progress?${query.toString()}`, cachedRow, timeoutMs);
           const payload = result.payload || {};
           applySpaceWVoicePayload(payload.preferences || {});
           applyAiAgentGhostEnVoicePayload(payload.preferences || {});
@@ -1142,9 +1157,8 @@
         const extension = clean(entry.extension).toLowerCase();
         row.appendChild(createServerChip(extension === ".space_w" ? "W Pack" : ((extension === ".space_v" || extension === ".space_b") ? (extension === ".space_b" ? "B Pack" : "V Pack") : (extension === ".space_q" ? "Q Pack" : (extension === ".space_p" ? "P Pack" : (extension === ".pdf" ? "PDF" : (isSpacePictureExtension(extension) ? "Picture" : "Legacy Text"))))), "filetype"));
           if (extension === ".space_q") {
-            const directQuestions = Math.max(0, Math.floor(Number(study.direct_questions || study.directQuestions || entry.direct_questions || 0) || 0));
-            const recursiveQuestions = Math.max(0, Math.floor(Number(study.questions || entry.questions || 0) || 0));
-            const totalQuestions = Math.max(nodes + recursiveQuestions, Math.floor(Number(study.total_nodes || study.totalNodes || entry.total_nodes || 0) || 0));
+              const directQuestions = Math.max(0, Math.floor(Number(study.direct_questions || study.directQuestions || entry.direct_questions || 0) || 0));
+              const totalQuestions = spaceQStructuralProgressTotal(study, entry);
             if (nodes) {
               row.appendChild(createServerChip(`${nodes} Topic${nodes === 1 ? "" : "s"}`, "filetype"));
             }
@@ -1259,7 +1273,7 @@
       // Added 2026-07-22: coalesces duplicate login/task-board reads for the same authenticated owner.
       const lessonTaskPanelInflight = new Map();
       // Updated 2026-07-22: discard pre-PDF-first task payloads once so deleted/stale rows cannot survive in local cache.
-      const LESSON_TASK_PANEL_CACHE_SCHEMA_VERSION = 3;
+      const LESSON_TASK_PANEL_CACHE_SCHEMA_VERSION = 4;
       const LESSON_TASK_PANEL_CACHE_TTL_MS = 30000;
       const LESSON_TASK_PANEL_REFRESH_MIN_MS = 10000;
       let serverBrowserActivePanel = "vault";

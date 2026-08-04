@@ -352,10 +352,39 @@
 
       const lessonTaskSpaceRows = (payload = {}) => {
         const spaceTask = payload.space_task && typeof payload.space_task === "object" ? payload.space_task : {};
-        if (Array.isArray(payload.space_tasks)) {
-          return payload.space_tasks;
+        const listedRows = Array.isArray(payload.space_tasks) ? payload.space_tasks : [];
+        const canonicalRows = Array.isArray(spaceTask.tasks) ? spaceTask.tasks : [];
+        if (!listedRows.length) {
+          return canonicalRows;
         }
-        return Array.isArray(spaceTask.tasks) ? spaceTask.tasks : [];
+        if (!canonicalRows.length) {
+          return listedRows;
+        }
+        // The response keeps a legacy top-level alias for compatibility. Prefer
+        // the row carrying the newer active checkpoint when the two aliases lag.
+        const rowKey = (row = {}) => normalizeTaskPath(row.path || row.effective_path || row.link_target || row.lesson_id || row.file_id || row.id || "");
+        const rowProgress = (row = {}) => {
+          const study = row.study && typeof row.study === "object" ? row.study : {};
+          return study.progress && typeof study.progress === "object" ? study.progress : {};
+        };
+        const rowRank = (row = {}) => {
+          const progress = rowProgress(row);
+          const done = Math.max(0, Number(progress.done ?? progress.nodeDone ?? 0) || 0);
+          const total = Math.max(0, Number(progress.total ?? progress.nodeTotal ?? 0) || 0);
+          const active = lessonTaskHasActiveRun(row) ? 1 : 0;
+          const stamp = Date.parse(progress.updatedAt || progress.savedAt || row.updatedAt || row.savedAt || "") || 0;
+          return [active, done, total, stamp];
+        };
+        const merged = new Map();
+        [...listedRows, ...canonicalRows].forEach((row) => {
+          if (!row || typeof row !== "object") return;
+          const key = rowKey(row) || `row:${merged.size}`;
+          const previous = merged.get(key);
+          if (!previous || rowRank(row).some((value, index) => value > rowRank(previous)[index] && rowRank(row).slice(0, index).every((item, i) => item === rowRank(previous)[i]))) {
+            merged.set(key, row);
+          }
+        });
+        return Array.from(merged.values());
       };
 
       // Added 2026-07-28: keep a locally identified unfinished run ahead of untouched task rows.
@@ -905,7 +934,17 @@
         return "Task";
       };
 
-      const taskLearningPath = (task = {}) => normalizeServerPathValue(task && (task.link_target || task.effective_path || task.path) || "");
+      const taskLearningPath = (task = {}) => {
+        const sourcePath = normalizeServerPathValue(task && task.path || "");
+        const sourceLower = sourcePath.toLowerCase();
+        // A task row for a portable lesson is already the canonical lesson file.
+        // Do not let a stale effective/link target from a migrated PDF alias route
+        // Space_Q/W/P/L/S/V cards into an unrelated .space_pdf package.
+        if (/\.space_(?:q|w|p|l|s|v)$/.test(sourceLower) || sourceLower.endsWith(".space_b")) {
+          return sourcePath;
+        }
+        return normalizeServerPathValue(task && (task.link_target || task.effective_path || task.path) || "");
+      };
 
       const taskLearningEntry = (task = {}) => {
         const learningPath = taskLearningPath(task);
@@ -1836,12 +1875,14 @@
         }
       };
 
-      const scrollFocusedServerFileIntoView = () => {
-        const targetPath = normalizeTaskPath(serverBrowserFocusedFilePath);
-        if (!serverListNode || !targetPath) {
-          return;
-        }
-        const targetNode = Array.from(serverListNode.querySelectorAll(".ft-server-item.is-file"))
+      let lessonVaultRestoreWaitCleanup = null;
+
+      const serverFileNodeForPaths = (paths = []) => {
+        const wanted = new Set((Array.isArray(paths) ? paths : [paths])
+          .map((value) => normalizeTaskPath(value || ""))
+          .filter(Boolean));
+        if (!serverListNode || !wanted.size) return null;
+        return Array.from(serverListNode.querySelectorAll(".ft-server-item.is-file"))
           .find((item) => [
             item.dataset.path,
             item.dataset.effectivePath,
@@ -1849,16 +1890,192 @@
             item.dataset.linkedPath,
             item.dataset.sourcePath,
             item.dataset.originalPath,
-          ].some((value) => normalizeTaskPath(value || "") === targetPath));
-        if (!targetNode) {
-          return;
+          ].some((value) => wanted.has(normalizeTaskPath(value || "")))) || null;
+      };
+
+      const scrollFocusedServerFileIntoView = (options = {}) => {
+        const restoreGeneration = Math.max(0, Number(options.restoreGeneration || 0) || 0);
+        const restore = restoreGeneration && typeof currentLessonVaultRestoreState === "function"
+          ? currentLessonVaultRestoreState(restoreGeneration)
+          : null;
+        if (restoreGeneration && (!restore || restore.scrolled || restore.userInteracted)) return false;
+        const targetPath = normalizeTaskPath(serverBrowserFocusedFilePath);
+        if (!serverListNode || !targetPath) {
+          return false;
         }
+        const targetNode = serverFileNodeForPaths(restore && restore.targetPaths && restore.targetPaths.length
+          ? restore.targetPaths
+          : [targetPath]);
+        if (!targetNode) {
+          return false;
+        }
+        const rect = targetNode.getBoundingClientRect();
+        if (!targetNode.isConnected || rect.width <= 0 || rect.height <= 0) return false;
+        const before = Number(serverListNode.scrollTop || 0);
         try {
-          targetNode.scrollIntoView({ block: "center", behavior: "smooth" });
+          targetNode.scrollIntoView({ block: "center", behavior: restore ? "auto" : "smooth" });
         } catch (error) {
           targetNode.scrollIntoView({ block: "center" });
         }
+        if (restore) {
+          restore.restoreCalls += 1;
+          restore.scrolled = true;
+          restore.targetRendered = true;
+          restore.phase = "scroll-restored";
+          restore.completedAt = Date.now();
+          restore.completedScrollTop = Number(serverListNode.scrollTop || 0);
+          recordLessonVaultRestorePhase("scroll-restored", {
+            source: clean(options.source || "render"),
+            actualFile: normalizeServerPathValue(targetNode.dataset.path || ""),
+            scrollTopBefore: before,
+            scrollTopAfter: Number(serverListNode.scrollTop || 0),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            elapsedMs: Math.max(0, Date.now() - Number(restore.startedAt || Date.now())),
+          });
+        }
+        return true;
       };
+
+      // 2026-07-31: wait on DOM/size signals instead of timing guesses, then scroll exactly once for this login generation.
+      const scheduleLessonVaultLoginRestore = (payload = {}, source = "render") => {
+        const restore = typeof currentLessonVaultRestoreState === "function" ? currentLessonVaultRestoreState() : null;
+        if (!restore || restore.scrolled || restore.cancelled) return false;
+        restore.pendingPayload = payload;
+        if (!restore.lastFileReady || !restore.targetFile) return false;
+        const payloadPath = normalizeTaskPath(payload && payload.path || serverBrowserPath || "");
+        if (restore.targetTree && payloadPath && payloadPath !== normalizeTaskPath(restore.targetTree)) return false;
+        restore.treeReady = true;
+        restore.phase = "tree-ready";
+        recordLessonVaultRestorePhase("tree-ready", {
+          source: clean(source),
+          entryCount: Array.isArray(payload && payload.entries) ? payload.entries.length : 0,
+        });
+        const payloadFiles = Array.isArray(payload && payload.entries)
+          ? payload.entries.filter((entry) => entry && entry.type === "file")
+          : [];
+        let targetNode = serverFileNodeForPaths(restore.targetPaths && restore.targetPaths.length ? restore.targetPaths : [restore.targetFile]);
+        if (!targetNode && payloadFiles.length) {
+          const candidatePaths = new Set((restore.candidates || []).map((row) => normalizeTaskPath(row && row.path || "")).filter(Boolean));
+          const fallback = payloadFiles.find((entry) => candidatePaths.has(normalizeTaskPath(entry.path || ""))) || payloadFiles[0];
+          restore.targetFile = normalizeServerPathValue(fallback.path || "");
+          restore.targetPaths = [
+            fallback.path,
+            fallback.effective_path,
+            fallback.link_target,
+            fallback.linked_path,
+            fallback.sourcePath,
+            fallback.original_path,
+          ].map((value) => normalizeServerPathValue(value || "")).filter(Boolean);
+          recordLessonVaultRestorePhase("fallback-target", { actualFile: restore.targetFile, reason: "target-missing" });
+          targetNode = serverFileNodeForPaths(restore.targetPaths);
+        }
+        if (!targetNode) {
+          recordLessonVaultRestorePhase("target-not-rendered", { source: clean(source) });
+          return false;
+        }
+        setSelectedTaskPath(normalizeServerPathValue(targetNode.dataset.path || restore.targetFile));
+        restore.targetRendered = true;
+        restore.phase = "target-rendered";
+        recordLessonVaultRestorePhase("target-rendered", {
+          actualFile: normalizeServerPathValue(targetNode.dataset.path || ""),
+        });
+        if (lessonVaultRestoreWaitCleanup) lessonVaultRestoreWaitCleanup();
+        const generation = restore.generation;
+        let mutationObserver = null;
+        let resizeObserver = null;
+        let frame = 0;
+        const cleanup = () => {
+          if (frame) window.cancelAnimationFrame(frame);
+          frame = 0;
+          if (mutationObserver) mutationObserver.disconnect();
+          if (resizeObserver) resizeObserver.disconnect();
+          mutationObserver = null;
+          resizeObserver = null;
+          if (lessonVaultRestoreWaitCleanup === cleanup) lessonVaultRestoreWaitCleanup = null;
+        };
+        const check = () => {
+          frame = 0;
+          const current = currentLessonVaultRestoreState(generation);
+          if (!current || current.scrolled || current.userInteracted) {
+            cleanup();
+            return;
+          }
+          const node = serverFileNodeForPaths(current.targetPaths && current.targetPaths.length ? current.targetPaths : [current.targetFile]);
+          const rect = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+          if (node && node.isConnected && rect && rect.width > 0 && rect.height > 0 && serverBrowser && !serverBrowser.hidden) {
+            serverBrowserFocusedFilePath = normalizeServerPathValue(node.dataset.path || current.targetFile);
+            if (scrollFocusedServerFileIntoView({ restoreGeneration: generation, source })) cleanup();
+          }
+        };
+        const requestCheck = () => {
+          if (!frame) frame = window.requestAnimationFrame(check);
+        };
+        mutationObserver = typeof MutationObserver === "function"
+          ? new MutationObserver(requestCheck)
+          : null;
+        if (mutationObserver) mutationObserver.observe(serverBrowser || serverListNode, { attributes: true, childList: true, subtree: true });
+        resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(requestCheck) : null;
+        if (resizeObserver) {
+          resizeObserver.observe(serverListNode);
+          resizeObserver.observe(targetNode);
+        }
+        lessonVaultRestoreWaitCleanup = cleanup;
+        requestCheck();
+        return true;
+      };
+
+      const scheduleServerFileScrollWhenReady = (options = {}) => {
+        const loginRestore = typeof currentLessonVaultRestoreState === "function" ? currentLessonVaultRestoreState() : null;
+        if (loginRestore && !loginRestore.scrolled) {
+          return scheduleLessonVaultLoginRestore(options.payload || { path: serverBrowserPath, entries: serverCurrentEntries || [] }, options.source || "focused-render");
+        }
+        if (!serverListNode || !normalizeTaskPath(serverBrowserFocusedFilePath)) return false;
+        const loadSerial = Number(serverBrowserLoadSerial || 0);
+        let observer = null;
+        let resize = null;
+        let frame = 0;
+        const cleanup = () => {
+          if (frame) window.cancelAnimationFrame(frame);
+          if (observer) observer.disconnect();
+          if (resize) resize.disconnect();
+          frame = 0;
+          observer = null;
+          resize = null;
+        };
+        const check = () => {
+          frame = 0;
+          if (Number(serverBrowserLoadSerial || 0) !== loadSerial) {
+            cleanup();
+            return;
+          }
+          const node = serverFileNodeForPaths([serverBrowserFocusedFilePath]);
+          const rect = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+          if (node && node.isConnected && rect && rect.width > 0 && rect.height > 0) {
+            scrollFocusedServerFileIntoView({ source: options.source || "focused-render" });
+            cleanup();
+          }
+        };
+        const requestCheck = () => { if (!frame) frame = window.requestAnimationFrame(check); };
+        observer = typeof MutationObserver === "function" ? new MutationObserver(requestCheck) : null;
+        if (observer) observer.observe(serverBrowser || serverListNode, { childList: true, subtree: true, attributes: true });
+        resize = typeof ResizeObserver === "function" ? new ResizeObserver(requestCheck) : null;
+        if (resize) resize.observe(serverListNode);
+        requestCheck();
+        return true;
+      };
+
+      if (serverListNode && !serverListNode.dataset.lessonVaultRestoreInteractionBound) {
+        serverListNode.dataset.lessonVaultRestoreInteractionBound = "1";
+        ["wheel", "touchstart", "pointerdown", "keydown"].forEach((eventName) => {
+          serverListNode.addEventListener(eventName, () => {
+            const restore = typeof currentLessonVaultRestoreState === "function" ? currentLessonVaultRestoreState() : null;
+            if (!restore || restore.scrolled) return;
+            if (lessonVaultRestoreWaitCleanup) lessonVaultRestoreWaitCleanup();
+            cancelLessonVaultLoginRestore("user-interaction", { generation: restore.generation, userInteracted: true });
+          }, { passive: true, capture: true });
+        });
+      }
 
       // Added 2026-07-22: a Space Task card click marks its direct Lesson Vault folder for five seconds.
       const highlightLessonVaultTaskFolder = (folderPath = "", folderBacked = false) => {
@@ -1966,7 +2183,7 @@
             };
             void announceSpaceVFileStats(rowEntry, row, targetOwner);
           }
-          window.setTimeout(scrollFocusedServerFileIntoView, 0);
+          scheduleServerFileScrollWhenReady({ source: "task-focus-current-folder" });
         };
         setSelectedTaskPath(focusPaths[0] || filePath);
         if (serverBrowser) {
@@ -2008,7 +2225,7 @@
           }
           replayFocusedVaultRow();
           highlightLessonVaultTaskFolder(parentPath, taskFolderGroup.folderBacked);
-          window.setTimeout(scrollFocusedServerFileIntoView, 0);
+          scheduleServerFileScrollWhenReady({ source: "task-focus-parent-folder" });
           return;
         }
         setLoadStatus("Opening Lesson Vault at the selected task...");
@@ -2035,12 +2252,12 @@
           window.setTimeout(() => {
             highlightLessonVaultTaskFolder(parentPath, taskFolderGroup.folderBacked);
             replayFocusedVaultRow();
-            scrollFocusedServerFileIntoView();
+            scheduleServerFileScrollWhenReady({ source: "task-focus-loaded" });
           }, 120);
         } catch (error) {
           replayFocusedVaultRow();
           highlightLessonVaultTaskFolder(parentPath, taskFolderGroup.folderBacked);
-          window.setTimeout(scrollFocusedServerFileIntoView, 0);
+          scheduleServerFileScrollWhenReady({ source: "task-focus-error" });
           setLoadStatus(error && error.message ? error.message : "Could not open Lesson Vault at this task.", true);
         }
       };
@@ -2173,7 +2390,7 @@
         rememberServerPath(targetParent);
         setLoadStatus("Locating recent lesson in Lesson Vault...");
         loadServerDataPath(targetParent, false, "");
-        window.setTimeout(scrollFocusedServerFileIntoView, 120);
+        scheduleServerFileScrollWhenReady({ source: "recent-file-open" });
       };
 
       const renderServerRecentFilePopover = (event = null) => {
@@ -3214,7 +3431,7 @@
           .finally(() => lessonTaskProgressHydrationInflight.delete(key));
       };
 
-      // Added 2026-07-06: hydrates visible Lesson Vault file chips from server progress after login/list render.
+      // Updated 2026-07-31: visible Vault cards trust the login/tree snapshot and never issue per-file progress reads.
       const hydrateVisibleLessonVaultFileProgress = (entry = {}, rowNode = null, owner = "") => {
         if (!entry || entry.type !== "file" || !rowNode || !rowNode.isConnected) {
           return;
@@ -3246,7 +3463,7 @@
           ? entry.study
           : (entry.progress && typeof entry.progress === "object" ? entry.progress : null);
         const localOverride = progressOverrideFromHydration(space, localProgressSource || {});
-        if (localOverride && !canonicalLessonId) {
+        if (localOverride) {
           const localSignature = progressHydrationSignature(localOverride);
           if (localSignature && lessonVaultFileProgressHydrationSignatures.get(key) !== localSignature) {
             lessonVaultFileProgressHydrationSignatures.set(key, localSignature);
@@ -3254,46 +3471,8 @@
           }
           return;
         }
-        if (localProgressSource && !canonicalLessonId) {
-            return;
-        }
-        // Updated 2026-07-21: tree/login preload is authoritative for all lesson progress spaces.
-        if (!canonicalLessonId && ["Space_W", "Space_Q", "Space_P", "Space_S", "Space_L"].includes(space)) {
-            return;
-        }
-        const fetchEntry = {
-          ...entry,
-          lesson_id: canonicalLessonId,
-          file_id: canonicalLessonId,
-          path: serverLearningPathForEntry(entry) || entry.effective_path || entry.link_target || entry.path,
-        };
-        window.setTimeout(() => {
-          fetchServerProgressForEntry(fetchEntry)
-            .then((result) => {
-              const resultSpace = clean(result && result.space) || space;
-              const override = progressOverrideFromHydration(resultSpace, result && result.payload);
-              if (!override) {
-                return;
-              }
-              const signature = progressHydrationSignature(override);
-              if (!signature || lessonVaultFileProgressHydrationSignatures.get(key) === signature) {
-                return;
-              }
-              lessonVaultFileProgressHydrationSignatures.set(key, signature);
-              setLessonProgressOverride(hydratePaths, override, 120000);
-              if (typeof refreshLessonVaultItemStudyFromServer === "function") {
-                void refreshLessonVaultItemStudyFromServer(hydratePaths, owner || currentAuthUsername || "", { render: true }).catch(() => {});
-                return;
-              }
-              if (typeof renderServerDataList === "function") {
-                const cachedRow = getCachedServerBrowserListRow(serverBrowserPath || "", owner || serverTaskOwnerContext || "");
-                if (cachedRow && cachedRow.payload) {
-                  renderServerDataList(cachedRow.payload);
-                }
-              }
-            })
-            .catch(() => {});
-        }, 80 + Math.min(900, Math.max(0, Number(rowNode.dataset.vaultIndex || 0) || 0) * 35));
+        // An absent local progress object is an authoritative New Run state. Explicit
+        // file-open handlers retain their own cold-cache fallback when lesson data is needed.
       };
 
       const renderLessonTaskPanel = (payload = {}) => {
@@ -3764,9 +3943,59 @@
         if (!progress || typeof progress !== "object" || typeof applyLessonVaultProgressSnapshotToPayload !== "function") {
           return false;
         }
+        // Added 2026-08-03: Exit patches the matching task directly; generation snapshots remain the cross-view cache layer.
+        const normalizedPaths = new Set((Array.isArray(paths) ? paths : [paths])
+          .map((value) => normalizeTaskPath(value))
+          .filter(Boolean));
+        const lessonIds = new Set(Array.from(normalizedPaths)
+          .map((value) => {
+            const match = value.match(/(?:^|:)id:(ftg-lesson-[^:]+)$/i);
+            return match ? clean(match[1]).toLowerCase() : "";
+          })
+          .filter(Boolean));
+        const patchTask = (task = {}) => {
+          if (!task || typeof task !== "object") {
+            return task;
+          }
+          const taskId = clean(task.lesson_id || task.lessonId || task.file_id || task.fileId || "").toLowerCase();
+          const taskPaths = [task.path, task.effective_path, task.effectivePath, task.link_target, task.linkTarget, taskLearningPath(task)]
+            .map((value) => normalizeTaskPath(value))
+            .filter(Boolean);
+          if (!(taskId && lessonIds.has(taskId)) && !taskPaths.some((value) => normalizedPaths.has(value))) {
+            return task;
+          }
+          const study = task.study && typeof task.study === "object" ? task.study : {};
+          const nextProgress = {
+            ...(study.progress && typeof study.progress === "object" ? study.progress : {}),
+            ...progress,
+          };
+          return {
+            ...task,
+            study: {
+              ...study,
+              progress: nextProgress,
+              progress_text: clean(nextProgress.text || ""),
+              progress_percent: Math.max(0, Math.min(100, Number(nextProgress.percent || 0) || 0)),
+              updatedAt: clean(nextProgress.updatedAt || nextProgress.savedAt || new Date().toISOString()),
+            },
+            progress: nextProgress,
+          };
+        };
+        const patchPayload = (payload = {}) => {
+          if (!payload || typeof payload !== "object") {
+            return payload;
+          }
+          const next = { ...payload };
+          if (Array.isArray(next.tasks)) next.tasks = next.tasks.map(patchTask);
+          if (Array.isArray(next.space_tasks)) next.space_tasks = next.space_tasks.map(patchTask);
+          if (next.space_task && typeof next.space_task === "object" && Array.isArray(next.space_task.tasks)) {
+            next.space_task = { ...next.space_task, tasks: next.space_task.tasks.map(patchTask) };
+          }
+          return next;
+        };
         let changed = false;
         if (currentTaskPayload && typeof currentTaskPayload === "object") {
-          currentTaskPayload = applyLessonVaultProgressSnapshotToPayload(currentTaskPayload);
+          currentTaskPayload = applyLessonVaultProgressSnapshotToPayload(patchPayload(currentTaskPayload));
           changed = true;
         }
         const cachedPayloads = [];
@@ -3774,7 +4003,7 @@
           if (!row || !row.payload || typeof row.payload !== "object") {
             return;
           }
-          const nextPayload = applyLessonVaultProgressSnapshotToPayload(row.payload);
+          const nextPayload = applyLessonVaultProgressSnapshotToPayload(patchPayload(row.payload));
           row.payload = nextPayload;
           row.at = Date.now();
           cachedPayloads.push(nextPayload);
@@ -3790,8 +4019,40 @@
         return changed;
       };
 
+      // 2026-08-03: synchronize a Task Board painted from local cache after the
+      // canonical Lesson Vault snapshot arrives asynchronously.
+      const refreshLessonTaskPanelFromProgressSnapshot = () => {
+        if (typeof applyLessonVaultProgressSnapshotToPayload !== "function") {
+          return false;
+        }
+        let changed = false;
+        if (currentTaskPayload && typeof currentTaskPayload === "object") {
+          currentTaskPayload = applyLessonVaultProgressSnapshotToPayload(currentTaskPayload);
+          changed = true;
+        }
+        const cachedPayloads = [];
+        lessonTaskPanelCache.forEach((row) => {
+          if (!row || !row.payload || typeof row.payload !== "object") {
+            return;
+          }
+          row.payload = applyLessonVaultProgressSnapshotToPayload(row.payload);
+          row.at = Date.now();
+          cachedPayloads.push(row.payload);
+          changed = true;
+        });
+        cachedPayloads.forEach((payload) => {
+          rememberLessonTaskPanelCache(clean(payload.task_owner || serverTaskOwnerContext || currentAuthUsername), payload);
+        });
+        if (changed && currentTaskPayload && serverTaskListNode && serverTaskListNode.isConnected) {
+          lessonTaskPanelLastSignature = "";
+          renderLessonTaskPanel(currentTaskPayload);
+        }
+        return changed;
+      };
+
       if (typeof window !== "undefined") {
         window.__ftPatchLessonTaskPanelProgress = patchLessonTaskPanelProgress;
+        window.__ftRefreshLessonTaskPanelFromProgressSnapshot = () => refreshLessonTaskPanelFromProgressSnapshot();
         window.__ftSpaceTaskMetricsSnapshot = () => ({ ...lessonTaskRuntimeMetrics });
       }
 
@@ -3823,14 +4084,23 @@
         }
         const inflightKey = lessonTaskPanelCacheKey(targetOwner);
         if (lessonTaskPanelInflight.has(inflightKey)) {
-          return await lessonTaskPanelInflight.get(inflightKey);
+          const existingRequest = lessonTaskPanelInflight.get(inflightKey);
+          if (!fresh) {
+            return await existingRequest;
+          }
+          // 2026-08-03: checkpoint Exit must not reuse a task request that
+          // started before the progress POST completed.
+          await existingRequest.catch(() => null);
+          if (lessonTaskPanelInflight.get(inflightKey) === existingRequest) {
+            lessonTaskPanelInflight.delete(inflightKey);
+          }
         }
         const query = targetOwner ? `?user=${encodeURIComponent(targetOwner)}` : "";
         const cachedPayload = cachedRow && cachedRow.payload && typeof cachedRow.payload === "object" ? cachedRow.payload : null;
         const request = (async () => {
           const result = await fetchServerJson(`/lesson-tasks${query}`, {
-            ifNoneMatch: cachedPayload ? clean(cachedRow && cachedRow.etag || "") : "",
-            notModifiedPayload: cachedPayload,
+            ifNoneMatch: !fresh && cachedPayload ? clean(cachedRow && cachedRow.etag || "") : "",
+            notModifiedPayload: !fresh ? cachedPayload : null,
           });
           rememberLessonTaskPanelCache(targetOwner, result.payload, result.etag);
           renderLessonTaskPanel(result.payload);
@@ -4887,10 +5157,13 @@
       const fetchServerText = async (path) => {
         const candidates = WHISPER_SERVER_CANDIDATES.length ? WHISPER_SERVER_CANDIDATES : [WHISPER_SERVER_URL];
         const errors = [];
-        const isServerFileRequest = clean(path).startsWith("/server-data/file");
+        const normalizedRequestPath = clean(path);
+        const isServerFileRequest = normalizedRequestPath.startsWith("/server-data/file");
+        const isStructureAssetRequest = normalizedRequestPath.startsWith("/server-data/asset?")
+          && /[?&]path=structure(?:%2f|\/)/i.test(normalizedRequestPath);
         const cachedRow = isServerFileRequest ? await readServerFileTextCache(path) : null;
-        const serverFileTimeout = isServerFileRequest ? 0 : 90000;
-        const serverFileParallelTimeout = isServerFileRequest ? 0 : 9000;
+        const serverFileTimeout = isServerFileRequest ? 0 : (isStructureAssetRequest ? 8000 : 90000);
+        const serverFileParallelTimeout = isServerFileRequest ? 0 : (isStructureAssetRequest ? 5000 : 9000);
         const requestFromBase = async (base, timeoutMs) => {
           const result = await fetchServerTextFromBase(base, path, timeoutMs, cachedRow);
           if (isServerFileRequest && result && !result.notModified && clean(result.etag || "")) {
@@ -4955,7 +5228,7 @@
             } catch (error) {
               // The request is already settled.
             }
-          }, Math.max(1200, Number(timeoutMs) || 7000))
+          }, Math.max(250, Number(timeoutMs) || 7000))
           : 0;
         try {
           const headers = {};
@@ -5000,17 +5273,20 @@
         }
       };
 
-      const fetchProgressJsonFast = async (path, cachedRow = null) => {
+      const fetchProgressJsonFast = async (path, cachedRow = null, timeoutMs = 9000) => {
         const candidates = WHISPER_SERVER_CANDIDATES.length ? WHISPER_SERVER_CANDIDATES : [WHISPER_SERVER_URL];
         if (candidates.length <= 1) {
-          return await fetchProgressJsonFromBase(candidates[0], path, 9000, cachedRow);
+          return await fetchProgressJsonFromBase(candidates[0], path, timeoutMs, cachedRow);
         }
         const errors = [];
         if (/^\/space-(?:v|w|q)\/progress(?:\?|$)/i.test(clean(path))) {
           // Added 2026-07-20: use the current origin first and probe legacy progress servers only after a real failure.
+          const deadline = Date.now() + Math.max(250, Number(timeoutMs) || 9000);
           for (const base of candidates) {
+            if (errors.length && Date.now() >= deadline) break;
             try {
-              return await fetchProgressJsonFromBase(base, path, 9000, cachedRow);
+              const remainingMs = Math.max(250, deadline - Date.now());
+              return await fetchProgressJsonFromBase(base, path, remainingMs, cachedRow);
             } catch (error) {
               errors.push(`${base}: ${error && error.message ? error.message : error}`);
             }
@@ -5071,6 +5347,14 @@
         return "";
       };
 
+      const lessonProgressSnapshotHasFullCheckpoint = (snapshot = null) => {
+        if (!snapshot || typeof snapshot !== "object") return false;
+        const progress = snapshot.progress && typeof snapshot.progress === "object"
+          ? snapshot.progress
+          : (snapshot.study && snapshot.study.progress && typeof snapshot.study.progress === "object" ? snapshot.study.progress : null);
+        return Boolean(progress && progress.state && typeof progress.state === "object");
+      };
+
       const fetchServerProgressForEntry = async (entry = {}) => {
         const filePath = clean(entry && entry.path);
         const space = serverLessonProgressSpaceForPath(filePath, entry && entry.extension);
@@ -5096,7 +5380,7 @@
         }
         if (typeof lessonVaultProgressSnapshotForPaths === "function") {
           const snapshot = lessonVaultProgressSnapshotForPaths([
-            lessonId ? `id:${lessonId.toLowerCase()}` : "",
+            lessonId ? `space:${space.toLowerCase()}:id:${lessonId.toLowerCase()}` : "",
             filePath,
             entry && entry.effective_path,
             entry && entry.effectivePath,
@@ -5104,11 +5388,14 @@
             entry && entry.normalized_path,
             entry && entry.link_target,
             entry && entry.linkTarget,
-          ]);
+          ], space);
           if (snapshot && typeof snapshot === "object") {
-            const snapshotPromise = Promise.resolve({ space, payload: snapshot, etag: "lesson-vault-progress-snapshot" });
-            serverLessonProgressPrefetchCache.set(cacheKey, { at: Date.now(), promise: snapshotPromise });
-            return snapshotPromise;
+            // 2026-08-03: compact Vault rings are display summaries, not resumable checkpoints.
+            if (lessonProgressSnapshotHasFullCheckpoint(snapshot)) {
+              const snapshotPromise = Promise.resolve({ space, payload: snapshot, etag: "lesson-vault-progress-snapshot" });
+              serverLessonProgressPrefetchCache.set(cacheKey, { at: Date.now(), promise: snapshotPromise });
+              return snapshotPromise;
+            }
           }
         }
         const endpoint = space === "Space_V" ? "/space-v/progress" : (space === "Space_Q" ? "/space-q/progress" : (space === "Space_P" || space === "Space_S" || space === "Space_L" ? "/space-p/progress" : (space === "Space_PDF" || space === "Space_Picture" ? "/space-pdf/progress" : "/space-w/progress")));
@@ -7822,7 +8109,13 @@
                 ? normalizeQuestionInventoryState({ ...serverInventory, pending: questionInventoryState.pending })
                 : mergeQuestionInventoryState(questionInventoryState, serverInventory);
             } catch (error) {
-              remaining.push(entry);
+              // Added 2026-07-30: retry only transient failures; permanent 4xx
+              // responses must not create an endless reward request storm.
+              const status = Math.max(0, Math.floor(Number(error && error.httpStatus || 0) || 0));
+              const retryable = !status || status === 408 || status === 425 || status === 429 || status >= 500;
+              if (retryable) {
+                remaining.push(entry);
+              }
             }
           }
           questionInventoryState.pending = remaining;
@@ -7929,6 +8222,12 @@
       };
 
       const hideVocabPreflightGate = () => {
+        if (lessonEntryVocabAlert) {
+          lessonEntryVocabAlert.hidden = true;
+        }
+        if (lessonEntryGateFrame) {
+          lessonEntryGateFrame.classList.remove("is-vocab-alert");
+        }
         if (vocabPreflightGate) {
           vocabPreflightGate.hidden = true;
         }
@@ -8049,6 +8348,25 @@
         return "Space_W";
       };
 
+      // Added 2026-08-02: mirrors vocabulary scan totals into the secondary gate without creating a second scan flow.
+      const showLessonEntryVocabAlert = (payload = {}, mode = "preflight") => {
+        if (!lessonEntryVocabAlert || !lessonEntryGateFrame || !lessonEntryGateSequenceState) return false;
+        const pending = Array.isArray(payload.pending_files) ? payload.pending_files : [];
+        const files = Array.isArray(payload.files) ? payload.files : pending;
+        const newCount = Math.max(0, Math.floor(Number(payload.new_count || 0) || 0));
+        const pendingCount = Math.max(0, Math.floor(Number(payload.pending_count || files.length || pending.length || 0) || 0));
+        const filesNeeded = Math.max(0, Math.floor(Number(payload.files_needed || pendingCount || files.length || 0) || 0));
+        const packCount = mode === "queue" ? pendingCount : (pendingCount || filesNeeded);
+        if (lessonEntryVocabAlertCount) lessonEntryVocabAlertCount.textContent = `${mode === "queue" ? pendingCount : newCount} NEW WORDS`;
+        if (lessonEntryVocabAlertPacks) lessonEntryVocabAlertPacks.textContent = `${packCount} ${packCount === 1 ? "PACK" : "PACKS"}`;
+        if (lessonEntryVocabAlertDetail) lessonEntryVocabAlertDetail.textContent = mode === "queue" ? `${pendingCount} PACKS REMAINING` : (pendingCount ? "MISSION QUEUE READY" : `${newCount} WORDS READY`);
+        lessonEntryVocabAlert.hidden = false;
+        lessonEntryGateFrame.classList.add("is-vocab-alert");
+        settleLessonEntryGateVocabPreflight(true);
+        if (vocabPreflightGate) vocabPreflightGate.hidden = true;
+        return true;
+      };
+
       const vocabPreflightPayloadSpace = (payload = {}, path = "") => {
         const sourcePath = normalizeVocabPreflightPath(path);
         const payloadSpaceMode = clean(payload && (payload.space_mode || payload.spaceMode || payload.mode || payload.sm || "")).toLowerCase();
@@ -8085,50 +8403,91 @@
       };
 
       const runSpaceWVocabPreflight = async (payload, selectedVoiceValue = "", resumeOptions = {}) => {
-        const source = { ...(currentLessonSource || {}) };
-        const sourcePath = normalizeVocabPreflightPath(source.path);
+          const source = { ...(currentLessonSource || {}) };
+          const sourcePath = normalizeVocabPreflightPath(source.path);
+          const sourceLessonId = clean(source.lesson_id || source.lessonId || source.file_id || source.fileId || payload.lesson_id || payload.lessonId || "");
         const spaceLabel = vocabPreflightPayloadSpace(payload, sourcePath);
         const scanToken = ++vocabPreflightBuildToken;
         pendingSpaceWAfterVocabulary = { payload, selectedVoiceValue, source, space: spaceLabel, resumeOptions: { ...(resumeOptions || {}) } };
         setLoadStatus(`Scanning ${spaceLabel} vocabulary mission...`);
         try {
-          const result = await fetchServerJson("/vocab/scan-space-w?response=compact-v1", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            timeoutMs: 30000,
-            body: JSON.stringify({ path: sourcePath }),
-          });
+          const scanWaitStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+          const prefetchedScan = resumeOptions.vocabScanPromise && typeof resumeOptions.vocabScanPromise.then === "function"
+            ? resumeOptions.vocabScanPromise
+            : null;
+          const result = await (prefetchedScan || fetchServerJson("/vocab/scan-space-w?response=compact-v1", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              timeoutMs: spaceLabel === "Space_Q" ? 3000 : 10000,
+              body: JSON.stringify({ path: sourcePath, lesson_id: sourceLessonId }),
+            }));
+          if (result && result.failed) {
+            throw result.error || new Error("Vocabulary prefetch failed.");
+          }
+          const scanWaitEndedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
           if (scanToken !== vocabPreflightBuildToken || normalizeVocabPreflightPath(currentLessonSource && currentLessonSource.path) !== sourcePath) {
             return;
           }
           const scan = result.payload || {};
+          window.__ftSpaceWVocabScanTrace = {
+            ...(window.__ftSpaceWVocabScanTrace && typeof window.__ftSpaceWVocabScanTrace === "object" ? window.__ftSpaceWVocabScanTrace : {}),
+            source: prefetchedScan ? "continue-prefetch" : "choice-request",
+            continueWaitMs: Math.round((scanWaitEndedAt - scanWaitStartedAt) * 100) / 100,
+            learnedTotal: Number(scan.learned_total || 0) || 0,
+            newCount: Number(scan.new_count || 0) || 0,
+            pendingCount: Number(scan.pending_count || 0) || 0,
+            indexPending: Boolean(scan.index_pending),
+          };
+          console.info("[FTG][VocabScan]", window.__ftSpaceWVocabScanTrace);
+          if (scan.index_pending) {
+            settleLessonEntryGateVocabPreflight(false);
+            pendingSpaceWAfterVocabulary = null;
+            setLoadStatus(`${spaceLabel} vocabulary index is repairing in the background.`);
+            if (isQuestionPayload(payload)) {
+              await enterQuestionPayloadNow(payload, { ...(resumeOptions || {}), allowDuringVocabBuild: true });
+            } else if (isParagraphPayload(payload)) {
+              await enterParagraphPayloadNow(payload, { ...(resumeOptions || {}), allowDuringVocabBuild: true });
+            } else if (resumeOptions.resumeSpaceWSaved) {
+              await startSavedSpaceWProgress({ ...(resumeOptions || {}), allowDuringVocabBuild: true });
+            } else {
+              await startTranslationLessonPayload(payload, selectedVoiceValue, { allowDuringVocabBuild: true });
+            }
+            return;
+          }
           const pendingCount = Number(scan.pending_count || 0) || 0;
           const newCount = Number(scan.new_count || 0) || 0;
           if (!pendingCount && !newCount) {
+            settleLessonEntryGateVocabPreflight(false);
             spaceWVocabClearedPaths.add(sourcePath);
             pendingSpaceWAfterVocabulary = null;
             if (isQuestionPayload(payload)) {
               await enterQuestionPayloadNow(payload, { ...(resumeOptions || {}), allowDuringVocabBuild: true });
             } else if (isParagraphPayload(payload)) {
               await enterParagraphPayloadNow(payload, { ...(resumeOptions || {}), allowDuringVocabBuild: true });
+            } else if (resumeOptions.resumeSpaceWSaved) {
+              await startSavedSpaceWProgress({ ...(resumeOptions || {}), allowDuringVocabBuild: true });
             } else {
-              await startTranslationLessonPayload(payload, selectedVoiceValue);
+              await startTranslationLessonPayload(payload, selectedVoiceValue, { allowDuringVocabBuild: true });
             }
             return;
           }
           loadGate.classList.add("is-hidden");
           showVocabPreflightGate(scan, "preflight");
+          showLessonEntryVocabAlert(scan, "preflight");
         } catch (error) {
           if (scanToken !== vocabPreflightBuildToken || normalizeVocabPreflightPath(currentLessonSource && currentLessonSource.path) !== sourcePath) {
             return;
           }
           setLoadStatus(`Vocabulary preflight skipped: ${error && error.message ? error.message : error}`, true);
+          settleLessonEntryGateVocabPreflight(false);
           pendingSpaceWAfterVocabulary = null;
           spaceWVocabSkipPaths.add(sourcePath);
           if (isQuestionPayload(payload)) {
             await enterQuestionPayloadNow(payload, { ...(resumeOptions || {}), allowDuringVocabBuild: true });
           } else if (isParagraphPayload(payload)) {
             await enterParagraphPayloadNow(payload, { ...(resumeOptions || {}), allowDuringVocabBuild: true });
+          } else if (resumeOptions.resumeSpaceWSaved) {
+            await startSavedSpaceWProgress({ ...(resumeOptions || {}), allowDuringVocabBuild: true });
           } else {
             await startTranslationLessonPayload(payload, selectedVoiceValue, { allowDuringVocabBuild: true });
           }

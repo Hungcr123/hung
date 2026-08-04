@@ -580,6 +580,18 @@
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
         return
+    if path == "/dashboard/space-v-picture-settings":
+        if not self.is_local_admin_request():
+            self.send_json(403, {"ok": False, "error": "Chi dashboard tren may server moi duoc sua duong dan picture."})
+            return
+        try:
+            payload = self.read_json_body()
+            result = save_server_settings({"space_v_picture_folder": payload.get("folder", payload.get("path", ""))})
+            picture = space_v_local_picture_settings_payload(force=True)
+            self.send_json(200, {"ok": True, "updated_at": result.get("updated_at", ""), **picture})
+        except Exception as exc:
+            self.send_json(400, {"ok": False, "error": str(exc)})
+        return
     if path == "/settings":
         if not self.is_local_admin_request():
             self.send_json(403, {"ok": False, "error": "Chi may server moi duoc sua settings."})
