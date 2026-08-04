@@ -20,7 +20,8 @@ const resetParagraph = returnFlow.indexOf("resetParagraphMode();");
 assert.ok(returnFlow.indexOf("saveSpaceWProgressNow()") < resetW, "Space_W Exit must save locally before cache reset");
 assert.ok(returnFlow.indexOf("questionModeActive ? saveQuestionProgressNow()") < resetQ, "Space_Q Exit must save locally before runtime reset");
 assert.ok(returnFlow.indexOf("paragraphModeActive ? saveParagraphProgressNow()") < resetParagraph, "Space_P/L/S Exit must save locally before runtime reset");
-assert.match(returnFlow, /vocabProgressOverrideForReturn \|\| spaceWProgressOverrideForReturn \|\| questionProgressOverrideForReturn \|\| paragraphProgressOverrideForReturn/);
+assert.match(returnFlow, /const spaceWProgressRecordForReturn = !capturedQuestionProgressRecord/);
+assert.match(returnFlow, /const localProgressOverrideForReturn = questionSavedRecordForReturn && questionProgressOverrideForReturn/);
 assert.match(returnFlow, /progress: localProgressOverrideForReturn/);
 assert.match(returnFlow, /pinVisibleLessonVaultProgressRing\(returnProgressPaths, localProgressOverrideForReturn/);
 
@@ -28,7 +29,7 @@ const vaultStart = eventSource.indexOf("if (vaultButton) {");
 const vaultEnd = eventSource.indexOf("if (cupButton) {", vaultStart);
 const vaultFlow = eventSource.slice(vaultStart, vaultEnd);
 assert.doesNotMatch(vaultFlow, /await .*Progress/);
-assert.match(vaultFlow, /returnToServerFileSelection\(\{ vocabProgressRecord \}\)/);
+assert.match(vaultFlow, /returnToServerFileSelection\(\{ vocabProgressRecord, questionProgressRecord \}\)/);
 
 const qMergeStart = syncSource.indexOf("const mergeQuestionServerProgressRecord =");
 const qMergeEnd = syncSource.indexOf("const refreshQuestionServerProgress =", qMergeStart);

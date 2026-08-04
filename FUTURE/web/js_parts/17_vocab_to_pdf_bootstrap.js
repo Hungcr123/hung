@@ -866,6 +866,9 @@
 
       // Exit leaves an active Space; callers must flush the latest progress before this clears runtime state.
       const returnToServerFileSelection = (options = {}) => {
+        const capturedQuestionProgressRecord = options.questionProgressRecord && typeof options.questionProgressRecord === "object"
+          ? options.questionProgressRecord
+          : (questionModeActive && typeof saveQuestionProgressNow === "function" ? saveQuestionProgressNow() : null);
         const completedBeforeReturn = Boolean(lessonCompletionSent);
         const returnLessonPath = currentLessonStudyPath();
         const returnLessonTree = normalizeServerPathValue(returnLessonPath ? serverParentPathForFile(returnLessonPath) : (serverBrowserPath || getStoredServerPath() || ""));
@@ -875,12 +878,14 @@
           : (vocabModeActive && currentVocabProgressCache.savedProgress && typeof currentVocabProgressCache.savedProgress === "object"
             ? currentVocabProgressCache.savedProgress
             : null);
-        const spaceWProgressRecordForReturn = !vocabModeActive && !questionModeActive && !paragraphModeActive && typeof saveSpaceWProgressNow === "function"
+        const spaceWProgressRecordForReturn = !capturedQuestionProgressRecord
+          && !vocabModeActive && !questionModeActive && !paragraphModeActive && typeof saveSpaceWProgressNow === "function"
           ? saveSpaceWProgressNow()
           : null;
-        const questionProgressRecordForReturn = questionModeActive ? saveQuestionProgressNow() : null;
+        const questionProgressRecordForReturn = capturedQuestionProgressRecord;
         const paragraphProgressRecordForReturn = paragraphModeActive ? saveParagraphProgressNow() : null;
         const returnProgressPaths = [
+          ...(questionProgressRecordForReturn && typeof currentQuestionProgressPaths === "function" ? currentQuestionProgressPaths(questionProgressRecordForReturn) : []),
           returnLessonPath,
           vocabServerPathFromRecord(vocabProgressRecordForReturn),
           typeof currentSpaceWServerPath === "function" ? currentSpaceWServerPath() : "",
@@ -917,19 +922,31 @@
           setLessonProgressOverride(returnProgressPaths, spaceWProgressOverrideForReturn, 120000);
           rememberLessonVaultProgressPin(returnProgressPaths, spaceWProgressOverrideForReturn, 120000);
         }
-        const questionProgressOverrideForReturn = questionProgressOverrideFromRecord(questionProgressRecordForReturn);
+        const questionSavedRecordForReturn = questionProgressRecordForReturn
+          || (currentQuestionProgressCache && currentQuestionProgressCache.savedProgress && typeof currentQuestionProgressCache.savedProgress === "object"
+            ? currentQuestionProgressCache.savedProgress
+            : null);
+        const questionProgressOverrideForReturn = questionProgressOverrideFromRecord(questionSavedRecordForReturn);
         if (returnLessonPath && questionProgressOverrideForReturn) {
-          setLessonProgressOverride(returnProgressPaths, questionProgressOverrideForReturn, 24000);
+          setLessonProgressOverride(returnProgressPaths, questionProgressOverrideForReturn, 120000, { force: true });
+          rememberLessonVaultProgressPin(returnProgressPaths, questionProgressOverrideForReturn, 120000);
+          clearServerLessonProgressPrefetchCache(returnProgressPaths, "Space_Q");
         }
         const paragraphProgressOverrideForReturn = paragraphProgressOverrideFromRecord(paragraphProgressRecordForReturn);
         if (returnLessonPath && paragraphProgressOverrideForReturn) {
           setLessonProgressOverride(returnProgressPaths, paragraphProgressOverrideForReturn, 120000);
           rememberLessonVaultProgressPin(returnProgressPaths, paragraphProgressOverrideForReturn, 120000);
         }
-        const localProgressOverrideForReturn = vocabProgressOverrideForReturn || spaceWProgressOverrideForReturn || questionProgressOverrideForReturn || paragraphProgressOverrideForReturn;
+        const localProgressOverrideForReturn = questionSavedRecordForReturn && questionProgressOverrideForReturn
+          ? questionProgressOverrideForReturn
+          : (paragraphProgressRecordForReturn && paragraphProgressOverrideForReturn
+            ? paragraphProgressOverrideForReturn
+            : (vocabProgressRecordForReturn && vocabProgressOverrideForReturn
+              ? vocabProgressOverrideForReturn
+              : spaceWProgressOverrideForReturn));
         const vocabProgressSyncForReturn = Promise.resolve(null);
-        const questionProgressSyncForReturn = questionProgressRecordForReturn && canUseQuestionProgressServer()
-          ? sendQuestionServerProgress(questionProgressRecordForReturn).catch(() => null)
+        const questionProgressSyncForReturn = questionSavedRecordForReturn && canUseQuestionProgressServer()
+          ? sendQuestionServerProgress(questionSavedRecordForReturn).catch(() => null)
           : Promise.resolve(null);
         pendingTaskNoticeReturnTrigger = {
           id: ++taskNoticeReturnTriggerId,
@@ -1053,7 +1070,7 @@
             .catch(() => {});
         }
         void Promise.allSettled([vocabProgressSyncForReturn, questionProgressSyncForReturn]).then(async () => {
-          if (refreshTree && (vocabProgressRecordForReturn || spaceWProgressRecordForReturn || questionProgressRecordForReturn || paragraphProgressRecordForReturn)) {
+          if (refreshTree && (vocabProgressRecordForReturn || spaceWProgressRecordForReturn || questionSavedRecordForReturn || paragraphProgressRecordForReturn)) {
             // Updated 2026-07-15: return-to-vault keeps local progress pins and does not issue item-study GETs.
             if (typeof selectServerLessonVaultEntryFromPayload === "function") {
               selectServerLessonVaultEntryFromPayload({ entries: serverCurrentEntries || [] }, returnProgressPaths, {
@@ -1070,8 +1087,8 @@
           if (!localProgressOverrideForReturn) {
             clearLessonProgressOverride(returnProgressPaths);
           }
-          if (returnTaskOwner && completedBeforeReturn) {
-            await loadLessonTasks(returnTaskOwner, { localCacheOnly: true }).catch(() => {});
+          if (returnTaskOwner && (completedBeforeReturn || questionSavedRecordForReturn)) {
+            await loadLessonTasks(returnTaskOwner, { fresh: true }).catch(() => {});
             if (typeof selectServerLessonVaultEntryFromPayload === "function") {
               selectServerLessonVaultEntryFromPayload({ entries: serverCurrentEntries || [] }, returnProgressPaths, {
                 progress: localProgressOverrideForReturn,

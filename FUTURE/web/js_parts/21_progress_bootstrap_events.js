@@ -2433,13 +2433,18 @@
             const peekResult = window.__ftPeekSpaceVProgressBeforeBack({ setOverride: false });
             vocabProgressRecord = peekResult && peekResult.progress ? peekResult.progress : null;
           }
+          let questionProgressRecord = null;
+          if (questionModeActive && typeof saveQuestionProgressNow === "function") {
+            const saved = saveQuestionProgressNow();
+            questionProgressRecord = saved && typeof saved === "object" ? saved : null;
+          }
           if (vocabModeActive && typeof window.__ftFlushSpaceVProgressBeforeBack === "function") {
             // Added 2026-07-21: Exit renders from the durable local snapshot; Server 2 sync/outbox must not block navigation.
             void window.__ftFlushSpaceVProgressBeforeBack({ notice: true, setOverride: false });
           }
           // The compact progress POST already patches Server 2 RAM/SQLite and the local
           // Lesson Vault/Space Task caches. Do not follow it with duplicate GET/recompute work.
-          returnToServerFileSelection({ vocabProgressRecord });
+          returnToServerFileSelection({ vocabProgressRecord, questionProgressRecord });
         });
       }
       if (cupButton) {
