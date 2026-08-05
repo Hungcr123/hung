@@ -1,4 +1,4 @@
-"""Regression for durable media identity returned by /vocab/image."""
+"""Regression for stable local-gallery identity returned by /vocab/image."""
 
 from pathlib import Path
 
@@ -9,9 +9,10 @@ start = text.index('    if path == "/vocab/image":')
 end = text.index('    if path == "/ai-agent/history":', start)
 block = text[start:end]
 
-assert 'asset_id = f"vocab-image:{vocab_key(word)}"' in block
-assert '"media_key_version": 1' in block
-assert '"metadata_revision": metadata_revision' in block
-assert "hashlib.sha256" in block
+assert 'images = lookup.get("images")' in block
+assert 'selected_image_id = clean(selection.get("image_id", ""))' in block
+assert '"asset_id": f"local-picture:{vocab_key(word)}:{clean(record.get(\'revision\', \'\'))}"' in block
+assert '"metadata_revision": clean(record.get("revision", ""))' in block
+assert '"selected_index": selected_index' in block
 
-print("vocab_image_asset_identity=ok stable_asset_id=true metadata_revision=true client_content_hash=true")
+print("vocab_image_asset_identity=ok gallery_ids=true metadata_revision=true selection=true")

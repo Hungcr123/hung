@@ -16,8 +16,9 @@ assert.match(progressSource, /fetchProgressJsonFast\(`\/space-q\/progress\?\$\{q
 assert.match(progressSource, /currentQuestionProgressCache\.serverPayload = null/);
 assert.match(progressSource, /currentQuestionProgressCache\.serverEtag = ""/);
 assert.match(transportSource, /\^\\\/space-\(\?:v\|w\|q\)\\\/progress/);
-assert.match(transportSource, /Space_W\/Q tree\/login preload is authoritative/);
-assert.match(transportSource, /space === "Space_W" \|\| space === "Space_Q"/);
+assert.match(transportSource, /lessonProgressSnapshotHasFullCheckpoint\(snapshot\)/);
+assert.match(transportSource, /space === "Space_Q" \? "\/space-q\/progress"/);
+assert.match(transportSource, /query\.set\("lesson_id", lessonId\)/);
 assert.match(eventSource, /Could not restore saved Space_Q progress/);
 assert.match(eventSource, /continuePreparedLessonFromSavedProgress\(\{ skipAudioPrepare: true \}\)/);
 

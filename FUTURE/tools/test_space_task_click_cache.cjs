@@ -56,7 +56,7 @@ const rowSelectionEnd = vaultSource.indexOf('item.addEventListener("contextmenu"
 assert.ok(rowSelectionStart >= 0 && rowSelectionEnd > rowSelectionStart);
 assert.doesNotMatch(vaultSource.slice(rowSelectionStart, rowSelectionEnd), /rememberServerFile\(/, "Lesson Vault row selection must not update last-file state");
 
-const scrollStart = taskSource.indexOf("const scrollFocusedServerFileIntoView =");
+const scrollStart = taskSource.indexOf("const serverFileNodeForPaths =");
 const scrollEnd = taskSource.indexOf("const highlightLessonVaultTaskFolder =", scrollStart);
 const scrollSource = taskSource.slice(scrollStart, scrollEnd);
 assert.ok(scrollStart >= 0 && scrollEnd > scrollStart);

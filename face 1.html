@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE QM-TECH - Spherical Skull Vascular Dispersion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #01040f;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+        .hud-system {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            color: #ff1144;
+            font-size: 11px;
+            letter-spacing: 2px;
+            z-index: 2;
+            line-height: 2;
+            pointer-events: none;
+            text-shadow: 0 0 12px rgba(255, 17, 68, 0.8);
+        }
+        html.notice-face-embed,
+        html.notice-face-embed body,
+        html.notice-face-embed #canvas-container,
+        html.notice-face-embed canvas {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+        html.notice-face-embed body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 48%, rgba(1, 4, 15, 0.62) 0%, rgba(1, 4, 15, 0.38) 34%, rgba(1, 4, 15, 0.12) 58%, rgba(1, 4, 15, 0) 78%);
+        }
+        html.notice-face-embed .hud-system {
+            display: none;
+        }
+        html.notice-face-embed #canvas-container {
+            z-index: 1;
+        }
+    </style>
+    <script>
+        if (new URLSearchParams(window.location.search).has('noticeFace')) {
+            document.documentElement.classList.add('notice-face-embed');
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div class="hud-system">
+        <div>// SYSTEM: THE_QM_TECH_GEN_4</div>
+        <div>// VASCULAR_DISTRIBUTION: SPHÈRICAL_SKULL_DISPERSION</div>
+        <div>// ANCHOR_STATUS: INTEGRATED_TO_CRANIUM_WALLS</div>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- Cấu hình Không gian 3D ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x01040f, 0.025);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 14.4);
+
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            premultipliedAlpha: false,
+            powerPreference: 'low-power',
+            preserveDrawingBuffer: false
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        renderer.setClearColor(0x000000, 0);
+        renderer.setClearAlpha(0);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 2.4; 
+        renderer.domElement.style.background = 'transparent';
+        renderer.domElement.style.backgroundColor = 'transparent';
+        container.appendChild(renderer.domElement);
+
+        // --- Hệ thống Ánh sáng Gắt ---
+        const ambientLight = new THREE.AmbientLight(0x090f1a, 3.0); 
+        scene.add(ambientLight);
+
+        const frontLight = new THREE.DirectionalLight(0xffffff, 3.5);
+        frontLight.position.set(0, 0, 10);
+        scene.add(frontLight);
+
+        const topLight = new THREE.DirectionalLight(0xff0044, 7.0); 
+        topLight.position.set(0, 15, 2);
+        scene.add(topLight);
+
+        const sideRed = new THREE.PointLight(0xff0033, 20, 30);
+        sideRed.position.set(8, 2, 4);
+        scene.add(sideRed);
+
+        const sideCyan = new THREE.PointLight(0x00f2fe, 15, 30);
+        sideCyan.position.set(-8, -2, 4);
+        scene.add(sideCyan);
+
+        // --- Khởi tạo các nhóm thành phần ---
+        const robotUnit = new THREE.Group();
+        const upperSkull = new THREE.Group();     
+        const hydraulicJaw = new THREE.Group();   
+        const earModules = new THREE.Group();     
+        const armorGroup = new THREE.Group();     
+        const rearDebrisGroup = new THREE.Group();
+        const leftEye = new THREE.Group(); 
+        const rightEye = new THREE.Group(); 
+
+        robotUnit.add(rearDebrisGroup);
+        robotUnit.add(upperSkull);
+        robotUnit.add(hydraulicJaw);
+        robotUnit.add(earModules);
+        robotUnit.add(armorGroup);
+        robotUnit.add(leftEye);
+        robotUnit.add(rightEye);
+        scene.add(robotUnit);
+
+        // --- Định nghĩa Vật liệu Giáp và Sinh học ---
+        const heavySteelMat = new THREE.MeshStandardMaterial({
+            color: 0x252b35, metalness: 1.0, roughness: 0.2, flatShading: true
+        });
+
+        const darkIronBoneMat = new THREE.MeshStandardMaterial({
+            color: 0x0f1114, metalness: 1.0, roughness: 0.4, flatShading: true
+        });
+
+        const bladeTeethMat = new THREE.MeshStandardMaterial({
+            color: 0xd1d9e6, metalness: 1.0, roughness: 0.02,
+            emissive: 0x111620, flatShading: true
+        });
+
+        const bioBloodVesselMat = new THREE.MeshStandardMaterial({
+            color: 0xff0033, emissive: 0xff0011, emissiveIntensity: 7.0, flatShading: true
+        });
+
+        const bioNerveCyanMat = new THREE.MeshStandardMaterial({
+            color: 0x00f2fe, emissive: 0x00b2cc, emissiveIntensity: 6.0, flatShading: true
+        });
+
+        const bioDeepVeinMat = new THREE.MeshStandardMaterial({
+            color: 0x7a0022, emissive: 0xff0048, emissiveIntensity: 5.4, roughness: 0.18, flatShading: true
+        });
+
+        const brainCoreMat = new THREE.MeshStandardMaterial({
+            color: 0xff3b64, emissive: 0xff003d, emissiveIntensity: 4.8, metalness: 0.25, roughness: 0.28, flatShading: true
+        });
+
+        const brainSignalMat = new THREE.MeshStandardMaterial({
+            color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 4.2, roughness: 0.18, flatShading: true
+        });
+
+        const largeArteryTubeMat = new THREE.MeshStandardMaterial({
+            color: 0xa40a24, emissive: 0xff1038, emissiveIntensity: 2.8, metalness: 0.15, roughness: 0.22, flatShading: false
+        });
+
+        const armorGraphiteMat = new THREE.MeshStandardMaterial({
+            color: 0x030508, metalness: 0.9, roughness: 0.25, flatShading: true
+        });
+
+        const redEyeLaserMat = new THREE.MeshBasicMaterial({ color: 0xff0033 });
+        const mouthVoidMat = new THREE.MeshBasicMaterial({ color: 0x02040a });
+        const flapWarningMat = new THREE.MeshBasicMaterial({ color: 0xff1144 });
+        const clamp01 = (value) => Math.min(Math.max(value, 0), 1);
+        const easeInOut = (value) => {
+            const t = clamp01(value);
+            return t * t * (3 - 2 * t);
+        };
+        const randomExitTarget = (x = 0, y = 0, z = 0, power = 1) => {
+            const baseAngle = Math.atan2(y || 0.05, x || 0.05);
+            const angle = baseAngle + (Math.random() - 0.5) * 1.45;
+            const radius = (2.2 + Math.random() * 3.8) * power;
+            return {
+                exitX: x + Math.cos(angle) * radius,
+                exitY: y + Math.sin(angle) * radius + (Math.random() - 0.5) * 1.4 * power,
+                exitZ: z + 2.4 + Math.random() * 4.8 * power
+            };
+        };
+
+        const rearDebrisBlocks = [];
+        const rearDebrisCount = 190;
+        for (let i = 0; i < rearDebrisCount; i += 1) {
+            const seed = Math.random();
+            const size = 0.028 + Math.random() * 0.066;
+            const debGeo = new THREE.BoxGeometry(size, size, size);
+            const debMat = seed > 0.78 ? bioNerveCyanMat : (seed > 0.52 ? bioBloodVesselMat : heavySteelMat);
+            const debMesh = new THREE.Mesh(debGeo, debMat);
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 2.15 + Math.random() * 1.95;
+            const flatten = 0.68 + Math.random() * 0.32;
+            const baseX = Math.cos(angle) * radius;
+            const baseY = Math.sin(angle) * radius * flatten + 0.22;
+            const baseZ = 0.30 + Math.random() * 1.90;
+            debMesh.position.set(baseX, baseY, baseZ);
+            debMesh.userData = {
+                angle,
+                radius,
+                flatten,
+                baseX,
+                baseY,
+                baseZ,
+                orbitSpeed: 0.035 + Math.random() * 0.105,
+                floatSpeed: 0.45 + Math.random() * 1.25,
+                phaseOffset: Math.random() * Math.PI * 2,
+                baseScale: 0.62 + Math.random() * 0.88
+            };
+            debMesh.scale.setScalar(0.01);
+            rearDebrisGroup.add(debMesh);
+            rearDebrisBlocks.push(debMesh);
+        }
+
+        // --- Đôi mắt Laser ---
+        const eyeBarGeo = new THREE.BoxGeometry(0.65, 0.05, 0.1);
+        const leftEyeMesh = new THREE.Mesh(eyeBarGeo, redEyeLaserMat);
+        const rightEyeMesh = new THREE.Mesh(eyeBarGeo, redEyeLaserMat);
+        leftEye.position.set(1.1, 0.7, 2.3);
+        rightEye.position.set(-1.1, 0.7, 2.3);
+        leftEye.add(leftEyeMesh);
+        rightEye.add(rightEyeMesh);
+
+        // --- Thuật toán dựng sọ Mecha Core ---
+        const blockGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+        const sọBlocks = [];
+        const earBlocks = [];
+        const armorBlocks = [];
+        const ultimateJawParts = [];
+
+        for (let x = -35; x <= 35; x++) {
+            for (let y = -45; y <= 38; y++) {
+                let nx = x / 35;
+                let ny = y / 38;
+
+                let mechaJawCurve = 0.88;
+                if (ny > 0.32) mechaJawCurve = 0.80 - ((ny - 0.32) * 0.10);
+                if (ny < 0) mechaJawCurve = 0.88 - (Math.abs(ny) * 0.72);
+                if (mechaJawCurve < 0.30) continue; 
+                if (ny > 0.76) continue;
+                if (ny < -0.70) continue;
+
+                const absNx = Math.abs(nx);
+                const topSideSlice = ny > 0.42 && absNx > 0.48 + (0.76 - Math.min(ny, 0.76)) * 0.12;
+                const templeSlice = ny > -0.08 && ny < 0.48 && absNx > 0.72 - Math.max(ny, 0) * 0.18;
+                const lowerRoundSlice = ny < -0.42 && absNx > 0.44 - Math.abs(ny + 0.42) * 0.12;
+                if (topSideSlice || templeSlice || lowerRoundSlice) continue;
+
+                let boundary = (nx * nx) / (mechaJawCurve * mechaJawCurve) + (ny * ny * 0.9);
+
+                if (boundary < 1.0) {
+                    let baseZ = Math.sqrt(1.0 - boundary) * 5.3;
+                    if (Math.abs(nx) < 0.14 && ny > -0.1 && ny < 0.45) baseZ += 0.45;
+                    if (ny > 0.50 && absNx < 0.55) baseZ -= 0.34;
+                    if (absNx > 0.48 && ny > -0.08 && ny < 0.50) baseZ -= 0.26;
+                    if (ny > 0.18 && ny < 0.34 && absNx > 0.18 && absNx < 0.72) baseZ += 0.36;
+                    if (ny > -0.34 && ny < 0.02 && absNx > 0.38 && absNx < 0.70) baseZ += 0.28;
+
+                    const isMouthArea = ny < -0.23 && ny > -0.43 && Math.abs(nx) < 0.44;
+                    if (isMouthArea) continue; 
+
+                    if (Math.abs(ny - 0.7/38) < 0.05 && Math.abs(nx) > 0.18 && Math.abs(nx) < 0.55) continue;
+
+                    let mat = heavySteelMat;
+                    if (Math.random() > 0.96) mat = bioBloodVesselMat;
+
+                    const block = new THREE.Mesh(blockGeo, mat);
+                    const targetX = x * 0.082;
+                    const targetY = y * 0.09;
+                    const targetZ = baseZ;
+
+                    block.position.set(targetX * 2, targetY - 3, targetZ); 
+                    block.userData = { targetX, targetY, targetZ, baseScale: 0.92, ...randomExitTarget(targetX, targetY, targetZ, 1.05) };
+
+                    if (ny >= -0.22) {
+                        upperSkull.add(block);
+                    } else {
+                        hydraulicJaw.add(block);
+                    }
+                    sọBlocks.push(block);
+                }
+            }
+        }
+
+        // --- THIẾT KẾ MẠCH MÁU PHÂN TẢN BÁM RỄ HỘP SỌ (SPHERICAL DISPERSION NETWORK) ---
+        // --- TRANSFORMER-STYLE HELMET ARMOR: angular plates break the spherical silhouette ---
+        const helmetPlateGeo = new THREE.BoxGeometry(0.22, 0.078, 0.210);
+        const helmetBrowGeo = new THREE.BoxGeometry(0.25, 0.086, 0.245);
+        const helmetCheekGeo = new THREE.BoxGeometry(0.145, 0.235, 0.195);
+        const helmetCrownGeo = new THREE.BoxGeometry(0.220, 0.105, 0.210);
+        const helmetSideFinGeo = new THREE.BoxGeometry(0.090, 0.360, 0.150);
+        const helmetChinGuardGeo = new THREE.BoxGeometry(0.160, 0.105, 0.180);
+
+        const addTransformerArmor = (geometry, material, target, scale = 1) => {
+            const block = new THREE.Mesh(geometry, material);
+            block.position.set(target.x * 1.65, target.y - 2.2, target.z + 1.8);
+            block.rotation.set(target.rotX || 0, target.rotY || 0, target.rotZ || 0);
+            block.userData = {
+                targetX: target.x,
+                targetY: target.y,
+                targetZ: target.z,
+                targetRotX: target.rotX || 0,
+                targetRotY: target.rotY || 0,
+                targetRotZ: target.rotZ || 0,
+                baseScale: scale,
+                phaseOffset: Math.random() * Math.PI * 2
+            };
+            armorGroup.add(block);
+            armorBlocks.push(block);
+        };
+
+        for (let col = -3; col <= 3; col += 1) {
+            const edge = Math.abs(col) === 3;
+            addTransformerArmor(helmetBrowGeo, edge ? bioNerveCyanMat : heavySteelMat, {
+                x: col * 0.28,
+                y: 0.52 - Math.abs(col) * 0.020,
+                z: 5.10 - Math.abs(col) * 0.035,
+                rotX: -0.08,
+                rotY: col * 0.075,
+                rotZ: col * -0.025
+            }, edge ? 0.72 : 0.88);
+        }
+
+        for (let row = 0; row < 3; row += 1) {
+            for (let col = -2; col <= 2; col += 1) {
+                const edge = Math.abs(col) === 2 || row === 2;
+                addTransformerArmor(row === 0 ? helmetCrownGeo : helmetPlateGeo, edge ? darkIronBoneMat : heavySteelMat, {
+                    x: col * 0.30,
+                    y: 1.08 + row * 0.22 - Math.abs(col) * 0.030,
+                    z: 4.92 - row * 0.135 - Math.abs(col) * 0.032,
+                    rotX: -0.20 - row * 0.035,
+                    rotY: col * 0.080,
+                    rotZ: col * -0.030
+                }, edge ? 0.68 : 0.84);
+            }
+        }
+
+        [-1, 1].forEach((side) => {
+            for (let row = 0; row < 3; row += 1) {
+                addTransformerArmor(helmetSideFinGeo, row === 1 ? bioNerveCyanMat : armorGraphiteMat, {
+                    x: side * (1.36 + row * 0.075),
+                    y: 0.30 - row * 0.245,
+                    z: 3.74 + row * 0.085,
+                    rotX: -0.06,
+                    rotY: side * 0.52,
+                    rotZ: side * -0.16
+                }, row === 1 ? 0.68 : 0.82);
+            }
+            for (let row = 0; row < 3; row += 1) {
+                addTransformerArmor(helmetCheekGeo, row === 0 ? bioNerveCyanMat : heavySteelMat, {
+                    x: side * (0.68 + row * 0.080),
+                    y: -0.34 - row * 0.190,
+                    z: 4.82 - row * 0.035,
+                    rotX: -0.16,
+                    rotY: side * 0.34,
+                    rotZ: side * -0.08
+                }, row === 0 ? 0.64 : 0.80);
+            }
+        });
+
+        for (let col = -2; col <= 2; col += 1) {
+            addTransformerArmor(helmetChinGuardGeo, Math.abs(col) === 2 ? darkIronBoneMat : heavySteelMat, {
+                x: col * 0.22,
+                y: -1.05 - Math.abs(col) * 0.030,
+                z: 5.04 - Math.abs(col) * 0.024,
+                rotX: -0.18,
+                rotY: col * 0.055,
+                rotZ: col * -0.020
+            }, Math.abs(col) === 2 ? 0.60 : 0.76);
+        }
+
+        const ultimateJawContainer = new THREE.Group();
+        hydraulicJaw.add(ultimateJawContainer);
+
+        const createUltimatePart = (geo, mat, pos, rot, type, customData = {}) => {
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(pos.x, pos.y, pos.z);
+            mesh.rotation.set(rot.x, rot.y, rot.z);
+            mesh.scale.setScalar(0.01);
+            
+            mesh.userData = {
+                targetX: pos.x, targetY: pos.y, targetZ: pos.z,
+                rotX: rot.x, rotY: rot.y, rotZ: rot.z,
+                type: type, 
+                baseScale: customData.baseScale || 1.0,
+                ...randomExitTarget(pos.x, pos.y, pos.z, 0.86),
+                ...customData
+            };
+            
+            ultimateJawContainer.add(mesh);
+            ultimateJawParts.push(mesh);
+        };
+
+        // 1. Răng lưỡi dao vi sợi nhọn
+        const jawSocketGeo = new THREE.BoxGeometry(0.205, 0.098, 0.370);
+        const jawVoidGeo = new THREE.BoxGeometry(0.168, 0.092, 0.120);
+        const jawHingePinGeo = new THREE.CylinderGeometry(0.052, 0.052, 0.270, 10);
+        const jawSideJointGeo = new THREE.BoxGeometry(0.125, 0.265, 0.220);
+        const chinPlateGeo = new THREE.BoxGeometry(0.178, 0.172, 0.430);
+        const chinLowerGeo = new THREE.BoxGeometry(0.160, 0.148, 0.365);
+        const chinSideArmGeo = new THREE.BoxGeometry(0.088, 0.360, 0.175);
+        const chinSignalGeo = new THREE.BoxGeometry(0.110, 0.036, 0.060);
+        jawHingePinGeo.rotateZ(Math.PI / 2);
+
+        for (let col = 0; col < 9; col += 1) {
+            const centered = col - 4;
+            const edge = Math.abs(centered) > 3;
+            createUltimatePart(jawSocketGeo, edge ? bioNerveCyanMat : heavySteelMat, {
+                x: centered * 0.110,
+                y: -0.980 + Math.abs(centered) * 0.006,
+                z: 5.16 - Math.abs(centered) * 0.008
+            }, {x: -0.020, y: centered * 0.016, z: 0}, 'jaw_socket_static', {
+                baseScale: edge ? 0.88 : 1.00,
+                phaseOffset: col * 0.22
+            });
+        }
+
+        for (let row = 0; row < 2; row += 1) {
+            for (let col = 0; col < 8; col += 1) {
+                const centered = col - 3.5;
+                createUltimatePart(jawVoidGeo, row === 0 && col > 0 && col < 7 ? mouthVoidMat : armorGraphiteMat, {
+                    x: centered * 0.104,
+                    y: -1.080 - row * 0.068,
+                    z: 4.98 - Math.abs(centered) * 0.006
+                }, {x: 0, y: centered * 0.010, z: 0}, 'jaw_socket_static', {
+                    baseScale: row === 0 ? 1.12 : 0.86,
+                    phaseOffset: row * 0.24 + col * 0.04
+                });
+            }
+        }
+
+        [-1, 1].forEach((side) => {
+            createUltimatePart(jawHingePinGeo, bioNerveCyanMat, {
+                x: side * 0.590,
+                y: -1.145,
+                z: 5.18
+            }, {x: 0.020, y: side * 0.110, z: side * 0.030}, 'chin_hinge', {
+                baseScale: 1.10,
+                phaseOffset: side > 0 ? 0.45 : 0
+            });
+            createUltimatePart(jawSideJointGeo, darkIronBoneMat, {
+                x: side * 0.555,
+                y: -1.215,
+                z: 5.02
+            }, {x: -0.020, y: side * 0.170, z: side * -0.020}, 'robot_chin_jaw', {
+                baseScale: 1.00,
+                jawColumn: side * 3,
+                jawRow: 0,
+                phaseOffset: side > 0 ? 0.55 : 0.18
+            });
+            createUltimatePart(chinSideArmGeo, side > 0 ? bioNerveCyanMat : flapWarningMat, {
+                x: side * 0.460,
+                y: -1.325,
+                z: 5.14
+            }, {x: -0.050, y: side * 0.120, z: side * -0.035}, 'robot_chin_jaw', {
+                baseScale: 0.82,
+                jawColumn: side * 2.4,
+                jawRow: 1,
+                phaseOffset: side > 0 ? 0.65 : 0.28
+            });
+        });
+
+        for (let row = 0; row < 2; row += 1) {
+            for (let col = 0; col < 7; col += 1) {
+                const centered = col - 3;
+                const edge = Math.abs(centered) > 2;
+                createUltimatePart(row === 0 ? chinPlateGeo : chinLowerGeo, edge ? darkIronBoneMat : heavySteelMat, {
+                    x: centered * 0.106,
+                    y: -1.245 - row * 0.125 + Math.abs(centered) * 0.004,
+                    z: 5.18 - Math.abs(centered) * 0.008 + row * 0.025
+                }, {x: -0.055 - row * 0.020, y: centered * 0.015, z: centered * -0.004}, 'robot_chin_jaw', {
+                    baseScale: row === 0 ? 0.92 : 0.82,
+                    jawColumn: centered,
+                    jawRow: row,
+                    phaseOffset: col * 0.18 + row * 0.22
+                });
+            }
+        }
+
+        for (let col = 0; col < 5; col += 1) {
+            const centered = col - 2;
+            createUltimatePart(chinSignalGeo, col % 2 ? flapWarningMat : bioNerveCyanMat, {
+                x: centered * 0.130,
+                y: -1.205 + Math.abs(centered) * 0.004,
+                z: 5.42 - Math.abs(centered) * 0.006
+            }, {x: -0.060, y: centered * 0.010, z: 0}, 'chin_signal', {
+                baseScale: 0.78,
+                jawColumn: centered,
+                jawRow: 0,
+                phaseOffset: col * 0.30
+            });
+        }
+
+        // 2. Hệ thống Piston đôi bọc hai bên má
+        const pistonCoreGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.1, 6);
+        for(let side of [-1, 1]) {
+            createUltimatePart(pistonCoreGeo, heavySteelMat, {x: side * 0.72, y: -0.85, z: 3.9}, {x: 0.3, y: side * -0.2, z: side * -0.3}, 'piston_heavy');
+            createUltimatePart(pistonCoreGeo, darkIronBoneMat, {x: side * 0.8, y: -0.9, z: 3.7}, {x: 0.3, y: side * -0.2, z: side * -0.3}, 'piston_heavy', {baseScale: 0.7});
+        }
+
+        // 3. THUẬT TOÁN MẠCH MÁU XOẮN BUNG TẢN ĐỀU RA THÀNH VÁCH SỌ (Vascular Cranium Fan-out)
+        const microVesselSegmentGeo = new THREE.BoxGeometry(0.026, 0.026, 0.045);
+        
+        const hyperStrands = 36;       
+        const segmentsPerHyperStrand = 35; 
+
+        for (let s = 0; s < hyperStrands; s++) {
+            const strandRatio = s / (hyperStrands - 1);
+            
+            // Góc phân tách ban đầu của bó dây tại vòm hàm
+            const startAngle = (strandRatio - 0.5) * Math.PI * 0.6;
+            const startX = Math.sin(startAngle) * 0.5;
+            
+            const isRed = Math.random() > 0.2;
+            const strandMat = isRed ? bioBloodVesselMat : bioNerveCyanMat;
+            
+            // Định hướng ngẫu nhiên vùng tản ra trên vách hộp sọ của từng bó riêng biệt
+            // Một số bó tản hẳn lên đỉnh đầu (Y cao), một số giang rộng ra hai tai (X rộng)
+            const scatterAngleX = (Math.random() - 0.5) * 2.8; 
+            const scatterAngleY = (Math.random() - 0.2) * 2.5; 
+
+            const phaseOffset = Math.random() * Math.PI * 2;
+            const seed = Math.random() * 100;
+
+            for (let seg = 0; seg < segmentsPerHyperStrand; seg++) {
+                const segRatio = seg / (segmentsPerHyperStrand - 1);
+                
+                // Trục Z đâm sâu tuốt luốt vào lõi và thành sọ sau (Z đi từ lớp mồm 4.1 lùi về gáy -1.0)
+                const targetZ = 4.1 - (segRatio * 5.1); 
+                
+                // THUẬT TOÁN PHÂN TẢN (DISPERSION):
+                // Khi segRatio gần bằng 0 (ở mồm): Mạch tụ lại sát nhau.
+                // Khi segRatio tiến dần đến 1 (vào sâu trong sọ): Ép tọa độ X và Y nhân rộng ra theo hướng góc quét scatterAngle.
+                const dispersionFactor = Math.pow(segRatio, 1.8); // Sử dụng hàm mũ để mạch máu bung xòe mạnh ở đoạn cuối
+                
+                const basePositionX = startX + (scatterAngleX * dispersionFactor * 1.6);
+                const basePositionY = -1.2 + (segRatio * 1.2) + (scatterAngleY * dispersionFactor * 1.5);
+                
+                // Hiệu ứng xoắn uốn khúc (Helix)
+                const radius = 0.06 * (1.0 - segRatio * 0.4); // Thu nhỏ dần bán kính xoắn khi cắm sát vào thành sọ để bám rễ vi sợi
+                const helixSpeed = 14.0;
+                
+                const offsetX = Math.sin(segRatio * helixSpeed + phaseOffset) * radius;
+                const offsetY = Math.cos(segRatio * helixSpeed + phaseOffset) * radius;
+
+                createUltimatePart(microVesselSegmentGeo, strandMat, 
+                    { x: basePositionX + offsetX, y: basePositionY + offsetY, z: targetZ },
+                    { x: 0, y: 0, z: 0 },
+                    'hyper_vessel',
+                    {
+                        segRatio: segRatio,
+                        strandIndex: s,
+                        phaseOffset: phaseOffset,
+                        seed: seed,
+                        baseScale: 1.1 - (segRatio * 0.5) // Mạch máu phân nhánh nhỏ li ti như mao mạch khi tiếp cận giáp sọ
+                    }
+                );
+            }
+        }
+
+        // --- CÁC CHI TIẾT PHỤ CỔ VÀ TAI ---
+        // 4. Cranial-to-brain vascular system: larger arteries plus dense feeder roots.
+        const brainNodeGeo = new THREE.BoxGeometry(0.070, 0.070, 0.070);
+        const largeVesselSegmentGeo = new THREE.CylinderGeometry(0.022, 0.018, 0.100, 7);
+        const feederVesselSegmentGeo = new THREE.BoxGeometry(0.030, 0.030, 0.070);
+        const cranialTubeMeshes = [];
+
+        const brainNodes = 88;
+        for (let i = 0; i < brainNodes; i += 1) {
+            const lobe = i % 2 === 0 ? -1 : 1;
+            const theta = Math.random() * Math.PI * 2;
+            const radius = Math.sqrt(Math.random()) * 0.42;
+            const depth = (Math.random() - 0.5) * 0.44;
+            const ripple = Math.sin(theta * 3.0) * 0.045;
+            createUltimatePart(
+                brainNodeGeo,
+                Math.random() > 0.68 ? brainSignalMat : brainCoreMat,
+                {
+                    x: lobe * (0.22 + radius * 0.72) + Math.cos(theta) * radius * 0.34,
+                    y: 0.03 + Math.sin(theta) * radius * 0.52 + ripple,
+                    z: 2.15 + depth
+                },
+                {
+                    x: Math.random() * 0.4,
+                    y: Math.random() * 0.4,
+                    z: Math.random() * 0.4
+                },
+                'brain_node',
+                {
+                    seed: Math.random() * 100,
+                    phaseOffset: Math.random() * Math.PI * 2,
+                    baseScale: 0.72 + Math.random() * 0.54
+                }
+            );
+        }
+
+        const createCranialVesselChain = (start, end, count, material, type, options = {}) => {
+            const bendX = options.bendX || 0;
+            const bendY = options.bendY || 0;
+            const bendZ = options.bendZ || 0;
+            const phaseOffset = Math.random() * Math.PI * 2;
+            const seed = Math.random() * 100;
+            let previous = start;
+            for (let seg = 0; seg < count; seg += 1) {
+                const t = seg / Math.max(1, count - 1);
+                const arc = Math.sin(t * Math.PI);
+                const twist = Math.sin(t * Math.PI * (options.twist || 2.0) + phaseOffset);
+                const pos = {
+                    x: start.x + (end.x - start.x) * t + arc * bendX + twist * (options.wiggleX || 0.018),
+                    y: start.y + (end.y - start.y) * t + arc * bendY + Math.cos(t * 8.0 + seed) * (options.wiggleY || 0.012),
+                    z: start.z + (end.z - start.z) * t + arc * bendZ
+                };
+                const dx = pos.x - previous.x;
+                const dy = pos.y - previous.y || 0.001;
+                const dz = pos.z - previous.z;
+                createUltimatePart(
+                    type === 'cranial_large_vessel' ? largeVesselSegmentGeo : feederVesselSegmentGeo,
+                    material,
+                    pos,
+                    {
+                        x: Math.atan2(dz, Math.max(0.001, Math.sqrt(dx * dx + dy * dy))) * 0.75,
+                        y: 0,
+                        z: -Math.atan2(dx, dy)
+                    },
+                    type,
+                    {
+                        segRatio: t,
+                        phaseOffset,
+                        seed,
+                        baseScale: (options.baseScale || 1) * (1.05 - t * (options.taper || 0.28)),
+                        flowStrength: options.flowStrength || 1
+                    }
+                );
+                previous = pos;
+            }
+        };
+
+        const addCranialTube = (points, radius, delay, material = largeArteryTubeMat) => {
+            const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p.x, p.y, p.z)));
+            const tubeGeo = new THREE.TubeGeometry(curve, 34, radius, 8, false);
+            const tubeMat = material.clone();
+            const mesh = new THREE.Mesh(tubeGeo, tubeMat);
+            mesh.scale.setScalar(0.01);
+            mesh.userData = {
+                delay,
+                baseScale: 1,
+                seed: Math.random() * 100,
+                baseEmissive: tubeMat.emissiveIntensity || 2.8
+            };
+            ultimateJawContainer.add(mesh);
+            cranialTubeMeshes.push(mesh);
+        };
+
+        const brainTargets = [
+            {x: -0.42, y: 0.14, z: 2.22}, {x: -0.22, y: -0.02, z: 2.30},
+            {x: 0.00, y: 0.10, z: 2.05}, {x: 0.22, y: -0.02, z: 2.30},
+            {x: 0.42, y: 0.14, z: 2.22}
+        ];
+        const skullAnchors = [
+            {x: -1.62, y: 1.58, z: 2.70}, {x: -0.88, y: 1.92, z: 2.48},
+            {x: -0.20, y: 2.08, z: 2.34}, {x: 0.20, y: 2.08, z: 2.34},
+            {x: 0.88, y: 1.92, z: 2.48}, {x: 1.62, y: 1.58, z: 2.70},
+            {x: -2.02, y: 0.92, z: 2.88}, {x: 2.02, y: 0.92, z: 2.88}
+        ];
+
+        skullAnchors.forEach((anchor, index) => {
+            const target = brainTargets[(index + 1) % brainTargets.length];
+            const side = anchor.x < 0 ? -1 : 1;
+            addCranialTube(
+                [
+                    {x: anchor.x * 0.92, y: anchor.y - 0.22, z: anchor.z + 0.14},
+                    {
+                        x: side * (0.74 + Math.random() * 0.18),
+                        y: 0.94 + Math.random() * 0.26,
+                        z: 3.04 + Math.random() * 0.34
+                    },
+                    {
+                        x: target.x + side * 0.08,
+                        y: target.y + 0.08,
+                        z: target.z + 0.28
+                    }
+                ],
+                index % 2 === 0 ? 0.024 : 0.019,
+                0.16 + index * 0.030
+            );
+        });
+
+        const rearNeuralAnchors = [
+            {x: -1.22, y: 1.34, z: 1.32}, {x: -0.66, y: 1.58, z: 1.05},
+            {x: -0.18, y: 1.70, z: 0.92}, {x: 0.18, y: 1.70, z: 0.92},
+            {x: 0.66, y: 1.58, z: 1.05}, {x: 1.22, y: 1.34, z: 1.32}
+        ];
+        rearNeuralAnchors.forEach((anchor, index) => {
+            const side = anchor.x < 0 ? -1 : 1;
+            const end = {
+                x: side * (0.58 + Math.random() * 0.42),
+                y: -1.42 - Math.random() * 0.42,
+                z: 1.24 + Math.random() * 0.38
+            };
+            addCranialTube(
+                [
+                    anchor,
+                    {
+                        x: side * (1.26 + Math.random() * 0.28),
+                        y: 0.22 + Math.random() * 0.22,
+                        z: 0.82 + Math.random() * 0.22
+                    },
+                    end
+                ],
+                index % 2 === 0 ? 0.020 : 0.015,
+                0.32 + index * 0.040,
+                index % 3 === 0 ? brainSignalMat : bioDeepVeinMat
+            );
+            createCranialVesselChain(
+                anchor,
+                end,
+                14,
+                index % 2 ? bioNerveCyanMat : bioDeepVeinMat,
+                'cranial_micro_vessel',
+                {
+                    bendX: side * (0.28 + Math.random() * 0.18),
+                    bendY: -0.18 - Math.random() * 0.14,
+                    bendZ: -0.20 - Math.random() * 0.16,
+                    wiggleX: 0.032,
+                    wiggleY: 0.018,
+                    twist: 4.2,
+                    baseScale: 0.62 + Math.random() * 0.14,
+                    taper: 0.50,
+                    flowStrength: 0.90
+                }
+            );
+        });
+
+        skullAnchors.forEach((anchor, index) => {
+            const target = brainTargets[index % brainTargets.length];
+            createCranialVesselChain(
+                anchor,
+                target,
+                18,
+                index % 3 === 0 ? bioDeepVeinMat : bioBloodVesselMat,
+                'cranial_large_vessel',
+                {
+                    bendX: (index < 4 ? -0.16 : 0.16) * (index % 2 ? 0.45 : 1),
+                    bendY: -0.22 - Math.random() * 0.18,
+                    bendZ: 0.36 + Math.random() * 0.24,
+                    wiggleX: 0.022,
+                    wiggleY: 0.016,
+                    twist: 2.6,
+                    baseScale: 0.72 + Math.random() * 0.14,
+                    flowStrength: 0.92
+                }
+            );
+        });
+
+        for (let s = 0; s < 24; s += 1) {
+            const side = s % 2 === 0 ? -1 : 1;
+            const upperArc = s / 23;
+            const start = {
+                x: side * (0.38 + Math.random() * 1.48),
+                y: 1.36 + upperArc * 1.25 + Math.random() * 0.18,
+                z: 2.25 + Math.random() * 0.78
+            };
+            const end = {
+                x: side * (0.10 + Math.random() * 0.52),
+                y: -0.08 + Math.random() * 0.42,
+                z: 2.05 + Math.random() * 0.42
+            };
+            createCranialVesselChain(
+                start,
+                end,
+                12,
+                Math.random() > 0.72 ? bioNerveCyanMat : bioDeepVeinMat,
+                'cranial_micro_vessel',
+                {
+                    bendX: side * (0.06 + Math.random() * 0.10),
+                    bendY: -0.08 - Math.random() * 0.12,
+                    bendZ: 0.10 + Math.random() * 0.22,
+                    wiggleX: 0.026,
+                    wiggleY: 0.014,
+                    twist: 3.4,
+                    baseScale: 0.68 + Math.random() * 0.20,
+                    taper: 0.46,
+                    flowStrength: 0.86
+                }
+            );
+        }
+
+        const earShellGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        for (let side of [-1, 1]) {
+            for (let row = 0; row < 4; row++) {
+                const block = new THREE.Mesh(earShellGeo, heavySteelMat);
+                const tx = side * 3.1, ty = 0.4 - row * 0.25, tz = 1.0;
+                block.position.set(tx, ty, tz);
+                block.userData = { targetX: tx, targetY: ty, targetZ: tz, baseScale: 1 };
+                earModules.add(block);
+                earBlocks.push(block);
+            }
+        }
+
+        const armorBlockGeo = new THREE.BoxGeometry(0.3, 0.15, 0.3);
+        for(let i = -3; i <= 3; i++) {
+            const block = new THREE.Mesh(armorBlockGeo, armorGraphiteMat);
+            const tx = i * 0.35, ty = -2.4, tz = 3.6;
+            block.position.set(tx, ty, tz);
+            block.userData = { targetX: tx, targetY: ty, targetZ: tz, baseScale: 1 };
+            armorGroup.add(block);
+            armorBlocks.push(block);
+        }
+
+        // --- VÒNG LẶP HOẠT HÌNH ---
+        let clock = new THREE.Clock();
+        let isSpeaking = !new URLSearchParams(window.location.search).has('noticeFace');
+        let exitStart = 0;
+        const exitDuration = 2.35;
+        let idleHoldUntil = 0;
+        let nextHeadAimTime = 0;
+        let headTargetX = 0;
+        let headTargetY = 0;
+        let headTargetZ = 0;
+        let headRotX = 0;
+        let headRotY = 0;
+        let headRotZ = 0;
+        let eyeScanX = 0;
+        let rafId = 0;
+        let destroyed = false;
+        const isNoticeFace = new URLSearchParams(window.location.search).has('noticeFace');
+        const settleDuration = 3.2;
+
+        const wakeRenderer = () => {
+            if (!destroyed && !rafId) {
+                rafId = requestAnimationFrame(animate);
+            }
+        };
+
+        const disposeMaterial = (material) => {
+            if (Array.isArray(material)) {
+                material.forEach(disposeMaterial);
+                return;
+            }
+            if (!material) return;
+            Object.keys(material).forEach((key) => {
+                const value = material[key];
+                if (value && typeof value.dispose === 'function') {
+                    value.dispose();
+                }
+            });
+            if (typeof material.dispose === 'function') {
+                material.dispose();
+            }
+        };
+
+        const destroyRenderer = () => {
+            if (destroyed) return;
+            destroyed = true;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = 0;
+            }
+            scene.traverse((node) => {
+                if (node.geometry && typeof node.geometry.dispose === 'function') {
+                    node.geometry.dispose();
+                }
+                if (node.material) {
+                    disposeMaterial(node.material);
+                }
+            });
+            if (renderer.renderLists && typeof renderer.renderLists.dispose === 'function') {
+                renderer.renderLists.dispose();
+            }
+            if (typeof renderer.dispose === 'function') {
+                renderer.dispose();
+            }
+            if (typeof renderer.forceContextLoss === 'function') {
+                renderer.forceContextLoss();
+            }
+            if (renderer.domElement && renderer.domElement.parentNode) {
+                renderer.domElement.parentNode.removeChild(renderer.domElement);
+            }
+        };
+
+        window.addEventListener('message', (event) => {
+            const data = event && event.data;
+            if (!data) return;
+            if (data.type === 'ft-face-speaking') {
+                isSpeaking = Boolean(data.value);
+                if (isSpeaking) {
+                    idleHoldUntil = 0;
+                } else {
+                    const holdMs = Math.max(0, Math.min(5000, Number(data.idleHoldMs) || 0));
+                    idleHoldUntil = holdMs ? clock.getElapsedTime() + holdMs / 1000 : 0;
+                }
+                wakeRenderer();
+            } else if (data.type === 'ft-face-exit') {
+                isSpeaking = false;
+                idleHoldUntil = 0;
+                if (!exitStart) {
+                    exitStart = clock.getElapsedTime();
+                }
+                wakeRenderer();
+            } else if (data.type === 'ft-face-destroy') {
+                destroyRenderer();
+            }
+        });
+
+        function animate() {
+            if (destroyed) return;
+            rafId = 0;
+            const time = clock.getElapsedTime();
+            const assembleProgress = Math.min(time * 0.5, 1.0); 
+            const exitElapsed = exitStart ? time - exitStart : 0;
+            const exitProgress = exitStart ? easeInOut(exitElapsed / exitDuration) : 0;
+            const exitFade = Math.max(0, 1 - exitProgress);
+            const idleHolding = Boolean(isNoticeFace && !exitStart && idleHoldUntil && time < idleHoldUntil);
+            const speechMotion = isSpeaking ? Math.abs(Math.sin(time * 3.8) * Math.cos(time * 1.2)) : 0;
+            const idleMotion = isSpeaking ? 0 : Math.abs(Math.sin(time * 1.2)) * 0.025;
+
+            // Lắp ráp khối sọ
+            sọBlocks.forEach(b => {
+                const ud = b.userData || {};
+                const tx = exitProgress ? ud.targetX + ((ud.exitX || ud.targetX) - ud.targetX) * exitProgress : ud.targetX;
+                const ty = exitProgress ? ud.targetY + ((ud.exitY || ud.targetY) - ud.targetY) * exitProgress : ud.targetY;
+                const tz = exitProgress ? ud.targetZ + ((ud.exitZ || ud.targetZ) - ud.targetZ) * exitProgress : ud.targetZ;
+                const settle = exitProgress ? 0.16 : 0.08;
+                b.position.x += (tx - b.position.x) * settle;
+                b.position.y += (ty - b.position.y) * settle;
+                b.position.z += (tz - b.position.z) * settle;
+                b.scale.setScalar((ud.baseScale || 1) * assembleProgress * Math.max(0.015, exitFade));
+            });
+
+            // HOẠT HÌNH MẠCH MÁU CO BÓP & PHÂN TẢN BÁM SỌ
+            rearDebrisBlocks.forEach((deb, idx) => {
+                const ud = deb.userData || {};
+                const driftAngle = ud.angle + time * ud.orbitSpeed;
+                const drift = Math.sin(time * ud.floatSpeed + ud.phaseOffset) * 0.22;
+                const blast = exitProgress * (2.6 + (idx % 7) * 0.16);
+                deb.position.x = ud.baseX + Math.cos(driftAngle) * (0.18 + blast);
+                deb.position.y = ud.baseY + Math.sin(driftAngle) * ud.flatten * (0.18 + blast) + drift + exitProgress * 0.8;
+                deb.position.z = ud.baseZ + Math.cos(time * (ud.floatSpeed * 0.82) + ud.phaseOffset) * 0.18 + exitProgress * (2.0 + (idx % 5) * 0.22);
+                deb.rotation.x += 0.006 + (idx % 3) * 0.002;
+                deb.rotation.y += 0.010 + (idx % 5) * 0.0015;
+                const pulse = 1 + Math.abs(Math.sin(time * 2.8 + ud.phaseOffset)) * 0.18;
+                deb.scale.setScalar((ud.baseScale || 1) * assembleProgress * pulse * Math.max(0.02, exitFade));
+            });
+
+            ultimateJawParts.forEach((p, idx) => {
+                p.position.x += (p.userData.targetX - p.position.x) * 0.1;
+                p.position.y += (p.userData.targetY - p.position.y) * 0.1;
+                p.position.z += (p.userData.targetZ - p.position.z) * 0.1;
+
+                if (assembleProgress === 1.0) {
+                    if (p.userData.type === 'piston_heavy') {
+                        p.scale.setScalar(p.userData.baseScale);
+                        p.position.y = p.userData.targetY + Math.sin(time * 4.0) * 0.003;
+                    } 
+                    else if (p.userData.type === 'jaw_socket_static') {
+                        const socketPulse = Math.abs(Math.sin(time * 3.0 + (p.userData.phaseOffset || 0))) * 0.020;
+                        p.scale.setScalar(p.userData.baseScale * (1 + socketPulse));
+                        p.rotation.x = p.userData.rotX;
+                        p.rotation.y = p.userData.rotY;
+                        p.rotation.z = p.userData.rotZ;
+                    }
+                    else if (p.userData.type === 'chin_hinge') {
+                        const hingePulse = Math.abs(Math.sin(time * 5.2 + p.userData.phaseOffset)) * 0.070;
+                        p.scale.setScalar(p.userData.baseScale * (1 + hingePulse));
+                        p.rotation.x = p.userData.rotX + Math.sin(time * 3.0 + p.userData.phaseOffset) * 0.018;
+                        p.rotation.y = p.userData.rotY;
+                        p.rotation.z = p.userData.rotZ;
+                    }
+                    else if (p.userData.type === 'robot_chin_jaw') {
+                        const jawOpen = 0.08 + speechMotion * (0.34 + Math.abs(Math.sin(time * 8.4 + idx * 0.31)) * 0.08) + idleMotion;
+                        const row = p.userData.jawRow || 0;
+                        const columnLag = Math.abs(p.userData.jawColumn || 0) * 0.006;
+                        p.scale.set(
+                            p.userData.baseScale * (1 + jawOpen * 0.035),
+                            p.userData.baseScale * (1 + jawOpen * 0.060),
+                            p.userData.baseScale * (1 + jawOpen * 0.090)
+                        );
+                        p.rotation.x = p.userData.rotX - jawOpen * (0.55 + row * 0.12);
+                        p.rotation.y = p.userData.rotY;
+                        p.rotation.z = p.userData.rotZ;
+                        p.position.y = p.userData.targetY - jawOpen * (0.245 + row * 0.080) + columnLag;
+                        p.position.z = p.userData.targetZ + jawOpen * (0.105 + row * 0.045);
+                    }
+                    else if (p.userData.type === 'chin_signal') {
+                        const signalPulse = Math.abs(Math.sin(time * (isSpeaking ? 8.0 : 3.0) + p.userData.phaseOffset));
+                        const jawOpen = 0.08 + speechMotion * (0.34 + Math.abs(Math.sin(time * 8.4 + idx * 0.31)) * 0.08) + idleMotion;
+                        p.scale.set(
+                            p.userData.baseScale * (0.88 + signalPulse * 0.42),
+                            p.userData.baseScale * (0.88 + signalPulse * 0.18),
+                            p.userData.baseScale
+                        );
+                        p.rotation.x = p.userData.rotX - jawOpen * 0.58;
+                        p.rotation.y = p.userData.rotY;
+                        p.rotation.z = p.userData.rotZ;
+                        p.position.y = p.userData.targetY - jawOpen * 0.230;
+                        p.position.z = p.userData.targetZ + jawOpen * 0.120;
+                    }
+                    else if (p.userData.type === 'hyper_vessel') {
+                        // Hiệu ứng sóng nhu động truyền dẫn năng lượng lan tỏa từ mồm rậm rạp ra vách sọ
+                        const wave = Math.sin(time * 18.0 - p.userData.segRatio * 15.0 + p.userData.phaseOffset) * 0.16;
+                        p.scale.set(
+                            p.userData.baseScale * (1.15 + wave),
+                            p.userData.baseScale * (1.15 + wave),
+                            p.userData.baseScale
+                        );
+                        // Rung lắc vi mô tự nhiên
+                        p.position.y = p.userData.targetY + Math.cos(time * 8.0 + p.userData.seed) * 0.012;
+                    }
+                    else if (p.userData.type === 'cranial_large_vessel') {
+                        const flow = Math.sin(time * 10.8 - p.userData.segRatio * 9.2 + p.userData.phaseOffset) * 0.18 * p.userData.flowStrength;
+                        p.scale.set(
+                            p.userData.baseScale * (1.08 + flow * 0.16),
+                            p.userData.baseScale * (1.18 + Math.abs(flow) * 0.32),
+                            p.userData.baseScale * (1.08 + flow * 0.16)
+                        );
+                        p.position.y = p.userData.targetY + Math.sin(time * 5.2 + p.userData.seed) * 0.010;
+                        p.position.z = p.userData.targetZ + Math.cos(time * 4.2 + p.userData.seed) * 0.010;
+                    }
+                    else if (p.userData.type === 'cranial_micro_vessel') {
+                        const flow = Math.sin(time * 14.0 - p.userData.segRatio * 12.0 + p.userData.phaseOffset) * 0.13 * p.userData.flowStrength;
+                        p.scale.set(
+                            p.userData.baseScale * (1.02 + flow),
+                            p.userData.baseScale * (1.02 + flow),
+                            p.userData.baseScale * (0.96 + Math.abs(flow) * 0.42)
+                        );
+                        p.position.x = p.userData.targetX + Math.sin(time * 7.4 + p.userData.seed) * 0.010;
+                    }
+                    else if (p.userData.type === 'brain_node') {
+                        const pulse = Math.abs(Math.sin(time * 6.6 + p.userData.phaseOffset));
+                        p.scale.setScalar(p.userData.baseScale * (0.86 + pulse * 0.30));
+                        p.position.z = p.userData.targetZ + Math.sin(time * 4.8 + p.userData.seed) * 0.018;
+                        p.rotation.x += 0.006 + pulse * 0.004;
+                        p.rotation.y += 0.005;
+                    }
+                } else {
+                    p.scale.setScalar(p.userData.baseScale * assembleProgress);
+                }
+                if (exitProgress) {
+                    const ud = p.userData || {};
+                    p.position.x += ((ud.exitX || ud.targetX || p.position.x) - p.position.x) * 0.18;
+                    p.position.y += ((ud.exitY || ud.targetY || p.position.y) - p.position.y) * 0.18;
+                    p.position.z += ((ud.exitZ || ud.targetZ || p.position.z) - p.position.z) * 0.18;
+                    p.scale.multiplyScalar(Math.max(0.02, exitFade));
+                }
+            });
+
+            cranialTubeMeshes.forEach((tube, idx) => {
+                const start = Math.max(0, (time - (tube.userData.delay || 0)) * 0.72);
+                const tubeAssemble = Math.min(start, 1);
+                const pulse = Math.abs(Math.sin(time * 5.4 + tube.userData.seed + idx * 0.4));
+                tube.scale.setScalar(Math.max(0.01, tubeAssemble * (0.96 + pulse * 0.055) * Math.max(0.02, exitFade)));
+                if (tube.material && typeof tube.material.emissiveIntensity === 'number') {
+                    tube.material.emissiveIntensity = tube.userData.baseEmissive * (0.82 + pulse * 0.50);
+                }
+            });
+
+            armorBlocks.forEach(b => {
+                const ud = b.userData || {};
+                const side = (ud.targetX || 0) < 0 ? -1 : 1;
+                const tx = exitProgress ? ud.targetX + side * 2.4 * exitProgress : ud.targetX;
+                const ty = exitProgress ? ud.targetY - 1.5 * exitProgress : ud.targetY;
+                const tz = exitProgress ? ud.targetZ + 2.6 * exitProgress : ud.targetZ;
+                b.position.x += (tx - b.position.x) * 0.08;
+                b.position.y += (ty - b.position.y) * 0.08;
+                b.position.z += (tz - b.position.z) * 0.08;
+                b.scale.setScalar(assembleProgress * Math.max(0.02, exitFade));
+            });
+
+            earBlocks.forEach(b => {
+                const ud = b.userData || {};
+                const side = (ud.targetX || 0) < 0 ? -1 : 1;
+                const tx = exitProgress ? ud.targetX + side * 2.8 * exitProgress : ud.targetX;
+                const ty = exitProgress ? ud.targetY + 0.8 * exitProgress : ud.targetY;
+                const tz = exitProgress ? ud.targetZ + 2.2 * exitProgress : ud.targetZ;
+                b.position.x += (tx - b.position.x) * 0.08;
+                b.position.y += (ty - b.position.y) * 0.08;
+                b.position.z += (tz - b.position.z) * 0.08;
+                b.scale.setScalar(assembleProgress * Math.max(0.02, exitFade));
+            });
+
+            // Camera quét góc rộng giúp nhìn rõ các dải mạch máu bung xòe bám thành sọ ở lớp sâu bên trong
+            if (time >= nextHeadAimTime) {
+                const turnRangeY = isSpeaking ? 0.72 : 0.50;
+                const turnRangeX = isSpeaking ? 0.26 : 0.15;
+                const rollRange = isSpeaking ? 0.16 : 0.07;
+                headTargetY = (Math.random() - 0.5) * turnRangeY;
+                headTargetX = (Math.random() - 0.5) * turnRangeX;
+                headTargetZ = (Math.random() - 0.5) * rollRange;
+                nextHeadAimTime = time + (isSpeaking ? 0.48 : 0.90) + Math.random() * (isSpeaking ? 0.95 : 1.75);
+            }
+            const speechScanY = isSpeaking ? Math.sin(time * 2.1) * 0.050 + Math.sin(time * 4.9) * 0.020 : Math.sin(time * 0.35) * 0.035;
+            const speechScanX = isSpeaking ? Math.cos(time * 2.8) * 0.034 : Math.cos(time * 0.28) * 0.022;
+            const speechScanZ = isSpeaking ? Math.sin(time * 3.4) * 0.024 : Math.sin(time * 0.22) * 0.018;
+            const userFocusY = headTargetY + speechScanY;
+            const userFocusX = headTargetX + speechScanX;
+            const userFocusZ = headTargetZ + speechScanZ;
+            headRotY += (userFocusY - headRotY) * (isSpeaking ? 0.066 : 0.038);
+            headRotX += (userFocusX - headRotX) * (isSpeaking ? 0.060 : 0.036);
+            headRotZ += (userFocusZ - headRotZ) * (isSpeaking ? 0.054 : 0.030);
+            robotUnit.rotation.y = headRotY;
+            robotUnit.rotation.x = headRotX;
+            robotUnit.rotation.z = headRotZ;
+
+            const targetEyeScanX = isSpeaking
+                ? Math.max(-0.12, Math.min(0.12, -headRotY * 0.22 + Math.sin(time * 6.2) * 0.025))
+                : Math.floor(Math.sin(time * 1.8) * 3) * 0.045;
+            eyeScanX += (targetEyeScanX - eyeScanX) * 0.22;
+            const eyePulse = 1 + (isSpeaking ? Math.abs(Math.sin(time * 10.0)) * 0.22 : Math.abs(Math.sin(time * 3.0)) * 0.06);
+            leftEyeMesh.position.x = eyeScanX;
+            rightEyeMesh.position.x = eyeScanX;
+            leftEyeMesh.scale.set(eyePulse, eyePulse, eyePulse);
+            rightEyeMesh.scale.set(eyePulse, eyePulse, eyePulse);
+
+            renderer.render(scene, camera);
+
+            const stillAssembling = time < settleDuration;
+            const stillExiting = exitStart && exitElapsed < exitDuration + 0.12;
+            if (!isNoticeFace || stillAssembling || isSpeaking || idleHolding || stillExiting) {
+                wakeRenderer();
+            } else if (exitStart) {
+                destroyRenderer();
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (destroyed) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            wakeRenderer();
+        });
+
+        window.addEventListener('pagehide', destroyRenderer);
+
+        wakeRenderer();
+    </script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{
+  "title": "Space_L Calm Focus Listening",
+  "hint_seconds": 25,
+  "space_mode": "space_l",
+  "format": "space_l hidden listening",
+  "nodes": [
+    {
+      "title": "Calm Focus Listening",
+      "voice": "kokoro:am_adam",
+      "alt_voice": "sot:en-GB",
+      "text": "A focused listener does not chase every word at the same speed. First, the listener catches the main idea and follows the speaker's direction. Then, the listener returns to the small details, such as time, reason, contrast, and result. During practice, I keep my eyes relaxed and let the sound arrive before I answer. If one phrase disappears too quickly, I stay calm and use the next phrase to recover the meaning. Good listening is not guessing wildly; it is collecting evidence from rhythm, grammar, and context. When I replay the sentence, I notice which sounds connect and which endings are easy to miss. Each careful replay makes the hidden sentence clearer, until the full message becomes stable in my memory.",
+      "children": [
+        {
+          "text": "A focused listener does not chase every word at the same speed.",
+          "meaning": "Một người nghe tập trung không đuổi theo mọi từ với cùng một tốc độ.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Nghe ý chính trước, đừng cố bắt từng từ ngay từ lần đầu."
+            }
+          ]
+        },
+        {
+          "text": "First, the listener catches the main idea and follows the speaker's direction.",
+          "meaning": "Trước tiên, người nghe nắm ý chính và đi theo hướng nói của người nói.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Chú ý các tín hiệu mở đầu như first để hiểu thứ tự thông tin."
+            }
+          ]
+        },
+        {
+          "text": "Then, the listener returns to the small details, such as time, reason, contrast, and result.",
+          "meaning": "Sau đó, người nghe quay lại các chi tiết nhỏ như thời gian, lý do, sự đối lập, và kết quả.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Lần nghe lại nên tập trung vào chi tiết và quan hệ logic."
+            }
+          ]
+        },
+        {
+          "text": "During practice, I keep my eyes relaxed and let the sound arrive before I answer.",
+          "meaning": "Trong lúc luyện tập, tôi giữ mắt thư giãn và để âm thanh đến trước khi trả lời.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Giữ nhịp bình tĩnh để tránh trả lời quá sớm."
+            }
+          ]
+        },
+        {
+          "text": "If one phrase disappears too quickly, I stay calm and use the next phrase to recover the meaning.",
+          "meaning": "Nếu một cụm từ trôi qua quá nhanh, tôi giữ bình tĩnh và dùng cụm tiếp theo để khôi phục nghĩa.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Không mắc kẹt ở cụm bị lỡ; dùng ngữ cảnh sau để bắt lại."
+            }
+          ]
+        },
+        {
+          "text": "Good listening is not guessing wildly; it is collecting evidence from rhythm, grammar, and context.",
+          "meaning": "Nghe tốt không phải là đoán bừa; đó là thu thập bằng chứng từ nhịp điệu, ngữ pháp, và ngữ cảnh.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Tách phần contrast sau dấu chấm phẩy để hiểu câu rõ hơn."
+            }
+          ]
+        },
+        {
+          "text": "When I replay the sentence, I notice which sounds connect and which endings are easy to miss.",
+          "meaning": "Khi tôi nghe lại câu, tôi nhận ra âm nào nối với nhau và âm cuối nào dễ bị bỏ sót.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Tập trung vào nối âm và âm cuối vì đây là điểm dễ mất trong listening."
+            }
+          ]
+        },
+        {
+          "text": "Each careful replay makes the hidden sentence clearer, until the full message becomes stable in my memory.",
+          "meaning": "Mỗi lần nghe lại cẩn thận làm câu bị ẩn rõ hơn, cho đến khi toàn bộ thông điệp ổn định trong trí nhớ.",
+          "explanations": [
+            {
+              "title": "Listening target",
+              "text": "Mục tiêu là nghe đến khi câu ổn định trong trí nhớ, không chỉ nhận ra thoáng qua."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

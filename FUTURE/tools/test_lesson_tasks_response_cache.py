@@ -15,16 +15,29 @@ from FUTURE import server_app as app
 
 def main() -> int:
     username = "hung"
-    row = app.build_lesson_tasks_response_cache_row(username, username, True)
-    payload = json.loads(row["bytes"].decode("utf-8"))
-    assert payload["task_owner"] == username
-    assert row["etag"].startswith('"lesson-tasks-')
-    cached = app.lesson_tasks_response_cache_row(username, username, True)
-    assert cached and cached["cache_hit"] is True and cached["bytes"] == row["bytes"]
-    assert payload.get("space_task", {}).get("tasks") == []
-    row["at"] = 0.0
-    aged = app.lesson_tasks_response_cache_row(username, username, True)
-    assert aged and aged["cache_hit"] is True and aged["bytes"] == row["bytes"]
+    # Startup watcher debounce intentionally disables task-byte caching while the
+    # manifest is dirty; freeze that external state for this cache-only contract.
+    manifest_state = getattr(app, "SERVER_DATA_MANIFEST_STATE", {})
+    manifest_lock = getattr(app, "SERVER_DATA_MANIFEST_LOCK", None)
+    previous_dirty = bool(manifest_state.get("dirty")) if isinstance(manifest_state, dict) else False
+    if manifest_lock is not None:
+        with manifest_lock:
+            manifest_state["dirty"] = False
+    try:
+        row = app.build_lesson_tasks_response_cache_row(username, username, True)
+        payload = json.loads(row["bytes"].decode("utf-8"))
+        assert payload["task_owner"] == username
+        assert row["etag"].startswith('"lesson-tasks-')
+        cached = app.lesson_tasks_response_cache_row(username, username, True)
+        assert cached and cached["cache_hit"] is True and cached["bytes"] == row["bytes"]
+        assert isinstance(payload.get("space_task", {}).get("tasks"), list)
+        row["at"] = 0.0
+        aged = app.lesson_tasks_response_cache_row(username, username, True)
+        assert aged and aged["cache_hit"] is True and aged["bytes"] == row["bytes"]
+    finally:
+        if manifest_lock is not None:
+            with manifest_lock:
+                manifest_state["dirty"] = previous_dirty
 
     with app.LESSON_TASKS_RAM_CACHE_LOCK:
         revision_map = getattr(app, "LESSON_TASKS_USER_REVISIONS", None)

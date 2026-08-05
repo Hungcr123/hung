@@ -214,7 +214,9 @@ def start_server(fail_prefix: str = "", no_preload: bool = True, extra_env: dict
     if isinstance(extra_env, dict):
         env.update({str(key): str(value) for key, value in extra_env.items()})
     handle = SERVER_LOG.open("ab")
-    command = [sys.executable, "FUTURE_SERVER_2.py", "--host", "127.0.0.1", "--port", str(HTTP_PORT), "--no-browser", "--no-tunnel"]
+    # Added 2026-08-03: isolated fixtures must never inherit the production
+    # entry point's automatic --replace-old behavior.
+    command = [sys.executable, "FUTURE/server2/run_server_2.py", "--host", "127.0.0.1", "--port", str(HTTP_PORT), "--no-browser", "--no-tunnel"]
     if no_preload:
         command.append("--no-preload")
     return subprocess.Popen(

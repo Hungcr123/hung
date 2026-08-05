@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heavy Mecha Robot - Core System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #01040f;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+        .hud-system {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            color: #ff3300;
+            font-size: 11px;
+            letter-spacing: 2px;
+            z-index: 2;
+            line-height: 2;
+            pointer-events: none;
+            text-shadow: 0 0 12px rgba(255, 51, 0, 0.8);
+        }
+        html.notice-face-embed,
+        html.notice-face-embed body,
+        html.notice-face-embed #canvas-container,
+        html.notice-face-embed canvas {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+        html.notice-face-embed body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 48%, rgba(1, 4, 15, 0.58) 0%, rgba(1, 4, 15, 0.36) 34%, rgba(1, 4, 15, 0.12) 58%, rgba(1, 4, 15, 0) 78%);
+        }
+        html.notice-face-embed .hud-system {
+            display: none;
+        }
+        html.notice-face-embed #canvas-container {
+            z-index: 1;
+        }
+    </style>
+    <script>
+        if (new URLSearchParams(window.location.search).has('noticeFace')) {
+            document.documentElement.classList.add('notice-face-embed');
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div class="hud-system">
+        <div>// UNIT: INDUSTRIAL_MECH_ALPHA</div>
+        <div>// JAW CONFIG: PISTON_HYDRAULIC_SLIDE</div>
+        <div>// CORE STATUS: REACTOR_OVERDRIVE_300%</div>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- Cấu hình không gian 3D Công nghiệp ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x01040f, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 14.4);
+
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            premultipliedAlpha: false,
+            powerPreference: 'low-power',
+            preserveDrawingBuffer: false
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        renderer.setClearColor(0x000000, 0);
+        renderer.setClearAlpha(0);
+        
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 2.8; // Đẩy phơi sáng rực rỡ
+        container.appendChild(renderer.domElement);
+
+        // --- Ánh sáng Studio Gắt Chói Lòa ---
+        const ambientLight = new THREE.AmbientLight(0x1a0f00, 3.5); // Ánh sáng nền ấm công nghiệp
+        scene.add(ambientLight);
+
+        const frontLight = new THREE.DirectionalLight(0xffffff, 6.0);
+        frontLight.position.set(0, 0, 10);
+        scene.add(frontLight);
+
+        const topLight = new THREE.DirectionalLight(0xff3300, 5.0); // Đèn nóc màu cam nhiệt lượng
+        topLight.position.set(0, 15, 2);
+        scene.add(topLight);
+
+        const sideOrange = new THREE.PointLight(0xff6600, 12, 35);
+        sideOrange.position.set(8, 2, 4);
+        scene.add(sideOrange);
+
+        const sideCyan = new THREE.PointLight(0x00f2fe, 10, 35);
+        sideCyan.position.set(-8, -2, 4);
+        scene.add(sideCyan);
+
+        // --- Cấu trúc cụm Robot Mech ---
+        const robotUnit = new THREE.Group();
+        const rearCranium = new THREE.Group();    // Back half: generated cranial armor blocks
+        const upperSkull = new THREE.Group();     // Sọ trên và mũi Robot cố định
+        const hydraulicJaw = new THREE.Group();   // Hàm dưới piston trượt cơ khí
+        const neckArmor = new THREE.Group();      // Cyber collar and neck armor
+        const shoulderArmor = new THREE.Group();  // Shoulder-up robot armor
+        const earModules = new THREE.Group();     // Side machine ears / audio sensor blocks
+        const outerHeadArmor = new THREE.Group(); // Half-formed outer skull armor shell
+        const debrisGroup = new THREE.Group();    // Khối tản nhiệt vành ngoài
+        const cyberRingGroup = new THREE.Group(); // Twin cyber rings above the head
+        const leftEye = new THREE.Group(); 
+        const rightEye = new THREE.Group(); 
+        neckArmor.position.y = 0.78;
+        shoulderArmor.position.y = 0.78;
+
+        robotUnit.add(rearCranium);
+        robotUnit.add(shoulderArmor);
+        robotUnit.add(neckArmor);
+        robotUnit.add(upperSkull);
+        robotUnit.add(hydraulicJaw);
+        robotUnit.add(earModules);
+        robotUnit.add(outerHeadArmor);
+        robotUnit.add(debrisGroup);
+        robotUnit.add(cyberRingGroup);
+        robotUnit.add(leftEye);
+        robotUnit.add(rightEye);
+        scene.add(robotUnit);
+
+        // --- VẬT LIỆU THÉP NẶNG & CORE SIÊU PHÁT SÁNG ---
+        const heavySteelMat = new THREE.MeshStandardMaterial({
+            color: 0xcccccc,        // Tông thép titan sáng trắng
+            metalness: 1.0,         
+            roughness: 0.15,        // Độ nhám cơ khí giúp bắt ánh sáng gắt, tạo khối kim loại lì cực mạnh
+            emissive: 0x3a1a00,     // Ánh lửa nhiệt lượng từ bên trong khe giáp
+            emissiveIntensity: 1.2, 
+            flatShading: true       // Giữ các cạnh vát phẳng cơ khí sắc nhọn
+        });
+
+        const glowingOrangeMat = new THREE.MeshStandardMaterial({
+            color: 0xff3300,
+            emissive: 0xff3300,     
+            emissiveIntensity: 5.0, // Đèn tín hiệu plasma chói lòa
+            flatShading: true
+        });
+
+        const rearArmorMat = new THREE.MeshStandardMaterial({
+            color: 0x8794a3,
+            metalness: 1.0,
+            roughness: 0.20,
+            emissive: 0x08243a,
+            emissiveIntensity: 1.35,
+            flatShading: true
+        });
+
+        const armorGraphiteMat = new THREE.MeshStandardMaterial({
+            color: 0x1a222c,
+            metalness: 1.0,
+            roughness: 0.18,
+            emissive: 0x06131b,
+            emissiveIntensity: 1.55,
+            flatShading: true
+        });
+
+        const armorEdgeMat = new THREE.MeshStandardMaterial({
+            color: 0x4adff0,
+            metalness: 0.8,
+            roughness: 0.12,
+            emissive: 0x00f2fe,
+            emissiveIntensity: 2.6,
+            flatShading: true
+        });
+
+        const armorCrimsonMat = new THREE.MeshStandardMaterial({
+            color: 0x8f1f17,
+            metalness: 1.0,
+            roughness: 0.13,
+            emissive: 0x330600,
+            emissiveIntensity: 1.35,
+            flatShading: true
+        });
+
+        const heroGoldMat = new THREE.MeshStandardMaterial({
+            color: 0xffc84a,
+            metalness: 1.0,
+            roughness: 0.08,
+            emissive: 0x6a2e00,
+            emissiveIntensity: 1.65,
+            flatShading: true
+        });
+
+        const reactorCoreMat = new THREE.MeshBasicMaterial({
+            color: 0xff6600,        // Lò phản ứng hạt nhân rực lửa ở tâm đầu
+        });
+
+        const eyeLaserMat = new THREE.MeshBasicMaterial({ color: 0x00f2fe }); // Mắt quét Laser xanh Neon cường độ cao
+        const redEyeLaserMat = new THREE.MeshBasicMaterial({ color: 0xff1018 });
+        const mouthVoidMat = new THREE.MeshBasicMaterial({ color: 0x01040a });
+        const mouthInnerGlowMat = new THREE.MeshBasicMaterial({ color: 0x07333d });
+        const cyberRingMatA = new THREE.MeshBasicMaterial({
+            color: 0x00f2fe,
+            transparent: true,
+            opacity: 0.78,
+            wireframe: true
+        });
+        const cyberRingMatB = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.68,
+            wireframe: true
+        });
+
+        // --- 1. LÒ PHẢN ỨNG TRUNG TÂM (HYPER-REACTOR CORE) ---
+        const coreGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+        const centerReactor = new THREE.Mesh(coreGeo, reactorCoreMat);
+        centerReactor.position.set(0, -0.08, -1.55);
+        centerReactor.visible = false;
+        robotUnit.add(centerReactor);
+
+        const coreLight = new THREE.PointLight(0xff3300, 18, 9);
+        coreLight.position.set(0, -0.08, -1.55);
+        robotUnit.add(coreLight);
+
+        // --- 1B. TOP RINGS DISABLED ---
+        const cyberRingPips = [];
+        cyberRingGroup.visible = false;
+
+        // --- 2. ĐÔI MẮT QUÉT LASER MECHA GÓC CẠNH ---
+        const eyeLX = 1.1, eyeRX = -1.1, eyeY = 0.7, eyeWidth = 0.6, eyeHeight = 0.15;
+        leftEye.position.set(eyeLX, eyeY, 2.3);
+        rightEye.position.set(eyeRX, eyeY, 2.3);
+
+        const eyeBarGeo = new THREE.BoxGeometry(eyeWidth, eyeHeight, 0.2);
+        const leftEyeMesh = new THREE.Mesh(eyeBarGeo, redEyeLaserMat);
+        const rightEyeMesh = new THREE.Mesh(eyeBarGeo, redEyeLaserMat);
+        const eyeFocusBeamGeo = new THREE.BoxGeometry(eyeWidth * 1.20, 0.030, 0.060);
+        const leftEyeFocusBeam = new THREE.Mesh(eyeFocusBeamGeo, redEyeLaserMat);
+        const rightEyeFocusBeam = new THREE.Mesh(eyeFocusBeamGeo, redEyeLaserMat);
+        leftEyeFocusBeam.position.z = 0.16;
+        rightEyeFocusBeam.position.z = 0.16;
+        leftEye.add(leftEyeMesh);
+        rightEye.add(rightEyeMesh);
+        leftEye.add(leftEyeFocusBeam);
+        rightEye.add(rightEyeFocusBeam);
+
+        // --- 3. THUẬT TOÁN ĐIÊU KHẮC ROBOT MECH GÓC CẠNH (HARD-SURFACE MESH) ---
+        const blockGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+        const sọBlocks = [];
+        const rearCraniumBlocks = [];
+        const earBlocks = [];
+        const outerShellBlocks = [];
+        const armorBlocks = [];
+        const mouthSpeechBlocks = [];
+
+        for (let x = -35; x <= 35; x++) {
+            for (let y = -45; y <= 38; y++) {
+                let nx = x / 35;
+                let ny = y / 38;
+
+                // Bio-android jaw: smoother humanoid contour with machined facets.
+                let mechaJawCurve = 1.0;
+                if (ny < 0) {
+                    mechaJawCurve = 1.0 - (Math.abs(ny) * 0.72);
+                }
+                if (mechaJawCurve < 0.30) continue; 
+                if (ny < -0.70) continue;
+
+                let boundary = ((nx / mechaJawCurve) * (nx / mechaJawCurve)) + (ny * ny * 0.9);
+
+                if (boundary < 1.0) {
+                    let baseZ = Math.sqrt(1.0 - boundary) * 5.3;
+
+                    // Sống mũi vát hộp vuông vức nhô cao thẳng tắp
+                    if (Math.abs(nx) < 0.14 && ny > -0.1 && ny < 0.45) {
+                        baseZ += 0.45;
+                    }
+                    const isBioChin = ny < -0.42 && ny > -0.66 && Math.abs(nx) < 0.44;
+                    const isBioJawPlane = ny < -0.20 && ny >= -0.62 && Math.abs(nx) > 0.18 && Math.abs(nx) < 0.64;
+                    const isBioMouthPlane = ny < -0.28 && ny > -0.48 && Math.abs(nx) < 0.56;
+                    const isChinSideGroove = ny < -0.46 && Math.abs(nx) > 0.26 && Math.abs(nx) < 0.34;
+                    if (isBioChin) {
+                        baseZ += 0.24 + (0.44 - Math.abs(nx)) * 0.34;
+                    } else if (isBioMouthPlane) {
+                        baseZ += 0.16;
+                    } else if (isBioJawPlane) {
+                        baseZ += 0.14;
+                    }
+                    if (isChinSideGroove) {
+                        baseZ -= 0.16;
+                    }
+
+                    // Khoét khe mắt kính Laser ngang hầm hố
+                    if (Math.abs(ny - eyeY/38) < 0.05 && Math.abs(nx) > 0.18 && Math.abs(nx) < 0.55) continue;
+
+                    // Thiết kế các rãnh tản nhiệt hở sâu trên sọ để lộ lõi năng lượng bên trong
+                    if (Math.abs(nx) > 0.28 && Math.abs(nx) < 0.34 && ny > 0.1) {
+                        continue; // Đục rãnh dọc cơ khí siêu ngầu
+                    }
+
+                    // Tỷ lệ vật liệu: Cấy các dải điện năng plasma rực cháy 
+                    let mat = heavySteelMat;
+                    if (Math.random() > 0.84 || Math.abs(nx) < 0.02 || (isBioChin && Math.random() > 0.90)) {
+                        mat = glowingOrangeMat;
+                    } else if (isBioJawPlane && Math.random() > 0.58) {
+                        mat = rearArmorMat;
+                    }
+
+                    const block = new THREE.Mesh(blockGeo, mat);
+                    const targetX = x * 0.09;
+                    const targetY = y * 0.09;
+                    const targetZ = baseZ;
+                    const burstAngle = Math.random() * Math.PI * 2;
+                    const burstRadius = 5.8 + Math.random() * 4.4;
+                    const scatterX = Math.cos(burstAngle) * burstRadius;
+                    const scatterY = Math.sin(burstAngle) * burstRadius;
+                    const scatterZ = targetZ + 4.5 + Math.random() * 5.5;
+                    const exitAngle = burstAngle + (Math.random() - 0.5) * 1.2;
+                    const exitRadius = 6.5 + Math.random() * 5.5;
+                    block.position.set(scatterX, scatterY, scatterZ);
+                    block.userData = {
+                        targetX,
+                        targetY,
+                        targetZ,
+                        scatterX,
+                        scatterY,
+                        scatterZ,
+                        exitX: Math.cos(exitAngle) * exitRadius,
+                        exitY: Math.sin(exitAngle) * exitRadius,
+                        exitZ: targetZ + 6.0 + Math.random() * 7.0,
+                        baseScale: 0.85 + Math.random() * 0.28,
+                    };
+                    block.scale.setScalar(0.02);
+
+                    // Phân tách khối: Phần trên là sọ cố định, phần dưới từ miệng trở xuống thuộc hàm piston
+                    if (ny >= -0.22) {
+                        upperSkull.add(block);
+                    } else {
+                        hydraulicJaw.add(block); // Cụm hàm cơ khí nhọn
+                    }
+
+                    sọBlocks.push(block);
+                }
+            }
+        }
+
+        // No extra under-chin block cluster; the lower face is sculpted by the main bio-android mesh.
+        const servoMouthVoidGeo = new THREE.BoxGeometry(0.150, 0.080, 0.070);
+        const servoUpperRailGeo = new THREE.BoxGeometry(0.180, 0.064, 0.245);
+        const servoSideHingeGeo = new THREE.BoxGeometry(0.092, 0.300, 0.165);
+        const servoLowerPlateGeo = new THREE.BoxGeometry(0.135, 0.130, 0.278);
+        const servoSignalSlatGeo = new THREE.BoxGeometry(0.048, 0.145, 0.082);
+        const servoActuatorGeo = new THREE.BoxGeometry(0.052, 0.210, 0.060);
+        const servoBoltGeo = new THREE.BoxGeometry(0.070, 0.065, 0.075);
+        const facePatchGeo = new THREE.BoxGeometry(0.150, 0.108, 0.130);
+        const addMouthSealBlock = (geometry, material, target, delay, scale = 1) => {
+            const block = new THREE.Mesh(geometry, material);
+            const scatterX = target.x + (Math.random() - 0.5) * 4.6;
+            const scatterY = target.y + 2.4 + Math.random() * 2.8;
+            const scatterZ = target.z + 3.7 + Math.random() * 4.6;
+            block.position.set(scatterX, scatterY, scatterZ);
+            block.rotation.set(
+                (Math.random() - 0.5) * 0.9,
+                (Math.random() - 0.5) * 0.8,
+                (Math.random() - 0.5) * 0.5
+            );
+            block.scale.setScalar(0.016);
+            block.userData = {
+                targetX: target.x,
+                targetY: target.y,
+                targetZ: target.z,
+                targetRotX: target.rotX || 0,
+                targetRotY: target.rotY || 0,
+                targetRotZ: target.rotZ || 0,
+                scatterX,
+                scatterY,
+                scatterZ,
+                exitX: scatterX + (target.x < 0 ? -2.2 : 2.2),
+                exitY: scatterY + 1.4,
+                exitZ: scatterZ + 3.4,
+                baseScale: scale,
+                delay,
+                phase: Math.random() * Math.PI * 2,
+            };
+            upperSkull.add(block);
+            if (target.jawMotion) {
+                block.userData.jawMotion = target.jawMotion;
+                block.userData.jawColumn = target.jawColumn || 0;
+                mouthSpeechBlocks.push(block);
+            } else if (target.mouthMotion) {
+                block.userData.mouthMotion = target.mouthMotion;
+                mouthSpeechBlocks.push(block);
+            } else {
+                armorBlocks.push(block);
+            }
+        };
+        for (let row = 0; row < 4; row += 1) {
+            for (let col = 0; col < 9; col += 1) {
+                const centered = col - 4;
+                const edge = row === 0 || col === 0 || col === 8;
+                addMouthSealBlock(facePatchGeo, edge ? rearArmorMat : heavySteelMat, {
+                    x: -0.70 + col * 0.140,
+                    y: -0.45 - row * 0.112,
+                    z: 6.16 - Math.abs(centered) * 0.010 + row * 0.008,
+                    rotX: 0.010 - row * 0.004,
+                    rotY: centered * 0.014,
+                    rotZ: centered * -0.004,
+                }, 0.10 + row * 0.018 + col * 0.008, edge ? 0.70 : 0.62);
+            }
+        }
+        for (let col = 0; col < 9; col += 1) {
+            const centered = col - 4;
+            const edge = Math.abs(centered) > 3;
+            addMouthSealBlock(servoUpperRailGeo, edge ? armorEdgeMat : rearArmorMat, {
+                x: centered * 0.108,
+                y: -1.205 + (edge ? 0.010 : 0),
+                z: 6.38 - Math.abs(centered) * 0.006,
+                rotX: 0.012,
+                rotY: centered * 0.010,
+                rotZ: 0,
+            }, 0.15 + col * 0.009, edge ? 0.82 : 0.74);
+        }
+        for (let row = 0; row < 2; row += 1) {
+            for (let col = 0; col < 9; col += 1) {
+                const centered = col - 4;
+                const inner = col > 0 && col < 8;
+                addMouthSealBlock(servoMouthVoidGeo, inner ? mouthVoidMat : mouthInnerGlowMat, {
+                    x: centered * 0.103,
+                    y: -1.300 - row * 0.064,
+                    z: 6.18 - Math.abs(centered) * 0.003,
+                    rotX: -0.010,
+                    rotY: centered * 0.010,
+                    rotZ: 0,
+                }, 0.17 + row * 0.016 + col * 0.006, inner ? 1.18 : 0.84);
+            }
+        }
+        [-1, 1].forEach((side) => {
+            for (let row = 0; row < 3; row += 1) {
+                addMouthSealBlock(servoSideHingeGeo, row === 1 ? armorEdgeMat : armorGraphiteMat, {
+                    x: side * 0.575,
+                    y: -1.225 - row * 0.124,
+                    z: 6.36 + row * 0.010,
+                    rotX: -0.012,
+                    rotY: side * 0.150,
+                    rotZ: side * -0.012,
+                }, 0.20 + row * 0.024 + (side > 0 ? 0.020 : 0), row === 1 ? 0.82 : 0.72);
+            }
+        });
+        [-1, 1].forEach((side) => {
+            for (let i = 0; i < 2; i += 1) {
+                addMouthSealBlock(servoActuatorGeo, i === 0 ? armorEdgeMat : redEyeLaserMat, {
+                    x: side * (0.390 + i * 0.105),
+                    y: -1.420 - i * 0.045,
+                    z: 6.53 - i * 0.020,
+                    rotX: -0.016,
+                    rotY: side * 0.030,
+                    rotZ: side * (0.055 + i * 0.020),
+                    jawMotion: 'servoJaw',
+                    jawColumn: side * (2 + i),
+                    jawRow: i + 1,
+                }, 0.30 + i * 0.018 + (side > 0 ? 0.020 : 0), i === 0 ? 0.58 : 0.44);
+            }
+        });
+        for (let row = 0; row < 2; row += 1) {
+            for (let col = 0; col < 7; col += 1) {
+                const centered = col - 3;
+                const edge = Math.abs(centered) > 2 || row === 1;
+                addMouthSealBlock(servoLowerPlateGeo, edge ? rearArmorMat : armorGraphiteMat, {
+                    x: centered * 0.106,
+                    y: -1.465 - row * 0.080 + Math.abs(centered) * 0.004,
+                    z: 6.43 - Math.abs(centered) * 0.006 + row * 0.012,
+                    rotX: -0.020 - row * 0.014,
+                    rotY: centered * 0.014,
+                    rotZ: centered * -0.004,
+                    jawMotion: 'servoJaw',
+                    jawColumn: centered,
+                    jawRow: row,
+                }, 0.25 + row * 0.022 + col * 0.008, edge ? 0.70 : 0.64);
+            }
+        }
+        for (let col = 0; col < 7; col += 1) {
+            const centered = col - 3;
+            addMouthSealBlock(servoSignalSlatGeo, col === 3 ? redEyeLaserMat : armorEdgeMat, {
+                x: centered * 0.088,
+                y: -1.333 + (col % 2 ? 0.010 : -0.006),
+                z: 6.58 - Math.abs(centered) * 0.004,
+                rotX: -0.012,
+                rotY: centered * 0.006,
+                rotZ: 0,
+            }, 0.33 + col * 0.007, col === 3 ? 0.62 : 0.50);
+        }
+        for (let col = 0; col < 5; col += 1) {
+            const centered = col - 2;
+            addMouthSealBlock(servoBoltGeo, col % 2 ? armorEdgeMat : redEyeLaserMat, {
+                x: centered * 0.148,
+                y: -1.635 + Math.abs(centered) * 0.006,
+                z: 6.56 - Math.abs(centered) * 0.006,
+                rotX: -0.020,
+                rotY: centered * 0.008,
+                rotZ: 0,
+                jawMotion: 'servoJaw',
+                jawColumn: centered,
+                jawRow: 2,
+            }, 0.38 + col * 0.009, col % 2 ? 0.42 : 0.36);
+        }
+
+        // --- 3A. SIDE ARMOR CUPS / AUDIO SENSOR EARS ---
+        const earShellGeo = new THREE.BoxGeometry(0.24, 0.21, 0.28);
+        const earCoreGeo = new THREE.BoxGeometry(0.18, 0.16, 0.16);
+        const earBarGeo = new THREE.BoxGeometry(0.075, 0.34, 0.070);
+        const addEarBlock = (side, geometry, material, target, rotation, delay, scale = 1) => {
+            const block = new THREE.Mesh(geometry, material);
+            const scatterX = target.x + side * (3.0 + Math.random() * 3.0);
+            const scatterY = target.y + (Math.random() - 0.5) * 3.6;
+            const scatterZ = target.z + 3.2 + Math.random() * 4.8;
+            block.position.set(scatterX, scatterY, scatterZ);
+            block.rotation.set(
+                rotation.x + (Math.random() - 0.5) * 1.0,
+                rotation.y + (Math.random() - 0.5) * 1.0,
+                rotation.z + (Math.random() - 0.5) * 1.0
+            );
+            block.scale.setScalar(0.018);
+            block.userData = {
+                targetX: target.x,
+                targetY: target.y,
+                targetZ: target.z,
+                targetRotX: rotation.x,
+                targetRotY: rotation.y,
+                targetRotZ: rotation.z,
+                scatterX,
+                scatterY,
+                scatterZ,
+                exitX: scatterX + side * 3.2,
+                exitY: scatterY + (Math.random() - 0.5) * 2.2,
+                exitZ: scatterZ + 4.2,
+                baseScale: scale,
+                delay,
+                phase: Math.random() * Math.PI * 2,
+            };
+            earModules.add(block);
+            earBlocks.push(block);
+            return block;
+        };
+        [-1, 1].forEach((side) => {
+            for (let row = 0; row < 7; row += 1) {
+                for (let col = 0; col < 4; col += 1) {
+                    const yy = (row - 3) / 3;
+                    const coverCurve = Math.sqrt(Math.max(0, 1 - yy * yy));
+                    const outer = row === 0 || row === 6 || col === 3;
+                    const material = outer ? rearArmorMat : (col === 0 ? armorGraphiteMat : heavySteelMat);
+                    addEarBlock(side, earShellGeo, material, {
+                        x: side * (3.16 + col * 0.145 + coverCurve * 0.11),
+                        y: 0.70 - row * 0.178,
+                        z: 1.72 + coverCurve * 0.33 - col * 0.040,
+                    }, {
+                        x: -0.04 + row * 0.004,
+                        y: side * (0.60 + col * 0.075),
+                        z: side * (-0.20 + row * 0.012),
+                    }, 0.10 + row * 0.016 + col * 0.025, outer ? 1.16 : 0.98);
+                }
+            }
+            for (let i = 0; i < 6; i += 1) {
+                addEarBlock(side, earBarGeo, i % 2 ? eyeLaserMat : armorEdgeMat, {
+                    x: side * 3.06,
+                    y: 0.60 - i * 0.188,
+                    z: 2.18,
+                }, {
+                    x: 0,
+                    y: side * 0.40,
+                    z: side * 0.035,
+                }, 0.18 + i * 0.026, i === 2 || i === 3 ? 1.34 : 1.02);
+            }
+            for (let i = 0; i < 5; i += 1) {
+                addEarBlock(side, earCoreGeo, i === 2 ? glowingOrangeMat : armorGraphiteMat, {
+                    x: side * 3.62,
+                    y: 0.50 - i * 0.190,
+                    z: 1.62 - i * 0.012,
+                }, {
+                    x: 0.04,
+                    y: side * 0.72,
+                    z: side * -0.16,
+                }, 0.21 + i * 0.030, i === 2 ? 1.22 : 0.88);
+            }
+        });
+        const micBoomGeo = new THREE.BoxGeometry(0.22, 0.060, 0.060);
+        const micJointGeo = new THREE.BoxGeometry(0.12, 0.12, 0.10);
+        const micHeadGeo = new THREE.BoxGeometry(0.18, 0.12, 0.13);
+        const micCapsuleGeo = new THREE.BoxGeometry(0.16, 0.24, 0.14);
+        const micSide = -1;
+        addEarBlock(micSide, micJointGeo, armorEdgeMat, {
+            x: -3.04,
+            y: 0.02,
+            z: 2.46,
+        }, {
+            x: 0.03,
+            y: -0.44,
+            z: -0.18,
+        }, 0.24, 0.98);
+        for (let i = 0; i < 7; i += 1) {
+            const t = i / 6;
+            addEarBlock(micSide, micBoomGeo, i % 2 ? armorEdgeMat : rearArmorMat, {
+                x: -2.94 + t * 1.04,
+                y: -0.04 - t * 0.40,
+                z: 2.55 + t * 2.34,
+            }, {
+                x: 0.02,
+                y: -0.38 + t * 0.16,
+                z: -0.13,
+            }, 0.27 + i * 0.024, 0.92);
+        }
+        addEarBlock(micSide, micHeadGeo, rearArmorMat, {
+            x: -1.78,
+            y: -0.47,
+            z: 5.08,
+        }, {
+            x: 0.01,
+            y: -0.24,
+            z: -0.08,
+        }, 0.48, 1.02);
+        addEarBlock(micSide, new THREE.BoxGeometry(0.08, 0.055, 0.055), eyeLaserMat, {
+            x: -1.66,
+            y: -0.47,
+            z: 5.22,
+        }, {
+            x: 0,
+            y: -0.24,
+            z: 0,
+        }, 0.52, 0.82);
+        addEarBlock(micSide, micCapsuleGeo, armorEdgeMat, {
+            x: -3.92,
+            y: -0.20,
+            z: 2.44,
+        }, {
+            x: 0.04,
+            y: -0.64,
+            z: 0.16,
+        }, 0.38, 1.10);
+        addEarBlock(micSide, new THREE.BoxGeometry(0.095, 0.075, 0.075), eyeLaserMat, {
+            x: -4.02,
+            y: -0.20,
+            z: 2.55,
+        }, {
+            x: 0,
+            y: -0.64,
+            z: 0.16,
+        }, 0.43, 0.90);
+
+        // --- 3A.2 HALF-FORMED OUTER HEAD ARMOR SHELL ---
+        const outerShellGeo = new THREE.BoxGeometry(0.155, 0.115, 0.095);
+        const addOuterShellBlock = (targetX, targetY, targetZ, material, delay, scale = 1) => {
+            const block = new THREE.Mesh(outerShellGeo, material);
+            const side = targetX < -0.02 ? -1 : 1;
+            const scatterX = targetX + side * (1.6 + Math.random() * 2.6);
+            const scatterY = targetY + 1.8 + Math.random() * 2.8;
+            const scatterZ = targetZ + 4.6 + Math.random() * 4.8;
+            block.position.set(scatterX, scatterY, scatterZ);
+            block.rotation.set((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9);
+            block.scale.setScalar(0.016);
+            block.userData = {
+                targetX,
+                targetY,
+                targetZ,
+                targetRotX: -0.08,
+                targetRotY: targetX * 0.045,
+                targetRotZ: targetX * -0.020,
+                scatterX,
+                scatterY,
+                scatterZ,
+                exitX: scatterX + side * 2.8,
+                exitY: scatterY + 1.6,
+                exitZ: scatterZ + 3.4,
+                baseScale: scale,
+                delay,
+                phase: Math.random() * Math.PI * 2,
+            };
+            outerHeadArmor.add(block);
+            outerShellBlocks.push(block);
+        };
+        for (let gx = -12; gx <= 34; gx += 2) {
+            for (let gy = -6; gy <= 38; gy += 2) {
+                const nx = gx / 35;
+                const ny = gy / 38;
+                const jawCurve = ny < 0 ? 1 - Math.abs(ny) * 0.42 : 1.04;
+                const boundary = ((nx / jawCurve) * (nx / jawCurve)) + (ny * ny * 0.80);
+                if (boundary >= 1.0) continue;
+                const isOuterArc = boundary > 0.52 || ny > 0.34 || nx > 0.22;
+                if (!isOuterArc) continue;
+                if (nx < -0.28 && ny < 0.38) continue;
+                const z = Math.sqrt(Math.max(0, 1 - boundary)) * 5.3 + 0.34;
+                const edge = boundary > 0.84 || ny > 0.68 || nx > 0.55;
+                const material = edge ? rearArmorMat : (Math.random() > 0.86 ? armorEdgeMat : heavySteelMat);
+                addOuterShellBlock(
+                    gx * 0.092,
+                    gy * 0.090 + 0.06,
+                    z,
+                    material,
+                    0.22 + (gy + 8) * 0.006 + Math.max(0, gx) * 0.005,
+                    edge ? 1.10 : 0.94
+                );
+            }
+        }
+
+        // --- 3B. GENERATED BACK HALF OF THE HEAD ---
+        const rearBlockGeo = new THREE.BoxGeometry(0.105, 0.105, 0.105);
+        for (let x = -32; x <= 32; x += 2) {
+            for (let y = -18; y <= 46; y += 2) {
+                const nx = x / 32;
+                const ny = y / 42;
+                const backCurve = 1.05 - Math.max(0, -ny) * 0.42;
+                if (backCurve < 0.44) continue;
+                const boundary = ((nx / backCurve) * (nx / backCurve)) + (ny * ny * 0.72);
+                const sideShell = Math.abs(nx) > 0.52 || ny > 0.12 || boundary > 0.54;
+                if (boundary >= 1.05 || !sideShell) continue;
+
+                const shellDepth = Math.sqrt(Math.max(0, 1.05 - boundary));
+                const targetX = x * 0.102;
+                const targetY = y * 0.090 + 0.12;
+                const targetZ = -1.22 - shellDepth * 1.25;
+                const seed = Math.random();
+                const mat = seed > 0.72 ? glowingOrangeMat : (seed > 0.40 ? rearArmorMat : heavySteelMat);
+                const block = new THREE.Mesh(rearBlockGeo, mat);
+                const side = targetX < 0 ? -1 : 1;
+                const scatterX = targetX + side * (1.1 + Math.random() * 2.3);
+                const scatterY = targetY + 1.1 + Math.random() * 2.8;
+                const scatterZ = targetZ - 4.4 - Math.random() * 3.8;
+                block.position.set(scatterX, scatterY, scatterZ);
+                block.scale.setScalar(0.015);
+                block.userData = {
+                    targetX,
+                    targetY,
+                    targetZ,
+                    scatterX,
+                    scatterY,
+                    scatterZ,
+                    exitX: scatterX + side * (2.4 + Math.random() * 2.6),
+                    exitY: scatterY + 1.2 + Math.random() * 2.2,
+                    exitZ: scatterZ - 2.4 - Math.random() * 3.2,
+                    delay: Math.random() * 0.55,
+                    baseScale: 0.78 + Math.random() * 0.36,
+                    phase: Math.random() * Math.PI * 2
+                };
+                rearCranium.add(block);
+                rearCraniumBlocks.push(block);
+            }
+        }
+
+        // --- 3C. SHOULDER-UP ARMOR AND CYBER COLLAR ---
+        const armorBlockGeo = new THREE.BoxGeometry(0.18, 0.13, 0.22);
+        const collarBlockGeo = new THREE.BoxGeometry(0.22, 0.10, 0.16);
+        const chestBlockGeo = new THREE.BoxGeometry(0.18, 0.16, 0.14);
+        const addArmorBlock = (group, geometry, material, target, rotation, delay, scale = 1) => {
+            const block = new THREE.Mesh(geometry, material);
+            const side = target.x < -0.02 ? -1 : (target.x > 0.02 ? 1 : (Math.random() < 0.5 ? -1 : 1));
+            const scatterX = target.x + side * (0.8 + Math.random() * 1.6) + (Math.random() - 0.5) * 0.7;
+            const scatterY = target.y - 1.6 - Math.random() * 1.9;
+            const scatterZ = target.z + 2.6 + Math.random() * 2.2;
+            block.position.set(scatterX, scatterY, scatterZ);
+            block.rotation.set(
+                rotation.x + (Math.random() - 0.5) * 1.5,
+                rotation.y + (Math.random() - 0.5) * 1.5,
+                rotation.z + (Math.random() - 0.5) * 1.5
+            );
+            block.scale.setScalar(0.018);
+            block.userData = {
+                targetX: target.x,
+                targetY: target.y,
+                targetZ: target.z,
+                targetRotX: rotation.x,
+                targetRotY: rotation.y,
+                targetRotZ: rotation.z,
+                scatterX,
+                scatterY,
+                scatterZ,
+                delay,
+                baseScale: scale,
+                phase: Math.random() * Math.PI * 2
+            };
+            group.add(block);
+            armorBlocks.push(block);
+            return block;
+        };
+
+        // Shoulder and neck armor are intentionally left empty; the notice face should read as a clean AI helmet.
+
+        // --- 4. VÀNH ĐAI LINH KIỆN TẢN NHIỆT XUNG QUANH (EXHAUST DEBRIS FIELD) ---
+        const debrisBlocks = [];
+        const debrisCount = 260;
+
+        for (let i = 0; i < debrisCount; i++) {
+            let size = 0.03 + Math.random() * 0.06;
+            const debGeo = new THREE.BoxGeometry(size, size, size);
+            
+            let dMat = Math.random() > 0.4 ? heavySteelMat : glowingOrangeMat;
+            const debMesh = new THREE.Mesh(debGeo, dMat);
+
+            let angle = Math.random() * Math.PI * 2;
+            let radius = 3.3 + Math.random() * 2.5; // Nằm ở vành ngoài phẳng biên rìa
+            
+            let dx = Math.cos(angle) * radius;
+            let dy = Math.sin(angle) * radius;
+            let dz = (Math.random() - 0.5) * 4.0; 
+
+            debMesh.position.set(dx, dy, dz);
+
+            debMesh.userData = {
+                angle: angle,
+                radius: radius,
+                speed: 0.15 + Math.random() * 0.4,
+                floatSpeed: 0.8 + Math.random() * 2.0,
+                seed: Math.random() * 50,
+                baseZ: dz
+            };
+
+            debrisGroup.add(debMesh);
+            debrisBlocks.push(debMesh);
+        }
+
+        // --- VÒNG LẶP HOẠT HỌA VẬN HÀNH MECHA ---
+        let clock = new THREE.Clock();
+        let exitStart = 0;
+        let isSpeaking = false;
+        let idleHoldUntil = 0;
+        let rafId = 0;
+        let destroyed = false;
+        let nextHeadAimTime = 0;
+        let headTargetX = 0;
+        let headTargetY = 0;
+        let headTargetZ = 0;
+        let headRotX = 0;
+        let headRotY = 0;
+        let headRotZ = 0;
+        const assembleDuration = 1.85;
+        const rearAssembleDuration = 1.65;
+        const armorAssembleDuration = 1.55;
+        const settleDuration = 3.05;
+        const exitDuration = 1.08;
+        const isNoticeFace = new URLSearchParams(window.location.search).has('noticeFace');
+        const easeOutCubic = (t) => 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3);
+        const easeInOut = (t) => {
+            t = Math.min(Math.max(t, 0), 1);
+            return t * t * (3 - 2 * t);
+        };
+        const wakeRenderer = () => {
+            if (!destroyed && !rafId) {
+                rafId = requestAnimationFrame(animate);
+            }
+        };
+        const disposeMaterial = (material) => {
+            if (Array.isArray(material)) {
+                material.forEach(disposeMaterial);
+                return;
+            }
+            if (!material) return;
+            Object.keys(material).forEach((key) => {
+                const value = material[key];
+                if (value && typeof value.dispose === 'function') {
+                    value.dispose();
+                }
+            });
+            if (typeof material.dispose === 'function') {
+                material.dispose();
+            }
+        };
+        const destroyRenderer = () => {
+            if (destroyed) return;
+            destroyed = true;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = 0;
+            }
+            scene.traverse((node) => {
+                if (node.geometry && typeof node.geometry.dispose === 'function') {
+                    node.geometry.dispose();
+                }
+                if (node.material) {
+                    disposeMaterial(node.material);
+                }
+            });
+            if (renderer.renderLists && typeof renderer.renderLists.dispose === 'function') {
+                renderer.renderLists.dispose();
+            }
+            if (typeof renderer.dispose === 'function') {
+                renderer.dispose();
+            }
+            if (typeof renderer.forceContextLoss === 'function') {
+                renderer.forceContextLoss();
+            }
+            if (renderer.domElement && renderer.domElement.parentNode) {
+                renderer.domElement.parentNode.removeChild(renderer.domElement);
+            }
+        };
+
+        window.addEventListener('message', (event) => {
+            const data = event && event.data;
+            if (data && data.type === 'ft-face-exit' && !exitStart) {
+                idleHoldUntil = 0;
+                exitStart = clock.getElapsedTime();
+                wakeRenderer();
+            } else if (data && data.type === 'ft-face-speaking') {
+                isSpeaking = Boolean(data.value);
+                if (isSpeaking) {
+                    idleHoldUntil = 0;
+                } else {
+                    const holdMs = Math.max(0, Math.min(5000, Number(data.idleHoldMs) || 0));
+                    idleHoldUntil = holdMs ? clock.getElapsedTime() + holdMs / 1000 : 0;
+                }
+                wakeRenderer();
+            } else if (data && data.type === 'ft-face-destroy') {
+                destroyRenderer();
+            }
+        });
+
+        function animate() {
+            if (destroyed) return;
+            rafId = 0;
+            const time = clock.getElapsedTime();
+            const assemble = easeOutCubic(time / assembleDuration);
+            const exitElapsed = exitStart ? time - exitStart : 0;
+            const exiting = exitStart ? easeInOut(exitElapsed / exitDuration) : 0;
+            const alive = Math.max(0.03, assemble * (1 - exiting * 0.88));
+            const idleHolding = Boolean(isNoticeFace && !exitStart && idleHoldUntil && time < idleHoldUntil);
+
+            // Lò phản ứng trung tâm tự xoay tròn và co giãn phát xung (Core Pulse)
+            centerReactor.rotation.x += 0.02;
+            centerReactor.rotation.y += 0.03;
+            let reactorPulse = 1.0 + Math.sin(time * 8.0) * 0.12;
+            centerReactor.scale.set(reactorPulse * alive, reactorPulse * alive, reactorPulse * alive);
+            coreLight.intensity = (18 + Math.sin(time * 16.0) * 6) * alive;
+
+            cyberRingGroup.visible = false;
+
+            // Chuyển động đảo mắt quét laser giật cục kiểu robot (Stepping Gaze)
+            if (time >= nextHeadAimTime) {
+                const turnRangeY = isSpeaking ? 0.62 : 0.46;
+                const turnRangeX = isSpeaking ? 0.22 : 0.16;
+                const rollRange = isSpeaking ? 0.13 : 0.07;
+                headTargetY = (Math.random() - 0.5) * turnRangeY;
+                headTargetX = (Math.random() - 0.5) * turnRangeX;
+                headTargetZ = (Math.random() - 0.5) * rollRange;
+                nextHeadAimTime = time + (isSpeaking ? 0.55 : 0.95) + Math.random() * (isSpeaking ? 1.05 : 1.85);
+            }
+            let mechaGazeX = isSpeaking
+                ? Math.max(-0.10, Math.min(0.10, -headTargetY * 0.18 + Math.sin(time * 6.2) * 0.022))
+                : Math.floor(Math.sin(time * 2.0) * 3) * 0.05;
+            leftEyeMesh.position.x = mechaGazeX;
+            rightEyeMesh.position.x = mechaGazeX;
+            leftEyeFocusBeam.position.x = mechaGazeX;
+            rightEyeFocusBeam.position.x = mechaGazeX;
+            const eyePulse = isSpeaking ? 1 + Math.abs(Math.sin(time * 10.0)) * 0.20 : 1;
+            leftEyeMesh.scale.set(eyePulse, eyePulse, eyePulse);
+            rightEyeMesh.scale.set(eyePulse, eyePulse, eyePulse);
+            leftEyeFocusBeam.scale.set(eyePulse * (isSpeaking ? 1.10 : 0.82), eyePulse, eyePulse);
+            rightEyeFocusBeam.scale.set(eyePulse * (isSpeaking ? 1.10 : 0.82), eyePulse, eyePulse);
+            leftEye.scale.setScalar(alive);
+            rightEye.scale.setScalar(alive);
+
+            // KHỚP MỞ HÀM PISTON THỦY LỰC KHI NÓI (Mechanical Hydraulic Slide)
+            // Khác với cơ môi mềm người, toàn bộ khối hàm robot trượt sập dứt khoát tịnh tiến xuống dưới trục Y
+            let speechSignal = isSpeaking ? Math.abs(Math.sin(time * 3.8) * Math.cos(time * 1.2)) : 0;
+            hydraulicJaw.position.y = 0;
+            hydraulicJaw.position.z = 0;
+
+            // Rung động bề mặt kim loại dạng răng cưa điện tử
+            sọBlocks.forEach((block, idx) => {
+                const ud = block.userData || {};
+                const vibration = block.material === heavySteelMat ? Math.sin(time * 6.0 + idx * 0.05) * 0.018 : 0;
+                let px = ud.scatterX + (ud.targetX - ud.scatterX) * assemble;
+                let py = ud.scatterY + (ud.targetY - ud.scatterY) * assemble;
+                let pz = ud.scatterZ + (ud.targetZ + vibration - ud.scatterZ) * assemble;
+                if (exiting) {
+                    px += (ud.exitX - px) * exiting;
+                    py += (ud.exitY - py) * exiting;
+                    pz += (ud.exitZ - pz) * exiting;
+                }
+                block.position.set(px, py, pz);
+                block.scale.setScalar(Math.max(0.015, (ud.baseScale || 1) * alive));
+            });
+
+            earBlocks.forEach((block, idx) => {
+                const ud = block.userData || {};
+                const earAssemble = easeOutCubic((time - (ud.delay || 0)) / 1.38);
+                const earAlive = Math.max(0.014, earAssemble * (1 - exiting * 0.86));
+                const microPulse = block.material === eyeLaserMat || block.material === armorEdgeMat
+                    ? Math.abs(Math.sin(time * 5.8 + (ud.phase || 0))) * 0.035
+                    : 0;
+                let px = ud.scatterX + (ud.targetX - ud.scatterX) * earAssemble;
+                let py = ud.scatterY + (ud.targetY + Math.sin(time * 1.8 + idx * 0.2) * 0.012 - ud.scatterY) * earAssemble;
+                let pz = ud.scatterZ + (ud.targetZ + microPulse - ud.scatterZ) * earAssemble;
+                if (exiting) {
+                    px += ((ud.exitX || px) - px) * exiting;
+                    py += ((ud.exitY || py) - py) * exiting;
+                    pz += ((ud.exitZ || pz) - pz) * exiting;
+                }
+                block.position.set(px, py, pz);
+                block.rotation.x += ((ud.targetRotX || 0) - block.rotation.x) * 0.14;
+                block.rotation.y += ((ud.targetRotY || 0) - block.rotation.y) * 0.14;
+                block.rotation.z += ((ud.targetRotZ || 0) - block.rotation.z) * 0.14;
+                block.scale.setScalar(Math.max(0.014, (ud.baseScale || 1) * earAlive * (1 + microPulse)));
+            });
+
+            outerShellBlocks.forEach((block, idx) => {
+                const ud = block.userData || {};
+                const shellAssemble = easeOutCubic((time - (ud.delay || 0)) / 1.56);
+                const shellAlive = Math.max(0.012, shellAssemble * (1 - exiting * 0.86));
+                const breathing = Math.sin(time * 1.4 + (ud.phase || 0)) * 0.020;
+                let px = ud.scatterX + (ud.targetX - ud.scatterX) * shellAssemble;
+                let py = ud.scatterY + (ud.targetY + breathing - ud.scatterY) * shellAssemble;
+                let pz = ud.scatterZ + (ud.targetZ + breathing * 0.75 - ud.scatterZ) * shellAssemble;
+                if (exiting) {
+                    px += ((ud.exitX || px) - px) * exiting;
+                    py += ((ud.exitY || py) - py) * exiting;
+                    pz += ((ud.exitZ || pz) - pz) * exiting;
+                }
+                block.position.set(px, py, pz);
+                block.rotation.x += ((ud.targetRotX || 0) - block.rotation.x) * 0.13;
+                block.rotation.y += ((ud.targetRotY || 0) - block.rotation.y) * 0.13;
+                block.rotation.z += ((ud.targetRotZ || 0) - block.rotation.z) * 0.13;
+                const edgePulse = block.material === armorEdgeMat ? 1 + Math.abs(Math.sin(time * 3.8 + idx * 0.2)) * 0.08 : 1;
+                block.scale.setScalar(Math.max(0.012, (ud.baseScale || 1) * shellAlive * edgePulse));
+            });
+
+            rearCraniumBlocks.forEach((block, idx) => {
+                const ud = block.userData || {};
+                const rearAssemble = easeOutCubic((time - (ud.delay || 0)) / rearAssembleDuration);
+                const rearAlive = Math.max(0.012, rearAssemble * (1 - exiting * 0.86));
+                const breathing = Math.sin(time * 1.55 + (ud.phase || 0)) * 0.045;
+                let px = ud.scatterX + (ud.targetX - ud.scatterX) * rearAssemble;
+                let py = ud.scatterY + (ud.targetY + breathing - ud.scatterY) * rearAssemble;
+                let pz = ud.scatterZ + (ud.targetZ + breathing * 0.45 - ud.scatterZ) * rearAssemble;
+                if (exiting) {
+                    px += ((ud.exitX || px) - px) * exiting;
+                    py += ((ud.exitY || py) - py) * exiting;
+                    pz += ((ud.exitZ || pz) - pz) * exiting;
+                }
+                block.position.set(px, py, pz);
+                block.scale.setScalar(Math.max(0.012, (ud.baseScale || 1) * rearAlive));
+                block.rotation.x += 0.004 + idx % 3 * 0.001;
+                block.rotation.y += 0.006;
+            });
+
+            const armorRingAlive = Math.max(0.018, easeOutCubic((time - 0.28) / 1.12) * (1 - exiting * 0.86));
+            neckArmor.scale.setScalar(armorRingAlive);
+            shoulderArmor.scale.setScalar(Math.max(0.018, easeOutCubic((time - 0.34) / 1.30) * (1 - exiting * 0.88)));
+            armorBlocks.forEach((block, idx) => {
+                const ud = block.userData || {};
+                const armorAssemble = easeOutCubic((time - (ud.delay || 0)) / armorAssembleDuration);
+                const armorAlive = Math.max(0.012, armorAssemble * (1 - exiting * 0.86));
+                const currentX = ud.scatterX + (ud.targetX - ud.scatterX) * armorAssemble;
+                const currentY = ud.scatterY + (ud.targetY + Math.sin(time * 1.6 + (ud.phase || 0)) * 0.018 - ud.scatterY) * armorAssemble;
+                const currentZ = ud.scatterZ + (ud.targetZ - ud.scatterZ) * armorAssemble;
+                block.position.set(
+                    currentX + exiting * (currentX < 0 ? -1 : 1) * 2.0,
+                    currentY - exiting * 1.8,
+                    currentZ + exiting * 2.2
+                );
+                block.rotation.x += ((ud.targetRotX || 0) - block.rotation.x) * 0.16;
+                block.rotation.y += ((ud.targetRotY || 0) - block.rotation.y) * 0.16;
+                block.rotation.z += ((ud.targetRotZ || 0) - block.rotation.z) * 0.16;
+                const edgePulse = block.material === armorEdgeMat ? 1 + Math.abs(Math.sin(time * 4.1 + idx)) * 0.10 : 1;
+                block.scale.setScalar(Math.max(0.012, (ud.baseScale || 1) * armorAlive * edgePulse));
+            });
+            mouthSpeechBlocks.forEach((block, idx) => {
+                const ud = block.userData || {};
+                const mouthAssemble = easeOutCubic((time - (ud.delay || 0)) / armorAssembleDuration);
+                const mouthAlive = Math.max(0.012, mouthAssemble * (1 - exiting * 0.86));
+                const isServoJaw = ud.jawMotion === 'servoJaw';
+                const jawRow = ud.jawRow || 0;
+                const servoOpen = isServoJaw
+                    ? speechSignal * (0.052 + Math.abs(Math.sin(time * 8.4 + idx * 0.31)) * 0.038)
+                    : 0;
+                const panelStroke = isServoJaw
+                    ? -servoOpen * (0.70 + jawRow * 0.26) + Math.sin(time * 13.0 + idx * 0.19) * speechSignal * 0.006
+                    : 0;
+                const columnLag = Math.abs(ud.jawColumn || 0) * speechSignal * 0.010;
+                const px = ud.scatterX + (ud.targetX - ud.scatterX) * mouthAssemble;
+                const py = ud.scatterY + (ud.targetY + panelStroke - ud.scatterY) * mouthAssemble;
+                const pz = ud.scatterZ + (ud.targetZ + speechSignal * 0.035 - columnLag - ud.scatterZ) * mouthAssemble;
+                block.position.set(
+                    px + exiting * (px < 0 ? -1 : 1) * 2.0,
+                    py - exiting * 1.8,
+                    pz + exiting * 2.2
+                );
+                block.rotation.x += (((ud.targetRotX || 0) - servoOpen * 0.38) - block.rotation.x) * 0.18;
+                block.rotation.y += ((ud.targetRotY || 0) - block.rotation.y) * 0.18;
+                block.rotation.z += ((ud.targetRotZ || 0) - block.rotation.z) * 0.18;
+                const finalScale = Math.max(0.012, (ud.baseScale || 1) * mouthAlive);
+                block.scale.set(
+                    finalScale * (1 + speechSignal * 0.04),
+                    finalScale * (1 + servoOpen * 0.28),
+                    finalScale * (1 + speechSignal * 0.08)
+                );
+            });
+
+            // HOẠT HỌA VÀNH ĐAI LINH KIỆN TẢN NHIỆT XOAY VÒNG
+            debrisBlocks.forEach((deb) => {
+                let dud = deb.userData;
+                dud.angle += dud.speed * 0.008; // Xoay quanh rìa ngoài đầu
+                const debrisRadius = dud.radius + exiting * 3.2;
+                deb.position.x = Math.cos(dud.angle) * debrisRadius;
+                deb.position.y = Math.sin(dud.angle) * debrisRadius;
+                deb.position.z = dud.baseZ + Math.sin(time * dud.floatSpeed + dud.seed) * 0.3 + exiting * 2.2; // Trôi dạt z
+                deb.scale.setScalar(Math.max(0.12, 1 - exiting * 0.58));
+
+                deb.rotation.x += 0.02;
+                deb.rotation.y += 0.03;
+            });
+
+            // Toàn bộ đầu Robot xoay góc quét mục tiêu lạnh lùng
+            const speechScanY = isSpeaking ? Math.sin(time * 2.1) * 0.045 + Math.sin(time * 4.9) * 0.018 : 0;
+            const speechScanX = isSpeaking ? Math.cos(time * 2.8) * 0.030 : 0;
+            const speechScanZ = isSpeaking ? Math.sin(time * 3.4) * 0.020 : 0;
+            const userFocusY = headTargetY + speechScanY;
+            const userFocusX = headTargetX + speechScanX;
+            const userFocusZ = headTargetZ + speechScanZ;
+            headRotY += (userFocusY - headRotY) * (isSpeaking ? 0.060 : 0.035);
+            headRotX += (userFocusX - headRotX) * (isSpeaking ? 0.058 : 0.040);
+            headRotZ += (userFocusZ - headRotZ) * (isSpeaking ? 0.052 : 0.032);
+            robotUnit.rotation.y = headRotY;
+            robotUnit.rotation.x = headRotX;
+            robotUnit.rotation.z = headRotZ;
+
+            renderer.render(scene, camera);
+
+            const stillAssembling = time < settleDuration;
+            const stillExiting = exitStart && exitElapsed < exitDuration + 0.08;
+            if (stillAssembling || isSpeaking || idleHolding || stillExiting) {
+                wakeRenderer();
+            } else if (exitStart) {
+                destroyRenderer();
+            }
+        }
+
+        wakeRenderer();
+
+        // --- Tự động tương thích màn hình ---
+        window.addEventListener('resize', () => {
+            if (destroyed) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            wakeRenderer();
+        });
+        window.addEventListener('pagehide', destroyRenderer);
+    </script>
+</body>
+</html>

@@ -1048,18 +1048,35 @@
         node.appendChild(row);
       }});
     }};
-    const loadDashboardLog = async (mode) => {{
+    const DASHBOARD_LOG_VISIBLE_POLL_MS = 10000;
+    const DASHBOARD_LOG_HIDDEN_POLL_MS = 60000;
+    const dashboardLogTimers = {{ login: 0, learning: 0 }};
+    const dashboardLogInflight = {{ login: false, learning: false }};
+    const scheduleDashboardLogPoll = (mode, delay = DASHBOARD_LOG_VISIBLE_POLL_MS) => {{
+      if (!dashboardLogTimers.hasOwnProperty(mode)) return;
+      if (dashboardLogTimers[mode]) window.clearTimeout(dashboardLogTimers[mode]);
+      dashboardLogTimers[mode] = window.setTimeout(async () => {{
+        if (activeDashboardTab === mode) {{
+          await loadDashboardLog(mode, {{ silent: true }});
+        }}
+        scheduleDashboardLogPoll(mode, document.hidden ? DASHBOARD_LOG_HIDDEN_POLL_MS : DASHBOARD_LOG_VISIBLE_POLL_MS);
+      }}, delay);
+    }};
+    const loadDashboardLog = async (mode, options = {{}}) => {{
       const isLogin = mode === "login";
       const dateInput = isLogin ? loginLogDate : learningLogDate;
       const searchInput = isLogin ? loginLogSearch : learningLogSearch;
       const listNode = isLogin ? loginLogList : learningLogList;
       if (!listNode) return;
-      listNode.textContent = "Loading...";
+      if (dashboardLogInflight[mode]) return;
+      dashboardLogInflight[mode] = true;
+      const silent = Boolean(options && options.silent);
+      if (!silent) listNode.textContent = "Loading...";
       try {{
         const query = new URLSearchParams();
         if (dateInput && dateInput.value) query.set("date", dateInput.value);
         if (searchInput && searchInput.value) query.set("search", searchInput.value);
-        query.set("limit", "1000");
+        query.set("limit", silent ? "200" : "1000");
         const endpoint = isLogin ? "/dashboard/login-log" : "/dashboard/learning-log";
         const response = await fetch(`${{endpoint}}?${{query.toString()}}`, {{ cache: "no-store" }});
         const payload = await response.json().catch(() => ({{}}));
@@ -1068,7 +1085,9 @@
         }}
         renderDashboardLogRows(listNode, payload.rows || [], mode);
       }} catch (error) {{
-        listNode.textContent = String(error && error.message ? error.message : error);
+        if (!silent) listNode.textContent = String(error && error.message ? error.message : error);
+      }} finally {{
+        dashboardLogInflight[mode] = false;
       }}
     }};
     const showDashboardTab = (name) => {{
@@ -1077,8 +1096,14 @@
         if (item.panel) item.panel.hidden = item.name !== activeDashboardTab;
         if (item.tab) item.tab.classList.toggle("is-active", item.name === activeDashboardTab);
       }});
-      if (activeDashboardTab === "login") void loadDashboardLog("login");
-      if (activeDashboardTab === "learning") void loadDashboardLog("learning");
+      if (activeDashboardTab === "login") {{
+        void loadDashboardLog("login");
+        scheduleDashboardLogPoll("login");
+      }}
+      if (activeDashboardTab === "learning") {{
+        void loadDashboardLog("learning");
+        scheduleDashboardLogPoll("learning");
+      }}
       if (activeDashboardTab === "admins") void loadAdminUsers();
       if (activeDashboardTab === "password-reset") void pollPendingUsers();
       if (activeDashboardTab === "security") void poll();
@@ -1107,8 +1132,14 @@
     if (tabQmCity) tabQmCity.addEventListener("click", () => showDashboardTab("qm-city"));
     if (tabQmCityNpc) tabQmCityNpc.addEventListener("click", () => showDashboardTab("qm-city-npc"));
     if (tabQmCityLevels) tabQmCityLevels.addEventListener("click", () => showDashboardTab("qm-city-levels"));
-    if (loginLogRefresh) loginLogRefresh.addEventListener("click", () => loadDashboardLog("login"));
-    if (learningLogRefresh) learningLogRefresh.addEventListener("click", () => loadDashboardLog("learning"));
+    if (loginLogRefresh) loginLogRefresh.addEventListener("click", () => {{
+      void loadDashboardLog("login");
+      scheduleDashboardLogPoll("login");
+    }});
+    if (learningLogRefresh) learningLogRefresh.addEventListener("click", () => {{
+      void loadDashboardLog("learning");
+      scheduleDashboardLogPoll("learning");
+    }});
     [emailRoutingAliasInput, emailRoutingDomainInput].forEach((node) => node && node.addEventListener("input", () => {{
       emailRoutingSelectedId = "";
       renderEmailRoutingMessages({{ messages: emailRoutingMessages, received_addresses: emailRoutingReceivedAddressRows }});
@@ -1148,8 +1179,14 @@
     if (emailRoutingOpenFull) emailRoutingOpenFull.addEventListener("click", () => window.open("/dashboard/email-routing", "_blank", "noopener"));
     if (emailRoutingCreateAlias) emailRoutingCreateAlias.addEventListener("click", () => createEmailRoutingAlias());
     if (emailRoutingCreateRoute) emailRoutingCreateRoute.addEventListener("click", () => createEmailRoutingRoute());
-    [loginLogDate, loginLogSearch].forEach((node) => node && node.addEventListener("change", () => loadDashboardLog("login")));
-    [learningLogDate, learningLogSearch].forEach((node) => node && node.addEventListener("change", () => loadDashboardLog("learning")));
+    [loginLogDate, loginLogSearch].forEach((node) => node && node.addEventListener("change", () => {{
+      void loadDashboardLog("login");
+      scheduleDashboardLogPoll("login");
+    }}));
+    [learningLogDate, learningLogSearch].forEach((node) => node && node.addEventListener("change", () => {{
+      void loadDashboardLog("learning");
+      scheduleDashboardLogPoll("learning");
+    }}));
     const renderAdminVoiceSelect = (select, items, fallbackKey, fallbackLabel = "") => {{
       if (!select) return;
       const rows = Array.isArray(items) && items.length

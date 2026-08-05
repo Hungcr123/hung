@@ -1,0 +1,22 @@
+{
+  "title": "Space_S Smoke Test",
+  "hint_seconds": 30,
+  "nodes": [
+    {
+      "title": "Node 1",
+      "text": "I can read this sentence clearly.",
+      "children": [
+        {
+          "text": "I can read this sentence clearly.",
+          "meaning": "Tôi có thể đọc câu này rõ ràng.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Read the visible sentence aloud and pass above 80 percent."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

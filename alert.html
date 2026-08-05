@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biển Cảnh Báo Sci-Fi (Pure Code)</title>
+<style>
+  /* --- NỀN MÔ PHỎNG CỬA --- */
+  body {
+    background: #0d0d0f; /* Màu kim loại tối */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Arial', sans-serif;
+    /* Thêm vân kim loại mờ cho background */
+    background-image: repeating-linear-gradient(
+      0deg, transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px
+    );
+  }
+
+  /* --- KHUNG BẢNG CẢNH BÁO --- */
+  .sci-fi-panel {
+    position: relative;
+    width: 380px;
+    background: linear-gradient(135deg, #1c1c1c 0%, #0a0a0a 100%);
+    /* Cắt góc tạo hình bát giác tương lai */
+    clip-path: polygon(10% 0, 90% 0, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0 90%, 0 10%);
+    padding: 3px; /* Dùng padding để tạo viền */
+    box-shadow: 0 0 30px rgba(255, 204, 0, 0.1);
+  }
+
+  /* Lớp viền vàng bọc ngoài khung */
+  .panel-border {
+    background: #111;
+    clip-path: polygon(10% 0, 90% 0, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0 90%, 0 10%);
+    padding: 50px 30px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  /* --- SỌC CẢNH BÁO (HAZARD STRIPES) --- */
+  .hazard-stripe {
+    position: absolute;
+    width: 100%;
+    height: 12px;
+    background: repeating-linear-gradient(
+      -45deg,
+      #ffcc00,
+      #ffcc00 15px,
+      #111 15px,
+      #111 30px
+    );
+    opacity: 0.8;
+  }
+  .stripe-top { top: 0; left: 0; }
+  .stripe-bottom { bottom: 0; left: 0; }
+
+  /* --- HÌNH TAM GIÁC PHÁT SÁNG --- */
+  .triangle-wrapper {
+    position: relative;
+    width: 160px;
+    height: 140px;
+    margin-bottom: 25px;
+    /* Hiệu ứng toả sáng cho toàn bộ tam giác */
+    filter: drop-shadow(0 0 15px rgba(255, 204, 0, 0.6));
+    animation: pulse-glow 2.5s infinite alternate;
+  }
+
+  /* Viền tam giác vàng ngoài cùng */
+  .tri-outer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #ffcc00;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+  }
+
+  /* Lõi tam giác đen bên trong */
+  .tri-inner {
+    position: absolute;
+    top: 8px; left: 9px;
+    width: calc(100% - 18px);
+    height: calc(100% - 14px);
+    background: #111;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    display: flex;
+    justify-content: center;
+    /* Tia sáng phản quang quét ngang lõi */
+    background-image: linear-gradient(180deg, rgba(255, 204, 0, 0.1) 0%, transparent 100%);
+  }
+
+  /* Dấu chấm than (!) */
+  .exclamation {
+    color: #ffcc00;
+    font-size: 70px;
+    font-weight: 900;
+    font-family: Impact, 'Arial Black', sans-serif;
+    margin-top: 22px; /* Đẩy xuống giữa trọng tâm tam giác */
+    text-shadow: 0 0 15px #ffcc00, 0 0 30px #ffcc00;
+    animation: flicker 4s infinite;
+  }
+
+  /* --- CHỮ VÀ TYPOGRAPHY --- */
+  .warning-title {
+    font-size: 34px;
+    font-weight: 900;
+    color: #ffcc00;
+    margin: 0 0 5px 0;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    text-shadow: 2px 2px 0px rgba(200, 150, 0, 0.4);
+  }
+
+  .warning-sub {
+    font-size: 16px;
+    color: #fff;
+    font-weight: bold;
+    letter-spacing: 4px;
+    margin: 0 0 15px 0;
+    text-transform: uppercase;
+  }
+
+  /* Đường line công nghệ ngăn cách */
+  .tech-divider {
+    width: 80%;
+    height: 2px;
+    background: #ffcc00;
+    position: relative;
+    margin-bottom: 15px;
+    box-shadow: 0 0 8px #ffcc00;
+  }
+  .tech-divider::before, .tech-divider::after {
+    content: "";
+    position: absolute;
+    top: -3px;
+    width: 8px; height: 8px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .tech-divider::before { left: -4px; }
+  .tech-divider::after { right: -4px; }
+
+  .sector-info {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    color: #ffcc00;
+    opacity: 0.7;
+    letter-spacing: 2px;
+  }
+
+  /* --- CÁC HIỆU ỨNG ANIMATION --- */
+  @keyframes pulse-glow {
+    0% { filter: drop-shadow(0 0 10px rgba(255, 204, 0, 0.4)); transform: scale(1); }
+    100% { filter: drop-shadow(0 0 25px rgba(255, 204, 0, 0.9)); transform: scale(1.02); }
+  }
+
+  @keyframes flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; text-shadow: 0 0 15px #ffcc00, 0 0 30px #ffcc00; }
+    20%, 24%, 55% { opacity: 0.4; text-shadow: none; }
+  }
+
+  /* 4 góc chấm tròn như ốc vít gắn vào cửa */
+  .screw {
+    position: absolute;
+    width: 8px; height: 8px;
+    background: #333;
+    border-radius: 50%;
+    box-shadow: inset 1px 1px 2px #000, 1px 1px 1px rgba(255,255,255,0.1);
+  }
+  .s-tl { top: 15px; left: 15px; }
+  .s-tr { top: 15px; right: 15px; }
+  .s-bl { bottom: 15px; left: 15px; }
+  .s-br { bottom: 15px; right: 15px; }
+</style>
+</head>
+<body>
+
+  <!-- BẮT ĐẦU VÙNG MÃ LOGO -->
+  <div class="sci-fi-panel" style="background: #ffcc00;">
+    <div class="panel-border">
+      
+      <!-- Ốc vít 4 góc -->
+      <div class="screw s-tl"></div>
+      <div class="screw s-tr"></div>
+      <div class="screw s-bl"></div>
+      <div class="screw s-br"></div>
+
+      <!-- Sọc cảnh báo trên -->
+      <div class="hazard-stripe stripe-top"></div>
+
+      <!-- Khối Tam Giác Trung Tâm -->
+      <div class="triangle-wrapper">
+        <div class="tri-outer"></div>
+        <div class="tri-inner">
+          <div class="exclamation">!</div>
+        </div>
+      </div>
+
+      <!-- Chữ và Nội Dung -->
+      <h1 class="warning-title">WARNING</h1>
+      <p class="warning-sub">Khu Vực Nguy Hiểm</p>
+      
+      <div class="tech-divider"></div>
+      
+      <div class="sector-info">SECTOR: 7G // AUTH_REQD</div>
+
+      <!-- Sọc cảnh báo dưới -->
+      <div class="hazard-stripe stripe-bottom"></div>
+
+    </div>
+  </div>
+  <!-- KẾT THÚC VÙNG MÃ LOGO -->
+
+</body>
+</html>

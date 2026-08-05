@@ -1,0 +1,92 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+
+const read = (file) => fs.readFileSync(file, "utf8");
+const bootstrap = read("FUTURE/web/js_parts/01_bootstrap_guard_ai_agent.js");
+const scheduler = read("FUTURE/web/js_parts/06_spacew_audio_scheduler.js");
+const audioRuntime = read("FUTURE/web/js_parts/07_audio_speak_runtime.js");
+const vocab = read("FUTURE/web/js_parts/12_question_translation_loader.js");
+const events = read("FUTURE/web/js_parts/21_progress_bootstrap_events.js");
+const controls = read("FUTURE/web/future_split.html");
+const css = read("FUTURE/web/css_parts/01_base_shell_layout.css");
+const dashboardMarkup = read("FUTURE/server_parts/vocab_build_status/status_page_parts/03_dashboard_markup.pyfrag");
+const dashboardScript = read("FUTURE/server_parts/vocab_build_status/status_page_parts/04_dashboard_script_01.pyfrag");
+const postRoute = read("FUTURE/server_parts/http_server/post_route_parts/01_entry_dashboard_admin.pyfrag");
+const delivery = read("FUTURE/server_parts/process_frontend_runtime/06_frontend_delivery.py");
+const qmRoute = read("FUTURE/server_parts/http_server/03_handler_get_routes.py");
+const qmRouteFragment = read("FUTURE/server_parts/http_server/get_route_parts/06_world_game_assets.pyfrag");
+const built = read("FUTURE/web/future.js");
+
+const clearStart = bootstrap.indexOf("const clearFutureAudioCache = async (options = {}) => {");
+const clearEnd = bootstrap.indexOf("const audioUrlLooksCacheable", clearStart);
+assert.ok(clearStart >= 0 && clearEnd > clearStart, "clear function must remain a bounded source unit");
+const clearSource = bootstrap.slice(clearStart, clearEnd);
+
+assert.match(clearSource, /audioCacheGeneration \+= 1/);
+assert.match(clearSource, /forceNetworkReloadGeneration = audioCacheGeneration/);
+assert.match(clearSource, /audioFetchControllers\.forEach/);
+assert.match(clearSource, /controller\.abort\(\)/);
+assert.match(clearSource, /LAST_SEEN_AUDIO_CACHE_EPOCH_KEY/);
+assert.match(clearSource, /window\.__futureClearLessonAudioCache/);
+assert.match(clearSource, /window\.__futureReloadCurrentSpaceVAudioCache/);
+assert.match(clearSource, /pendingAudioByKey\.clear\(\)/);
+assert.match(clearSource, /revisionedQmSoundUrlBySemanticKey\.clear\(\)/);
+assert.match(clearSource, /URL\.revokeObjectURL/);
+assert.match(clearSource, /indexedDB\.deleteDatabase\(DB_NAME\)/);
+assert.match(clearSource, /window\.caches\.keys/);
+assert.match(clearSource, /media\.querySelectorAll\("source"\)/);
+assert.match(clearSource, /localStorage\.removeItem\(key\)/);
+assert.doesNotMatch(clearSource, /\bfetch\s*\(/, "clear must not fetch or preload audio");
+assert.doesNotMatch(clearSource, /warm[A-Za-z]*AudioCache/, "clear must not warm audio");
+
+assert.match(bootstrap, /future_server2_audio_cache_v1/);
+assert.match(bootstrap, /const AUDIO_STORE = "audio"/);
+assert.match(bootstrap, /const AUDIO_META_STORE = "meta"/);
+assert.match(bootstrap, /taskGeneration !== audioCacheGeneration/);
+assert.match(bootstrap, /fetchGeneration !== audioCacheGeneration/);
+assert.match(bootstrap, /window\.__futureClearAudioCache = clearFutureAudioCache/);
+assert.match(bootstrap, /window\.__futureAudioCacheManager/);
+assert.match(bootstrap, /resolveQmSoundProtocolUrl/);
+assert.match(bootstrap, /audio_epoch/);
+assert.match(bootstrap, /file_rev/);
+assert.match(bootstrap, /browser-speech-fallback/);
+assert.match(bootstrap, /const versionToken = clean\(payload\.version \|\| payload\.etag/);
+assert.match(bootstrap, /const controlToken = clean\(payload\.reload_token/);
+
+assert.match(scheduler, /const clearLessonAudioCache = async \(\) => \{/);
+assert.match(scheduler, /indexedDB\.deleteDatabase\(SPACE_W_AUDIO_DB_NAME\)/);
+assert.match(scheduler, /cachedAudioClipUrls\.clear\(\)/);
+assert.match(scheduler, /pendingSpaceWAudioCacheTasks\.clear\(\)/);
+assert.match(scheduler, /lessonAudioBackgroundToken \+= 1/);
+assert.match(scheduler, /window\.__futureClearLessonAudioCache = clearLessonAudioCache/);
+assert.match(vocab, /window\.__futureReloadCurrentSpaceVAudioCache = async/);
+assert.match(vocab, /focusIndex: startIndex/);
+assert.match(vocab, /forceReload: true/);
+assert.match(vocab, /excludeAudioKeys: priority\.keys/);
+assert.match(audioRuntime, /excludedAudioKeys\.has\(key\)/);
+assert.match(audioRuntime, /forceReload: Boolean\(options\.forceReload\)/);
+
+const animationIndex = controls.indexOf('id="ft-mobile-animation-button"');
+const clearIndex = controls.indexOf('id="ft-clear-audio-cache-button"');
+assert.ok(animationIndex >= 0 && clearIndex > animationIndex, "Group clear button follows Animation control");
+assert.match(events, /clearAudioCacheButton\.addEventListener\("click"/);
+assert.match(events, /window\.__futureClearAudioCache\(\)/);
+assert.match(events, /clearAudioCacheButton\.classList\.add\("is-clearing"\)/);
+assert.match(css, /\.ft-clear-audio-cache-button\s*\{/);
+assert.match(css, /@keyframes ftClearAudioCacheRing/);
+assert.match(css, /future-audio-cache-notice/);
+
+assert.match(dashboardMarkup, /id="frontend-clear-audio-cache"/);
+assert.match(dashboardScript, /command: "clear-audio-cache"/);
+assert.match(postRoute, /payload\.get\("command", ""\)/);
+assert.match(delivery, /def bump_global_audio_cache_epoch/);
+assert.match(delivery, /"global_audio_cache_epoch": audio_cache_epoch/);
+assert.match(delivery, /def bump_frontend_reload_state\(reason: object = "", command: object = ""\)/);
+assert.match(qmRoute, /no-store, no-cache, max-age=0, must-revalidate/);
+assert.match(qmRouteFragment, /no-store, no-cache, max-age=0, must-revalidate/);
+
+assert.match(built, /future_server2_audio_cache_v1/);
+assert.match(built, /future_space_w_audio_cache/);
+assert.match(built, /last_seen_audio_cache_epoch/);
+assert.match(built, /ft-clear-audio-cache-button/);
+console.log("audio_cache_clear_contract=ok manager=shared epoch=durable abort=all stale_write_fence=1 offline_reconcile=1");

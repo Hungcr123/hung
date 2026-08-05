@@ -1,15 +1,12 @@
-"""Regression for coalesced Space_V Openverse image lookup and negative caching."""
+"""Regression for local-only Space_V picture lookup and the shared RAM index."""
 
 from __future__ import annotations
 
 import atexit
 import concurrent.futures
-import json
 import sys
-import threading
-import time
+import tempfile
 from pathlib import Path
-from urllib.error import URLError
 
 
 ROOT = Path(__file__).parents[2]
@@ -19,101 +16,66 @@ if str(ROOT) not in sys.path:
 from FUTURE import server_app as app
 
 
-class FakeResponse:
-    def __init__(self, payload: dict):
-        self.payload = payload
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_args):
-        return False
-
-    def read(self) -> bytes:
-        return json.dumps(self.payload).encode("utf-8")
-
-
 def main() -> int:
-    source = (ROOT / "FUTURE" / "server_parts" / "server_data_pdf_qmdict" / "07_qmlearn_audio_spacev_repair.py").read_text(encoding="utf-8")
-    frontend = (ROOT / "FUTURE" / "web" / "js_parts" / "12_question_translation_loader.js").read_text(encoding="utf-8")
-    if "from future_vocab_builder_gui import fetch_vocab_image" in source:
-        raise RuntimeError("Runtime image lookup still imports the GUI builder")
-    if "vocabImageResultCache.set(key" not in frontend or "10 * 60 * 1000" not in frontend:
-        raise RuntimeError("Frontend negative image cache is missing")
+    runtime_source = (ROOT / "FUTURE/server_parts/server_data_pdf_qmdict/07_qmlearn_audio_spacev_repair.py").read_text(encoding="utf-8")
+    builder_source = (ROOT / "future_vocab_builder_gui.py").read_text(encoding="utf-8")
+    frontend = (ROOT / "FUTURE/web/js_parts/12_question_translation_loader.js").read_text(encoding="utf-8")
+    constants = (ROOT / "FUTURE/web/js_parts/05_screen_motion_layout.js").read_text(encoding="utf-8")
+    dashboard = (ROOT / "FUTURE/server_parts/vocab_build_status/status_page_parts/03_dashboard_markup.pyfrag").read_text(encoding="utf-8")
+    combined = runtime_source + "\n" + builder_source
+    if "api." + "openverse.org" in combined or "Open" + "verse/" in combined or "urllib.request" in builder_source:
+        raise RuntimeError("An Internet/Openverse vocabulary image path is still present")
+    if 'store.clear();' not in frontend or "VOCAB_IMAGE_DB_VERSION = 3" not in constants:
+        raise RuntimeError("The old browser-downloaded vocabulary image cache is not cleared")
+    if dashboard.index('id="space-v-picture-folder-input"') > dashboard.index('id="model"'):
+        raise RuntimeError("The picture-folder input is not at the top of the Server tab")
 
-    original_urlopen = app.urlopen
-    original_load_cache = app.server_database_load_vocab_image_cache
-    original_load_cache_rows = app.server_database_load_vocab_image_cache_rows
-    original_store_cache = app.server_database_store_vocab_image_cache_batch
-    calls = 0
-    calls_lock = threading.Lock()
-
-    def success_urlopen(_request, timeout=0):
-        nonlocal calls
-        with calls_lock:
-            calls += 1
-        return FakeResponse({"results": [{
-            "thumbnail": "https://example.test/apple.jpg",
-            "provider": "unit",
-            "title": "Apple",
-            "filetype": "jpg",
-        }]})
+    original_load_settings = app.load_server_settings
+    original_scandir = app.os.scandir
+    scan_calls = 0
 
     try:
-        app.urlopen = success_urlopen
-        app.server_database_load_vocab_image_cache = lambda _key: None
-        app.server_database_load_vocab_image_cache_rows = lambda _limit=2048: []
-        app.server_database_store_vocab_image_cache_batch = lambda rows: len(rows)
-        with app.SPACE_V_DYNAMIC_IMAGE_CACHE_LOCK:
-            app.SPACE_V_DYNAMIC_IMAGE_CACHE.clear()
-            app.SPACE_V_DYNAMIC_IMAGE_INFLIGHT.clear()
-            app.SPACE_V_DYNAMIC_IMAGE_SQLITE_LOADED = False
-        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as pool:
-            list(pool.map(lambda _index: app.qmdict_space_v_image_lookup("Unit Apple Image"), range(100)))
-        deadline = time.monotonic() + 3.0
-        while time.monotonic() < deadline:
-            row = app.qmdict_space_v_image_lookup("Unit Apple Image")
-            if row.get("image", {}).get("u"):
-                break
-            time.sleep(0.02)
-        if calls != 1 or row.get("image", {}).get("u") != "https://example.test/apple.jpg":
-            raise RuntimeError(f"Positive image lookup did not coalesce: calls={calls}")
-        app.qmdict_space_v_image_lookup("Unit Apple Image")
-        if calls != 1:
-            raise RuntimeError("Positive image cache missed on the second lookup")
+        with tempfile.TemporaryDirectory(prefix="future-space-v-picture-") as temp_dir:
+            picture_dir = Path(temp_dir)
+            (picture_dir / "Unit Apple Image.PNG").write_bytes(b"png")
+            (picture_dir / "unit apple image.jpg").write_bytes(b"jpg")
+            (picture_dir / "Second Word.webp").write_bytes(b"webp")
+            (picture_dir / "ignored.txt").write_text("ignored", encoding="utf-8")
 
-        def failed_urlopen(_request, timeout=0):
-            nonlocal calls
-            with calls_lock:
-                calls += 1
-            raise URLError("offline")
+            app.load_server_settings = lambda: {"space_v_picture_folder": str(picture_dir)}
 
-        app.urlopen = failed_urlopen
-        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as pool:
-            list(pool.map(lambda _index: app.qmdict_space_v_image_lookup("Unit No Image Word"), range(100)))
-        deadline = time.monotonic() + 3.0
-        while time.monotonic() < deadline:
-            missing = app.qmdict_space_v_image_lookup("Unit No Image Word")
-            if not missing.get("pending"):
-                break
-            time.sleep(0.02)
-        if calls != 2 or missing.get("image"):
-            raise RuntimeError(f"Negative image lookup did not coalesce: calls={calls}")
-        app.qmdict_space_v_image_lookup("Unit No Image Word")
-        if calls != 2:
-            raise RuntimeError("Negative image cache missed on the second lookup")
-        time.sleep(1.2)
+            def counted_scandir(path):
+                nonlocal scan_calls
+                scan_calls += 1
+                return original_scandir(path)
+
+            app.os.scandir = counted_scandir
+            app.invalidate_space_v_local_picture_index()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=32) as pool:
+                rows = list(pool.map(lambda _index: app.qmdict_space_v_image_lookup("Unit Apple Image"), range(100)))
+            if scan_calls != 1:
+                raise RuntimeError(f"Concurrent local lookups rescanned the folder: scans={scan_calls}")
+            if any(row.get("pending") or not row.get("image", {}).get("u", "").startswith("/vocab/image-file?") for row in rows):
+                raise RuntimeError("Local image lookup did not return an immediate local asset URL")
+            record = app.space_v_local_picture_asset("unit apple image")
+            if Path(record.get("path", "")).suffix.lower() != ".png":
+                raise RuntimeError("Deterministic image-extension priority did not prefer PNG")
+            missing = app.qmdict_space_v_image_lookup("No Local Image")
+            if missing.get("pending") or missing.get("image") or scan_calls != 1:
+                raise RuntimeError("Missing local images should be an immediate cached miss")
+            status = app.space_v_local_picture_settings_payload()
+            if status.get("matched_words") != 2 or status.get("duplicate_words") != 1 or status.get("ignored_files") != 1:
+                raise RuntimeError(f"Unexpected local index statistics: {status}")
     finally:
-        app.urlopen = original_urlopen
-        app.server_database_load_vocab_image_cache = original_load_cache
-        app.server_database_load_vocab_image_cache_rows = original_load_cache_rows
-        app.server_database_store_vocab_image_cache_batch = original_store_cache
+        app.os.scandir = original_scandir
+        app.load_server_settings = original_load_settings
+        app.invalidate_space_v_local_picture_index()
         try:
             atexit.unregister(app.flush_auth_sessions_to_disk)
         except Exception:
             pass
 
-    print("vocab_image_runtime_cache=ok gui_import=false async_pool=6 positive_calls=1 negative_calls=1 frontend_retry=true")
+    print("vocab_image_runtime_cache=ok source=local-only scans=1 browser_old_cache=cleared dashboard_top=true")
     return 0
 
 

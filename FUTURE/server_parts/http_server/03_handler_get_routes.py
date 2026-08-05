@@ -1169,13 +1169,18 @@ def do_GET(self):
             limit = int(clean((query.get("limit") or ["800"])[0]) or 800)
         except Exception:
             limit = 800
+        try:
+            keep_days = int(clean((query.get("keep_days") or ["3"])[0]) or 3)
+        except Exception:
+            keep_days = 3
+        keep_days = max(1, min(31, keep_days))
         log_path = LOGIN_LOG_FILE if path.endswith("login-log") else LEARNING_LOG_FILE
-        rows = read_jsonl_log(log_path, limit=limit, date=day, search=search)
+        rows = read_jsonl_log(log_path, limit=limit, date=day, search=search, keep_days=keep_days)
         if path.endswith("login-log"):
             rows = (rows + active_session_login_rows(day, search))
             rows.sort(key=lambda item: clean(item.get("at", "")), reverse=True)
             rows = rows[: max(1, min(5000, limit))]
-        self.send_json(200, {"ok": True, "date": day, "search": search, "rows": rows, "retention_days": 31})
+        self.send_json(200, {"ok": True, "date": day, "search": search, "rows": rows, "retention_days": keep_days})
         return
     if path == "/dashboard/admins":
         if not self.is_local_admin_request():

@@ -4,6 +4,7 @@ const path = require("node:path");
 
 const readPart = (name) => fs.readFileSync(path.join(__dirname, "..", "web", "js_parts", name), "utf8");
 const vocabSource = readPart("14_vocab_sync_tasks.js");
+const translationSource = readPart("13_translation_vocab_sync.js");
 const vaultSource = readPart("17_vocab_to_pdf_bootstrap.js");
 const browserSource = readPart("20_pdf_page_progress.js");
 const htmlSource = fs.readFileSync(path.join(__dirname, "..", "web", "future_split.html"), "utf8");
@@ -37,6 +38,12 @@ assert.ok(returnStart >= 0 && returnEnd > returnStart, "group Back source not fo
 const returnSource = vaultSource.slice(returnStart, returnEnd);
 assert.doesNotMatch(returnSource, /openServerBrowserAfterAuth\(/, "group Back must not race a second folder restore");
 assert.match(returnSource, /updateFutureAppRoute\("lesson_vault"/);
+assert.doesNotMatch(returnSource, /clearVocabAudioCache\(/, "Exit must not call the removed audio-cache helper");
+assert.doesNotMatch(translationSource, /clearVocabAudioCache\(/, "Space transitions must invalidate audio preload by token");
+assert.ok(
+  returnSource.indexOf('updateFutureAppRoute("lesson_vault"') < returnSource.indexOf("hideCompletionGate()"),
+  "Exit must switch to Lesson Vault before optional Space cleanup can throw",
+);
 assert.match(returnSource, /options\.vocabProgressRecord/);
 assert.match(returnSource, /vocabProgressOverrideFromRecord\(vocabProgressRecordForReturn\)/);
 assert.ok((returnSource.match(/\{ force: true \}/g) || []).length >= 2, "Exit snapshot must force-replace stale completion cache");
@@ -59,8 +66,9 @@ assert.ok(
   vaultBackSource.indexOf("__ftPeekSpaceVProgressBeforeBack") < vaultBackSource.indexOf("__ftFlushSpaceVProgressBeforeBack"),
   "Exit must capture the local run before the durable POST response merges history",
 );
-assert.match(vaultBackSource, /await window\.__ftFlushSpaceVProgressBeforeBack/);
-assert.match(vaultBackSource, /returnToServerFileSelection\(\{ vocabProgressRecord \}\)/);
+assert.match(vaultBackSource, /void window\.__ftFlushSpaceVProgressBeforeBack/);
+assert.doesNotMatch(vaultBackSource, /await window\.__ftFlushSpaceVProgressBeforeBack/);
+assert.match(vaultBackSource, /returnToServerFileSelection\(\{ vocabProgressRecord, questionProgressRecord \}\)/);
 assert.doesNotMatch(vaultBackSource, /refreshLessonVaultItemStudyFromServer/);
 assert.doesNotMatch(vaultBackSource, /forceFreshProgress/);
 

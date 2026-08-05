@@ -31,11 +31,26 @@ const clipKeySource = scheduler.slice(clipKeyStart, clipKeyEnd);
 if (!clipKeySource.includes("const assetId = audioMediaAssetId(asset)") || !clipKeySource.includes("GENERIC_MEDIA_AUDIO_CACHE_PREFIX")) {
   throw new Error("In-memory/pending audio cache is not keyed by the same shared media identity as IndexedDB.");
 }
+if (!clipKeySource.includes('parsed.pathname.toLowerCase() === "/server-data/qm-sound"')
+  || !clipKeySource.includes('revision.toLowerCase() === "current"')) {
+  throw new Error("Space audio RAM can still retain an unrevisioned qm-sound clip.");
+}
 if (!bootstrap.includes("stableAudioRequestKey") || !bootstrap.includes('path === "/server-data/qm-sound"')) {
   throw new Error("Generic browser audio cache does not recognize /server-data/qm-sound with stable shared keys.");
 }
-if (!bootstrap.includes('!["v", "ts", "cache", "version"].includes')) {
-  throw new Error("Generic audio cache key still depends on volatile URL version parameters.");
+if (!bootstrap.includes('media-audio:v2:qm-sound') || !bootstrap.includes('JSON.stringify({ semanticParams, revision })')) {
+  throw new Error("Generic audio cache key does not include the QMLearn content revision.");
+}
+if (!bootstrap.includes('url.searchParams.set("v", "current")')
+  || !bootstrap.includes('revision.toLowerCase() === "current"')
+  || !bootstrap.includes("window.__futureRevisionSafeAudioUrl = revisionSafeAudioUrl")
+  || !bootstrap.includes("revisionedQmSoundUrlBySemanticKey.set(semanticKey, resolvedUrl)")
+  || !bootstrap.includes('cache: persistentKey ? "force-cache" : "reload"')) {
+  throw new Error("Legacy qm-sound URLs can still hydrate an unrevisioned IndexedDB or immutable HTTP entry.");
+}
+if (!scheduler.includes('parsed.pathname.toLowerCase() === "/server-data/qm-sound"')
+  || !scheduler.includes('typeof window.__futureRevisionSafeAudioUrl === "function"')) {
+  throw new Error("Shared Space audio can still persist a qm-sound record without an authoritative revision.");
 }
 if (!scheduler.includes("readSpaceWAudioRecord(legacyPersistentKey)")) {
   throw new Error("Legacy URL-keyed audio records are not migrated lazily.");

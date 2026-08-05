@@ -28,8 +28,10 @@ def main() -> int:
     progress_route = route[route_start:route_end]
     assert progress_route.index("space_q_progress_etag") < progress_route.index("json_bytes({")
     assert 'self.headers.get("If-None-Match"' in progress_route
-    assert '"X-Future-Cache-Hit": "space-q-progress-etag"' in progress_route
-    print("space_q_progress_get_single_record=ok raw_key_first=true namespace_clone=false fallback=true etag_preflight=true")
+    assert 'self.send_header("X-Future-Cache-Hit", "space-q-progress-etag")' in progress_route
+    assert "self.send_response(304)" in progress_route
+    assert '"summary": summary' in progress_route
+    print("space_q_progress_get_single_record=ok raw_key_first=true namespace_clone=false fallback=true etag_304=true summary=true")
     return 0
 
 

@@ -45,13 +45,15 @@ assert.ok(
   ensureSource.indexOf("readVocabImageRecord(assetId)") < ensureSource.indexOf("fetchServerJson(`/vocab/image"),
   "persistent image must be checked before Server 2",
 );
-assert.match(ensureSource, /fetchAndPersistVocabImage\(clean\(serverAsset\.asset_id\) \|\| assetId, image, serverAsset\)/);
+assert.match(ensureSource, /Local picture responses use normal HTTP caching/);
+assert.match(ensureSource, /item\.images = images\.length \? images : \[displayImage\]/);
+assert.doesNotMatch(ensureSource, /fetchAndPersistVocabImage\(/, "local gallery bytes must stay in the browser HTTP cache");
 assert.match(ensureSource, /result && result\.payload && typeof result\.payload === "object" \? result\.payload : result/);
 assert.match(ensureSource, /vocabSideCardsVisible\(\) && current && vocabWordKey\(current\) === key/);
 assert.match(ensureSource, /renderVocabPictureCard\(item\)/, "cached metadata must render immediately on Drill entry");
 
-assert.match(layoutSource, /const VOCAB_IMAGE_DB_VERSION = 2/);
-assert.match(layoutSource, /const VOCAB_IMAGE_MEDIA_KEY_VERSION = 1/);
+assert.match(layoutSource, /const VOCAB_IMAGE_DB_VERSION = 3/);
+assert.match(layoutSource, /const VOCAB_IMAGE_MEDIA_KEY_VERSION = 2/);
 assert.match(layoutSource, /const VOCAB_IMAGE_CACHE_MAX_ENTRIES = 192/);
 assert.match(layoutSource, /VOCAB_IMAGE_CACHE_MAX_BYTES = 64 \* 1024 \* 1024/);
 assert.match(source, /store\.createIndex\("accessAt", "accessAt"/);
@@ -74,4 +76,4 @@ assert.match(source, /limited: true/);
 assert.match(renderSource, /if \(vocabSideCardsVisible\(\)\) \{\s*ensureVocabItemImageLazy\(item\)/, "Probe must not fetch optional images");
 assert.match(scheduleSource, /offlineStoragePressure === "high"/);
 
-console.log("space_v_next_image_prefetch=ok next=1 persistent=idb identity=asset+sha256 lru=192 quota=64MB probe_fetch=0");
+console.log("space_v_next_image_prefetch=ok next=1 legacy_persistent=idb local_gallery=http-cache lru=192 quota=64MB probe_fetch=0");

@@ -266,7 +266,7 @@ const exitEnd = eventSource.indexOf("if (cupButton) {", exitStart);
 const exitSource = eventSource.slice(exitStart, exitEnd);
 assert.doesNotMatch(exitSource, /refreshLessonVaultItemStudyFromServer/);
 assert.doesNotMatch(exitSource, /forceFreshProgress/);
-assert.match(exitSource, /returnToServerFileSelection\(\{ vocabProgressRecord \}\)/);
+assert.match(exitSource, /returnToServerFileSelection\(\{ vocabProgressRecord, questionProgressRecord \}\)/);
 assert.doesNotMatch(exitSource, /await window\.__ftFlushSpaceVProgressBeforeBack/);
 assert.match(exitSource, /void window\.__ftFlushSpaceVProgressBeforeBack/);
 

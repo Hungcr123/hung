@@ -1,0 +1,146 @@
+{
+  "title": "Space_S Steady Morning Speaking",
+  "hint_seconds": 30,
+  "space_mode": "space_s",
+  "format": "Space_S",
+  "nodes": [
+    {
+      "title": "Steady Morning Speaking",
+      "voice": "kokoro:am_adam",
+      "alt_voice": "sot:en-GB",
+      "text": "Every morning, I give myself one quiet minute before the day begins. I breathe slowly, notice the room around me, and choose a simple goal for my study session. Today, I want to speak English with a calm voice, clear rhythm, and steady confidence. I do not need to sound perfect; I only need to keep moving through each sentence. When a word feels difficult, I pause, listen again, and try it with fresh attention. Each small correction trains my mouth, my ears, and my memory to work together. I read the full sentence first, then I repeat it in smaller parts until it feels natural. If I make a mistake, I smile, reset my breath, and return to the next token. This practice turns pressure into focus, and focus slowly becomes real speaking skill. By the end, I can hear my progress because my voice is clearer than before. After each attempt, I compare the model voice with my recording and notice one detail to improve. Sometimes the best improvement is not louder speech, but cleaner endings and smoother linking between words. When I finish, I save the calm feeling, because tomorrow's practice can start from that same strong place.",
+      "children": [
+        {
+          "text": "Every morning, I give myself one quiet minute before the day begins.",
+          "meaning": "Mỗi buổi sáng, tôi cho bản thân một phút yên tĩnh trước khi ngày mới bắt đầu.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Read slowly and keep the rhythm smooth from beginning to end."
+            }
+          ]
+        },
+        {
+          "text": "I breathe slowly, notice the room around me, and choose a simple goal for my study session.",
+          "meaning": "Tôi thở chậm, quan sát căn phòng xung quanh, và chọn một mục tiêu đơn giản cho buổi học.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Keep the three actions connected: breathe, notice, choose."
+            }
+          ]
+        },
+        {
+          "text": "Today, I want to speak English with a calm voice, clear rhythm, and steady confidence.",
+          "meaning": "Hôm nay, tôi muốn nói tiếng Anh bằng giọng bình tĩnh, nhịp rõ ràng, và sự tự tin ổn định.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Stress the phrase calm voice, clear rhythm, and steady confidence."
+            }
+          ]
+        },
+        {
+          "text": "I do not need to sound perfect; I only need to keep moving through each sentence.",
+          "meaning": "Tôi không cần phải phát âm hoàn hảo; tôi chỉ cần tiếp tục đi qua từng câu.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Use a confident pause after perfect, then continue naturally."
+            }
+          ]
+        },
+        {
+          "text": "When a word feels difficult, I pause, listen again, and try it with fresh attention.",
+          "meaning": "Khi một từ có vẻ khó, tôi dừng lại, nghe lại, và thử đọc nó với sự chú ý mới.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Make the sentence sound patient, not rushed."
+            }
+          ]
+        },
+        {
+          "text": "Each small correction trains my mouth, my ears, and my memory to work together.",
+          "meaning": "Mỗi chỉnh sửa nhỏ rèn cho miệng, tai, và trí nhớ của tôi phối hợp với nhau.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Give equal weight to mouth, ears, and memory."
+            }
+          ]
+        },
+        {
+          "text": "I read the full sentence first, then I repeat it in smaller parts until it feels natural.",
+          "meaning": "Trước tiên tôi đọc cả câu, sau đó lặp lại theo những phần nhỏ hơn cho đến khi thấy tự nhiên.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Let first and then mark the two steps clearly."
+            }
+          ]
+        },
+        {
+          "text": "If I make a mistake, I smile, reset my breath, and return to the next token.",
+          "meaning": "Nếu tôi mắc lỗi, tôi mỉm cười, điều chỉnh lại hơi thở, và quay về token tiếp theo.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Read this like an instruction for staying calm."
+            }
+          ]
+        },
+        {
+          "text": "This practice turns pressure into focus, and focus slowly becomes real speaking skill.",
+          "meaning": "Việc luyện tập này biến áp lực thành sự tập trung, và sự tập trung dần trở thành kỹ năng nói thật sự.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Emphasize pressure, focus, and real speaking skill."
+            }
+          ]
+        },
+        {
+          "text": "By the end, I can hear my progress because my voice is clearer than before.",
+          "meaning": "Đến cuối bài, tôi có thể nghe thấy tiến bộ của mình vì giọng tôi rõ hơn trước.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Finish with a clear and positive tone."
+            }
+          ]
+        },
+        {
+          "text": "After each attempt, I compare the model voice with my recording and notice one detail to improve.",
+          "meaning": "Sau mỗi lần thử, tôi so sánh giọng mẫu với bản ghi của mình và nhận ra một chi tiết để cải thiện.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Read compare and notice clearly as two learning actions."
+            }
+          ]
+        },
+        {
+          "text": "Sometimes the best improvement is not louder speech, but cleaner endings and smoother linking between words.",
+          "meaning": "Đôi khi cải thiện tốt nhất không phải là nói to hơn, mà là âm cuối sạch hơn và nối từ mượt hơn.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "Make the contrast between not louder and cleaner endings easy to hear."
+            }
+          ]
+        },
+        {
+          "text": "When I finish, I save the calm feeling, because tomorrow's practice can start from that same strong place.",
+          "meaning": "Khi hoàn thành, tôi giữ lại cảm giác bình tĩnh, vì buổi luyện tập ngày mai có thể bắt đầu từ chính nền tảng vững đó.",
+          "explanations": [
+            {
+              "title": "Goal",
+              "text": "End with a steady tone that sounds ready for the next practice."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

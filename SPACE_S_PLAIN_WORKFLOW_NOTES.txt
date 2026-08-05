@@ -1,0 +1,26 @@
+Space_S pending workflow notes
+Date: 2026-06-13
+
+Paused request:
+- Add new Space_S file type on server 2.
+- Build program can share future_paragraph_builder_gui.py logic; only output format changes.
+- Runtime in future_split.html should behave like Space_P layout but with all tokens visible at first.
+- User reads progressively to unlock nodes. A completed node unlocks the next node.
+- Input at bottom uses Ctrl to start Browser EN recording.
+- Passing requires speech/read accuracy above 80%.
+- Left side of input should become replay button instead of guide/hint card.
+- Replay whole sentence by clicking that button or pressing Alt.
+- Use RTK, LeanCTX, Caveman style to save tokens.
+
+Likely code areas found before pause:
+- future_paragraph_builder_gui.py: Space_P builder to reuse/extend for Space_S output.
+- FUTURE/web/js_parts/08_speak_question_input.js: Space_P runtime UI/progress logic.
+- FUTURE/web/js_parts/13_translation_vocab_sync.js: Space_P loader/progress restore.
+- FUTURE/server_app.py and FUTURE/server_parts/http_server/get_route_parts/05_progress_vocab_leaderboard.pyfrag: accepted suffix/open routes.
+- FUTURE/server_parts/server_data_pdf_qmdict/02_lesson_study_progress.py: space type detection/progress.
+- FUTURE/server_parts/server_data_pdf_qmdict/space_task_auto/01_settings.py: auto task space ordering/limits.
+
+Current state:
+- No Space_S implementation applied yet.
+- Ghost AI input fixes were already applied and bundled before this note.
+- Caveman skills were previously removed by request; user now asked to reinstall them.

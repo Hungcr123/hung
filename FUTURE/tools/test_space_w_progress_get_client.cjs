@@ -13,7 +13,7 @@ assert.match(loadSource, /currentSpaceWCache\.serverPayload = payload/);
 assert.match(loadSource, /currentSpaceWCache\.serverEtag = clean\(preloaded\.etag \|\| ""\)/);
 assert.match(loadSource, /serverPayload: null/);
 assert.match(loadSource, /serverEtag: ""/);
-assert.match(syncSource, /fetchProgressJsonFast\(`\/space-w\/progress\?\$\{query\.toString\(\)\}`, cachedRow\)/);
+assert.match(syncSource, /fetchProgressJsonFast\(`\/space-w\/progress\?\$\{query\.toString\(\)\}`, cachedRow, timeoutMs\)/);
 assert.match(syncSource, /currentSpaceWCache\.serverPayload = payload/);
 assert.match(syncSource, /currentSpaceWCache\.serverEtag = clean\(result\.etag \|\| ""\)/);
 assert.match(syncSource, /currentSpaceWCache\.serverPayload = null/);
@@ -21,11 +21,20 @@ assert.match(syncSource, /currentSpaceWCache\.serverEtag = ""/);
 assert.match(transportSource, /headers\["If-None-Match"\] = clean\(cachedRow\.etag\)/);
 assert.match(transportSource, /response\.status === 304/);
 assert.match(transportSource, /delete headers\["If-None-Match"\]/);
-assert.match(transportSource, /\^\\\/space-\(\?:v\|w\)\\\/progress/);
+assert.match(transportSource, /\^\\\/space-\(\?:v\|w\|q\)\\\/progress/);
 assert.match(transportSource, /for \(const base of candidates\)/);
 assert.match(transportSource, /space === "Space_W" && typeof spaceWProgressOverrideFromRecord === "function"/);
-assert.match(transportSource, /Space_W tree\/login preload is authoritative; do not GET every unseen file/);
+assert.match(transportSource, /compact Vault rings are display summaries, not resumable checkpoints/);
 assert.match(eventSource, /continuePreparedLessonFromSavedProgress\(\{ skipAudioPrepare: true \}\)/);
+// Added 2026-08-03: Continue reuses the click-time progress preload and never waits on a duplicate GET.
+const continueStart = loadSource.indexOf("const continuePreparedLessonFromSavedProgress =");
+const continueEnd = loadSource.indexOf("const waitPreparedReloadPayload =", continueStart);
+const continueSource = loadSource.slice(continueStart, continueEnd);
+assert.match(continueSource, /progress-preload-pending/);
+assert.match(continueSource, /serverProgressResult/);
+assert.doesNotMatch(continueSource, /await refreshSpaceWServerProgress/);
+assert.match(loadSource, /deferInitialProgressSave/);
+assert.match(eventSource, /if \(!state\.deferInitialProgressSave\)/);
 assert.match(eventSource, /const createSpaceWProgressOperationId = \(\) =>/);
 assert.match(eventSource, /snapshot\.syncOperationId = createSpaceWProgressOperationId\(\)/);
 assert.match(syncSource, /syncOperationId: clean\(/);
@@ -33,4 +42,4 @@ assert.match(syncSource, /space-w\/progress\?client_source=space_w_progress_save
 assert.match(syncSource, /canonicalRecord = record\.state/);
 assert.match(loadSource, /space-w\/progress\?client_source=offline_outbox&response=compact-v1/);
 
-console.log("space_w_progress_get_client=ok conditional_refresh=true cache_loss_retry=true post_invalidation=true sequential_origin=true continue_revalidate=true vault_preload=true operation_id=true compact_ack=true");
+console.log("space_w_progress_get_client=ok conditional_refresh=true cache_loss_retry=true post_invalidation=true sequential_origin=true continue_preload=true duplicate_wait=false deferred_stale_save=true vault_preload=true operation_id=true compact_ack=true");

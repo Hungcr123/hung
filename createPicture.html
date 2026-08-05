@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>createPicture</title>
+  <style>
+    :root { color-scheme: dark; font-family: Georgia, serif; background: #101820; color: #f4efe4; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 15% 10%, #214653, transparent 45%), #101820; }
+    main { max-width: 920px; margin: auto; padding: 34px 20px 60px; }
+    h1 { font-size: clamp(2.2rem, 6vw, 4.8rem); margin: 0 0 8px; letter-spacing: -.04em; }
+    .sub { color: #a9c6c5; margin: 0 0 26px; }
+    .bar, .panel { background: #172631e8; border: 1px solid #38505a; border-radius: 18px; padding: 16px; box-shadow: 0 16px 50px #0004; }
+    .bar { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: end; }
+    label { display: grid; gap: 6px; color: #a9c6c5; font-size: .9rem; }
+    input, textarea, button { font: inherit; border-radius: 10px; border: 1px solid #527078; padding: 10px 12px; }
+    input, textarea { background: #0c151c; color: #fff; }
+    textarea { resize: vertical; min-height: 52px; }
+    button { cursor: pointer; background: #e7b667; color: #132027; border: 0; font-weight: 700; }
+    button.secondary { background: #2e4e58; color: #f4efe4; }
+    .word { font-size: 2.4rem; font-weight: 700; color: #f5ca7a; }
+    .meta { display: flex; justify-content: space-between; gap: 12px; margin: 18px 0 10px; color: #a9c6c5; }
+    .drop { min-height: 390px; display: grid; place-items: center; text-align: center; border: 2px dashed #547a81; border-radius: 18px; background: #0b141b; overflow: hidden; }
+    .drop.over { border-color: #e7b667; background: #192e35; }
+    .drop img { max-width: 100%; max-height: 560px; object-fit: contain; }
+    .hint { color: #8da8aa; padding: 30px; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    #status { min-height: 1.5em; margin-top: 14px; color: #f5ca7a; }
+    @media (max-width: 700px) { .bar { grid-template-columns: 1fr; } .drop { min-height: 260px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>createPicture</h1>
+  <p class="sub">Ưu tiên từ đã dùng trong Space_V common, sau đó mới đến phần còn lại của QmDict. Ảnh được lưu nguyên bytes.</p>
+  <section class="bar">
+    <label>Từ hiện tại <input id="word" autocomplete="off"></label>
+    <button id="setWord" class="secondary">Dùng từ này</button>
+    <button id="refresh" class="secondary">Làm mới danh sách</button>
+    <label style="grid-column:1 / -1">Thư mục output <input id="output"></label>
+    <button id="setOutput">Đổi thư mục</button>
+    <label style="grid-column:1 / -1">Prompt tạo ảnh <textarea id="prompt" readonly></textarea></label>
+    <button id="copyPrompt">Chép prompt</button>
+  </section>
+  <div class="meta"><span id="source"></span><span id="count"></span></div>
+  <section id="drop" class="drop" tabindex="0"><div id="hint" class="hint">Click vào đây rồi nhấn Ctrl+V để dán ảnh<br>hoặc kéo thả ảnh vào khu vực này</div><img id="preview" hidden alt="preview"></section>
+  <div class="actions"><button id="save">Lưu ảnh và chuyển từ kế tiếp</button><button id="clear" class="secondary">Xóa ảnh tạm</button></div>
+  <div id="status" role="status" aria-live="polite"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let imageBlob = null;
+let saveBusy = false;
+function promptForWord(word) { return `thiết kế ảnh minh họa cho từ vựng ${String(word || '').trim()}`; }
+function updatePrompt() { $('prompt').value = promptForWord($('word').value); }
+function showState(s) { $('word').value = s.word || ''; $('output').value = s.output || ''; $('source').textContent = s.word ? `Nguồn: ${s.source}` : 'Nhập từ thủ công'; $('count').textContent = s.total ? `${s.index}/${s.total}` : 'Không còn từ thiếu ảnh'; updatePrompt(); }
+async function api(path, options = {}) { const r = await fetch(path, options); const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Lỗi máy chủ'); return d; }
+function setImage(blob) { imageBlob = blob; $('preview').src = URL.createObjectURL(blob); $('preview').hidden = false; $('hint').hidden = true; $('status').textContent = `Đã nhận ảnh (${Math.round(blob.size / 1024)} KB)`; }
+function clearImage() { imageBlob = null; $('preview').hidden = true; $('preview').removeAttribute('src'); $('hint').hidden = false; }
+async function refresh() { try { showState(await api('/api/state')); } catch (e) { $('status').textContent = e.message; } }
+$('drop').addEventListener('paste', (e) => { const item = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith('image/')); if (item) { e.preventDefault(); setImage(item.getAsFile()); } });
+$('drop').addEventListener('dragover', (e) => { e.preventDefault(); $('drop').classList.add('over'); });
+$('drop').addEventListener('dragleave', () => $('drop').classList.remove('over'));
+$('drop').addEventListener('drop', (e) => { e.preventDefault(); $('drop').classList.remove('over'); const file = [...e.dataTransfer.files].find(x => x.type.startsWith('image/')); if (file) setImage(file); });
+$('setWord').onclick = async () => { try { showState(await api('/api/word', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({word:$('word').value})})); } catch(e) { $('status').textContent=e.message; } };
+$('refresh').onclick = async () => { try { showState(await api('/api/refresh', {method:'POST'})); } catch(e) { $('status').textContent=e.message; } };
+$('setOutput').onclick = async () => { try { showState(await api('/api/output', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({output:$('output').value})})); } catch(e) { $('status').textContent=e.message; } };
+$('word').addEventListener('input', updatePrompt);
+$('copyPrompt').onclick = async () => { const text = $('prompt').value; try { await navigator.clipboard.writeText(text); } catch (_error) { $('prompt').focus(); $('prompt').select(); document.execCommand('copy'); window.getSelection()?.removeAllRanges(); } $('status').textContent = 'Đã chép prompt vào clipboard.'; };
+$('clear').onclick = clearImage;
+$('save').onclick = async () => {
+  if (saveBusy) return;
+  saveBusy = true;
+  const button = $('save');
+  const word = $('word').value;
+  const blob = imageBlob;
+  button.disabled = true;
+  try {
+    const ext = blob ? (blob.type.split('/')[1] || 'png') : 'png';
+    const result = await api('/api/save', {method:'POST', headers:{'X-Word':encodeURIComponent(word), 'X-Filename':'clipboard.' + ext, 'Content-Type':blob ? blob.type : 'application/octet-stream'}, body:blob || new Blob()});
+    showState(result);
+    clearImage();
+    const next = result.word
+      ? ` Từ tiếp theo: ${result.word}.`
+      : result.total
+        ? ` Đã hết lượt hiện tại; còn ${result.total} từ chưa có ảnh khi làm mới.`
+        : ' Không còn từ thiếu ảnh.';
+    if (result.saved) $('status').textContent = `Đã lưu ${result.saved}.${next}`;
+    else if (result.detected_existing) $('status').textContent = `Đã phát hiện ảnh tải trực tiếp cho ${word}.${next}`;
+    else $('status').textContent = `Không tìm thấy ảnh cho ${word}, đã bỏ qua.${next}`;
+  } catch(e) { $('status').textContent=e.message; }
+  finally { saveBusy = false; button.disabled = false; }
+};
+refresh();
+</script>
+</body>
+</html>

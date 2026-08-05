@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holographic System Modal</title>
+    <style>
+        :root {
+            --neon-blue: #00f0ff;
+            --neon-pink: #ff0055;
+            --neon-purple: #8a2be2;
+            --dark-glass: rgba(10, 12, 20, 0.7);
+            --text-main: #d1e8ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background-color: #030407;
+            /* Nền lưới ma trận chìm */
+            background-image: 
+                radial-gradient(circle at 50% 50%, #111524 0%, #030407 80%),
+                linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Nút Kích Hoạt */
+        .btn-trigger {
+            padding: 15px 35px;
+            background: transparent;
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            position: relative;
+            z-index: 10;
+            transition: 0.3s;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+        }
+        .btn-trigger:hover {
+            background: rgba(0, 240, 255, 0.15);
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.4);
+        }
+
+        /* OVERLAY MÀN HÌNH */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.5s ease;
+            z-index: 999;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+        /* --- THE MASTER MODAL --- */
+        .holo-modal {
+            width: 950px;
+            max-width: 95%;
+            background: var(--dark-glass);
+            position: relative;
+            /* Khung hình cắt vát góc phức tạp */
+            clip-path: polygon(0 25px, 25px 0, 60% 0, 65% 20px, 100% 20px, 100% calc(100% - 25px), calc(100% - 25px) 100%, 40% 100%, 35% calc(100% - 20px), 0 calc(100% - 20px));
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            box-shadow: 
+                inset 0 0 30px rgba(0, 240, 255, 0.1),
+                0 0 50px rgba(0, 0, 0, 0.8);
+            transform: scale(1.1) translateY(-20px);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-overlay.active .holo-modal {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        /* Viền sáng Hologram chạy quanh Modal */
+        .holo-modal::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, transparent 30%, rgba(0, 240, 255, 0.15) 50%, transparent 70%);
+            background-size: 200% 200%;
+            animation: holo-sweep 4s linear infinite;
+            pointer-events: none; z-index: -1;
+        }
+
+        /* HEADER DẢI BĂNG CẢNH BÁO */
+        .modal-header-strip {
+            height: 20px;
+            width: 100%;
+            background: repeating-linear-gradient(
+                -45deg,
+                var(--neon-pink),
+                var(--neon-pink) 15px,
+                #220011 15px,
+                #220011 30px
+            );
+            position: absolute; top: 0; right: 0; width: 40%;
+            clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%);
+            animation: warning-slide 20s linear infinite;
+        }
+
+        /* --- BỐ CỤC NỘI DUNG CHÍNH --- */
+        .modal-body {
+            display: flex;
+            padding: 40px 30px;
+            gap: 30px;
+        }
+
+        /* CỘT TRÁI: LOGO & ĐỒ HỌA */
+        .panel-left {
+            width: 30%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-right: 1px dashed rgba(0, 240, 255, 0.2);
+            position: relative;
+        }
+
+        /* SVG Logo Bất đối xứng - Lõi năng lượng */
+        .asym-logo {
+            width: 180px; height: 180px;
+            margin-bottom: 20px;
+        }
+        .spin-slow { animation: spin 15s linear infinite; transform-origin: center; }
+        .spin-fast-rev { animation: spin-rev 6s linear infinite; transform-origin: center; }
+        .glitch-poly { animation: poly-glitch 3s infinite alternate; }
+
+        .sys-id {
+            font-family: 'Courier New', monospace; font-size: 11px;
+            color: rgba(0, 240, 255, 0.6); text-align: center; letter-spacing: 2px;
+        }
+
+        /* CỘT PHẢI: THÔNG TIN & THẺ SUB-CARDS */
+        .panel-right {
+            width: 70%;
+            display: flex; flex-direction: column;
+        }
+
+        .title-glitch {
+            font-size: 36px; font-weight: 900;
+            color: #fff; text-transform: uppercase; letter-spacing: 4px;
+            margin: 0 0 5px 0;
+            text-shadow: 2px 2px 0px var(--neon-blue), -2px -2px 0px var(--neon-pink);
+            position: relative;
+        }
+        .title-sub {
+            color: var(--neon-blue); font-family: 'Courier New'; font-size: 13px;
+            letter-spacing: 2px; margin-bottom: 25px;
+        }
+
+        /* LƯỚI SUB-CARDS DẠNG BIỂU ĐỒ */
+        .hologram-cards {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;
+        }
+        .holo-card {
+            background: rgba(0, 240, 255, 0.03);
+            border: 1px solid rgba(0, 240, 255, 0.15);
+            padding: 15px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative;
+            overflow: hidden;
+            transition: 0.3s;
+        }
+        .holo-card:hover { background: rgba(0, 240, 255, 0.08); border-color: var(--neon-blue); }
+        .holo-card::after { /* Hiệu ứng scanline chạy trong card */
+            content: ''; position: absolute; top: -100%; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(transparent, rgba(0,240,255,0.2), transparent);
+            animation: scan 3s linear infinite;
+        }
+
+        /* Biểu đồ tròn SVG */
+        .ring-chart { width: 60px; height: 60px; transform: rotate(-90deg); margin-bottom: 10px; }
+        .ring-bg { fill: none; stroke: rgba(255,255,255,0.1); stroke-width: 6; }
+        .ring-fill { fill: none; stroke: var(--neon-blue); stroke-width: 6; stroke-dasharray: 125; stroke-dashoffset: 125; transition: stroke-dashoffset 1s ease; }
+        .ring-fill.warn { stroke: var(--neon-pink); }
+        
+        .card-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .card-value { font-family: 'Courier New'; font-size: 16px; color: #fff; font-weight: bold; }
+
+        /* KHUNG TERMINAL CHỨA TEXT */
+        .terminal-box {
+            background: rgba(0, 0, 0, 0.5);
+            border-left: 3px solid var(--neon-blue);
+            padding: 20px;
+            flex-grow: 1;
+            font-family: 'Courier New', monospace; font-size: 14px;
+            line-height: 1.7; color: #a9c2d9;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            position: relative;
+        }
+        .typewriter {
+            display: inline;
+        }
+        .cursor {
+            display: inline-block; width: 8px; height: 15px;
+            background-color: var(--neon-blue);
+            animation: blink 0.8s step-end infinite;
+            vertical-align: middle; margin-left: 2px;
+        }
+
+        /* CÁC NÚT HÀNH ĐỘNG */
+        .action-footer {
+            margin-top: 25px; display: flex; justify-content: flex-end; gap: 20px;
+        }
+        .btn-holo {
+            padding: 12px 30px;
+            font-family: 'Segoe UI'; font-weight: 700; font-size: 13px; letter-spacing: 2px;
+            background: transparent; border: 1px solid;
+            text-transform: uppercase; cursor: pointer; position: relative;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: 0.3s;
+        }
+        .btn-holo.deny { color: var(--neon-pink); border-color: var(--neon-pink); }
+        .btn-holo.deny:hover { background: rgba(255, 0, 85, 0.2); box-shadow: 0 0 15px var(--neon-pink); }
+        .btn-holo.confirm { color: #000; background: var(--neon-blue); border-color: var(--neon-blue); }
+        .btn-holo.confirm:hover { box-shadow: 0 0 25px var(--neon-blue); background: #fff; }
+
+        /* --- ANIMATIONS CHÍNH --- */
+        @keyframes holo-sweep { 0% { background-position: 0% 0%; } 100% { background-position: 200% 200%; } }
+        @keyframes warning-slide { 0% { background-position: 0 0; } 100% { background-position: -200px 0; } }
+        @keyframes scan { 0% { top: -100%; } 100% { top: 100%; } }
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin-rev { 100% { transform: rotate(-360deg); } }
+        @keyframes poly-glitch {
+            0% { transform: translate(0, 0) scale(1); filter: drop-shadow(0 0 5px var(--neon-blue)); }
+            20% { transform: translate(-2px, 2px) scale(1.02); filter: drop-shadow(0 0 15px var(--neon-blue)); }
+            40% { transform: translate(2px, -2px) scale(0.98); }
+            60% { transform: translate(-1px, -1px); fill: rgba(0, 240, 255, 0.3); }
+            100% { transform: translate(0, 0); fill: rgba(0, 240, 255, 0.1); }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="btn-trigger" onclick="openHoloModal()">MỞ GIAO DIỆN HỆ THỐNG</button>
+
+    <div class="modal-overlay" id="holoOverlay">
+        <div class="holo-modal">
+            
+            <!-- Dải băng cảnh báo góc trên -->
+            <div class="modal-header-strip"></div>
+
+            <div class="modal-body">
+                
+                <!-- CỘT TRÁI -->
+                <div class="panel-left">
+                    <!-- SVG Lõi Năng Lượng Bất Đối Xứng -->
+                    <svg class="asym-logo" viewBox="0 0 200 200">
+                        <defs>
+                            <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="4" result="blur" />
+                                <feMerge>
+                                    <feMergeNode in="blur" />
+                                    <feMergeNode in="SourceGraphic" />
+                                </feMerge>
+                            </filter>
+                        </defs>
+
+                        <!-- Vòng quay quỹ đạo ngoài -->
+                        <circle class="spin-slow" cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="10 30 50 20"/>
+                        
+                        <!-- Lõi đa giác lệch tâm phát sáng -->
+                        <polygon class="glitch-poly" points="110,30 180,90 130,170 30,130 50,60" fill="rgba(0, 240, 255, 0.1)" stroke="var(--neon-blue)" stroke-width="2" filter="url(#neon-glow)"/>
+                        
+                        <!-- Cấu trúc tam giác gãy góc xoay ngược -->
+                        <polygon class="spin-fast-rev" points="100,50 150,130 50,110" fill="none" stroke="var(--neon-pink)" stroke-width="2" stroke-dasharray="30 10"/>
+                        
+                        <!-- Các điểm ngắm bất đối xứng -->
+                        <circle cx="110" cy="110" r="15" fill="none" stroke="var(--neon-blue)" stroke-width="3"/>
+                        <line x1="20" y1="100" x2="60" y2="80" stroke="var(--neon-blue)" stroke-width="2" />
+                        <line x1="160" y1="150" x2="190" y2="120" stroke="var(--neon-pink)" stroke-width="2" />
+                    </svg>
+
+                    <div class="sys-id">
+                        HOLO-CORE // VER 10.5<br>
+                        <span style="color:var(--neon-pink)">SYNC: UNSTABLE</span><br>
+                        <span id="data-stream">01001100 01101</span>
+                    </div>
+                </div>
+
+                <!-- CỘT PHẢI -->
+                <div class="panel-right">
+                    <h1 class="title-glitch">System Override</h1>
+                    <div class="title-sub">DIAGNOSTIC PROTOCOL ENGAGED // AWAITING COMMAND</div>
+
+                    <!-- Lưới Sub-cards chứa Biểu đồ -->
+                    <div class="hologram-cards">
+                        
+                        <!-- Card 1: CPU -->
+                        <div class="holo-card">
+                            <svg class="ring-chart" viewBox="0 0 50 50">
+                                <circle class="ring-bg" cx="25" cy="25" r="20"></circle>
+                                <circle class="ring-fill warn" id="chart-cpu" cx="25" cy="25" r="20"></circle>
+                            </svg>
+                            <div class="card-label">CPU LOAD</div>
+                            <div class="card-value">92%</div>
+                        </div>
+
+                        <!-- Card 2: NETWORK -->
+                        <div class="holo-card">
+                            <svg class="ring-chart" viewBox="0 0 50 50">
+                                <circle class="ring-bg" cx="25" cy="25" r="20"></circle>
+                                <circle class="ring-fill" id="chart-net" cx="25" cy="25" r="20"></circle>
+                            </svg>
+                            <div class="card-label">PACKET LOSS</div>
+                            <div class="card-value">14.5%</div>
+                        </div>
+
+                        <!-- Card 3: INTEGRITY -->
+                        <div class="holo-card">
+                            <svg class="ring-chart" viewBox="0 0 50 50">
+                                <circle class="ring-bg" cx="25" cy="25" r="20"></circle>
+                                <circle class="ring-fill" id="chart-int" cx="25" cy="25" r="20"></circle>
+                            </svg>
+                            <div class="card-label">INTEGRITY</div>
+                            <div class="card-value">68%</div>
+                        </div>
+                    </div>
+
+                    <!-- Vùng Text -->
+                    <div class="terminal-box">
+                        <span class="typewriter" id="typeText"></span><span class="cursor"></span>
+                    </div>
+
+                    <!-- Nút bấm -->
+                    <div class="action-footer">
+                        <button class="btn-holo deny" onclick="closeHoloModal()">Khôi Phục Mặc Định</button>
+                        <button class="btn-holo confirm" onclick="runBypass()">Khởi Động Lõi Động Cơ</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const overlay = document.getElementById('holoOverlay');
+        const twContainer = document.getElementById('typeText');
+        let typeTimer;
+
+        const terminalMessage = "> Đang phân tích cấu trúc không gian...\n" +
+                                "> CẢNH BÁO: Phát hiện rò rỉ năng lượng tại khoang chứa số 4.\n" +
+                                "> Màn chắn từ trường đang suy giảm.\n\n" +
+                                "Hệ thống AI đề xuất Khởi động Lõi động cơ khẩn cấp để bù đắp năng lượng. Hành động này sẽ bỏ qua các giao thức an toàn tiêu chuẩn.\n\n" +
+                                "Xác nhận ủy quyền lệnh?";
+
+        function openHoloModal() {
+            overlay.classList.add('active');
+            twContainer.textContent = '';
+            
+            // Chạy animation điền biểu đồ tròn (Sau khi bảng đã hiện ra)
+            setTimeout(() => {
+                // Công thức tính stroke-dashoffset: 125 - (125 * phần trăm / 100)
+                document.getElementById('chart-cpu').style.strokeDashoffset = 125 - (125 * 92 / 100);
+                document.getElementById('chart-net').style.strokeDashoffset = 125 - (125 * 14.5 / 100);
+                document.getElementById('chart-int').style.strokeDashoffset = 125 - (125 * 68 / 100);
+            }, 600);
+
+            // Chạy hiệu ứng gõ chữ
+            setTimeout(() => {
+                typeWriter(terminalMessage, 0);
+            }, 1000);
+        }
+
+        function closeHoloModal() {
+            overlay.classList.remove('active');
+            clearTimeout(typeTimer);
+            // Reset charts
+            document.getElementById('chart-cpu').style.strokeDashoffset = 125;
+            document.getElementById('chart-net').style.strokeDashoffset = 125;
+            document.getElementById('chart-int').style.strokeDashoffset = 125;
+        }
+
+        function runBypass() {
+            twContainer.innerHTML = "<br><br><span style='color:var(--neon-blue); font-weight:bold; font-size: 16px;'>[+] KÍCH HOẠT THÀNH CÔNG. ĐANG ĐIỀU HƯỚNG NĂNG LƯỢNG...</span>";
+            setTimeout(() => {
+                closeHoloModal();
+            }, 2500);
+        }
+
+        function typeWriter(text, i) {
+            if (i < text.length) {
+                if(text.charAt(i) === '\n') {
+                    twContainer.innerHTML += '<br>';
+                } else {
+                    twContainer.innerHTML += text.charAt(i);
+                }
+                // Tốc độ gõ 15-35ms
+                typeTimer = setTimeout(() => typeWriter(text, i + 1), Math.random() * 20 + 15);
+            }
+        }
+
+        // Cập nhật chuỗi Binary ngẫu nhiên ở cột trái
+        setInterval(() => {
+            let bin = '';
+            for(let i=0; i<16; i++) {
+                bin += Math.random() > 0.5 ? '1' : '0';
+                if(i === 7) bin += ' ';
+            }
+            document.getElementById('data-stream').textContent = bin;
+        }, 100);
+    </script>
+</body>
+</html>

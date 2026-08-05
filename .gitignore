@@ -2,3 +2,29 @@
 .projectmem/watch.pid
 .projectmem/watch.log
 .projectmem/structure.json
+
+# Local agent/runtime state
+.agents/
+.claude/
+.projectmem/
+.serena/
+.codex_tmp*/
+.codex_mishika_preview.png
+
+# Generated runtime and dependency caches
+**/__pycache__/
+*.py[cod]
+*.log
+*.tmp
+programe_cache/
+node_modules/
+local_models/
+run/
+
+# Machine-local credentials and worker identity
+.env
+.env.*
+!.env.example
+key.txt
+*.local.txt
+FUTURE/server2/distributed_worker_token.local.txt

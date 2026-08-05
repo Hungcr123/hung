@@ -558,7 +558,7 @@ def record_lesson_completion(relative_path: str, username: str, info: dict | Non
             record["database_event_committed"] = True
         if callable(pg_trace_stage):
             pg_trace_stage("snapshot_outbox_enqueue")
-        append_learning_log(record)
+        logged_record = append_learning_log(record)
         _mark_phase("append_log")
         # Added 2026-07-29: commit while the user-summary lock is still held.
         # PostgreSQL visibility must precede the next same-user completion so
@@ -568,7 +568,7 @@ def record_lesson_completion(relative_path: str, username: str, info: dict | Non
             completion_transaction_commit()
         _timing_ms["lock_hold"] = int((time.perf_counter() - _lock_acquired) * 1000)
     SERVER_STATE["learning_total"] = int(SERVER_STATE.get("learning_total", 0) or 0) + 1
-    SERVER_STATE["last_learning_event"] = record
+    SERVER_STATE["last_learning_event"] = logged_record if isinstance(logged_record, dict) else record
     if callable(pg_trace_stage):
         pg_trace_stage("cache_invalidation")
     mark_user_activity(username, {

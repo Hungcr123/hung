@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flower Fall</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sky-top: #dbeafe;
+      --sky-mid: #ffe4ee;
+      --sky-low: #fff8d7;
+      --green-soft: #c7ead8;
+      --shadow: rgba(48, 43, 70, 0.26);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #dbeafe;
+    }
+
+    body {
+      min-width: 320px;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .scene {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      min-height: 560px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 47%, var(--sky-low) 78%, var(--green-soft) 100%);
+      isolation: isolate;
+    }
+
+    .scene::before {
+      content: "";
+      position: absolute;
+      inset: auto -8vw 0;
+      height: 24vh;
+      min-height: 150px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.54) 36%, rgba(184, 222, 194, 0.76) 100%);
+      z-index: 1;
+    }
+
+    .scene::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 22%, rgba(255, 255, 255, 0.22) 100%);
+      pointer-events: none;
+      z-index: 6;
+    }
+
+    .flowers {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .flowers.front {
+      z-index: 5;
+    }
+
+    .portrait {
+      position: absolute;
+      left: 50%;
+      bottom: clamp(-28px, -2vh, -10px);
+      width: min(84vw, 900px);
+      height: min(86vh, 760px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .portrait img {
+      display: block;
+      width: auto;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      filter:
+        drop-shadow(0 30px 22px var(--shadow))
+        drop-shadow(0 7px 5px rgba(78, 68, 80, 0.18));
+    }
+
+    .flower {
+      position: absolute;
+      left: var(--x);
+      top: -16vh;
+      width: var(--size);
+      height: var(--size);
+      opacity: var(--alpha);
+      transform: translate3d(0, -18vh, 0) rotate(0deg);
+      animation: fall var(--duration) linear infinite;
+      animation-delay: var(--delay);
+      will-change: transform;
+    }
+
+    .flower .bloom {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      animation: flutter var(--flutter) ease-in-out infinite alternate;
+      animation-delay: calc(var(--delay) * -0.35);
+      transform-origin: 50% 54%;
+    }
+
+    .flower .petal {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 42%;
+      height: 64%;
+      border-radius: 68% 68% 48% 48%;
+      background:
+        radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.86) 0 13%, rgba(255, 255, 255, 0) 14%),
+        linear-gradient(180deg, var(--light), var(--petal) 74%, var(--deep));
+      box-shadow: inset 0 -1px 3px rgba(146, 56, 91, 0.18);
+      transform-origin: 50% 92%;
+    }
+
+    .flower .petal:nth-child(1) {
+      transform: translate(-50%, -88%) rotate(0deg);
+    }
+
+    .flower .petal:nth-child(2) {
+      transform: translate(-50%, -88%) rotate(72deg);
+    }
+
+    .flower .petal:nth-child(3) {
+      transform: translate(-50%, -88%) rotate(144deg);
+    }
+
+    .flower .petal:nth-child(4) {
+      transform: translate(-50%, -88%) rotate(216deg);
+    }
+
+    .flower .petal:nth-child(5) {
+      transform: translate(-50%, -88%) rotate(288deg);
+    }
+
+    .flower .center {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 24%;
+      height: 24%;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #fff7b0, #f3b856);
+      box-shadow: 0 1px 2px rgba(132, 85, 24, 0.18);
+      transform: translate(-50%, -50%);
+    }
+
+    .flower.front {
+      filter: drop-shadow(0 8px 5px rgba(75, 45, 66, 0.14));
+    }
+
+    .flower.back {
+      filter: blur(0.25px);
+    }
+
+    @keyframes fall {
+      0% {
+        transform: translate3d(0, -18vh, 0) rotate(0deg);
+      }
+      100% {
+        transform: translate3d(var(--drift), 122vh, 0) rotate(var(--spin));
+      }
+    }
+
+    @keyframes flutter {
+      0% {
+        transform: rotate3d(0.3, 1, 0.2, -28deg) scaleX(0.92);
+      }
+      100% {
+        transform: rotate3d(0.1, 1, 0.4, 30deg) scaleX(1.08);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .scene {
+        min-height: 520px;
+      }
+
+      .portrait {
+        width: min(112vw, 760px);
+        height: min(78vh, 660px);
+        bottom: -12px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .flower,
+      .flower .bloom {
+        animation-duration: 24s;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="scene" aria-label="Flower falling effect">
+    <div class="flowers back" aria-hidden="true"></div>
+    <div class="portrait" aria-hidden="true">
+      <img src="daughter_cutout_main.png" alt="">
+    </div>
+    <div class="flowers front" aria-hidden="true"></div>
+  </main>
+
+  <script>
+    const palettes = [
+      ["#fff3f8", "#f8a9c9", "#e976aa"],
+      ["#fff7eb", "#f2b774", "#db874b"],
+      ["#f5efff", "#caa8ff", "#9873db"],
+      ["#fffaf2", "#f7d66d", "#e8a94f"],
+      ["#f1fff8", "#8bd8b4", "#57ad8d"]
+    ];
+
+    const petalMarkup = `
+      <div class="bloom">
+        <span class="petal"></span>
+        <span class="petal"></span>
+        <span class="petal"></span>
+        <span class="petal"></span>
+        <span class="petal"></span>
+        <span class="center"></span>
+      </div>`;
+
+    function addFlowers(layer, count, front) {
+      for (let i = 0; i < count; i += 1) {
+        const flower = document.createElement("span");
+        const palette = palettes[(i + (front ? 2 : 0)) % palettes.length];
+        const size = front
+          ? 18 + Math.random() * 28
+          : 10 + Math.random() * 22;
+        const duration = front
+          ? 7.5 + Math.random() * 8
+          : 12 + Math.random() * 12;
+        const drift = (Math.random() * 46 - 23).toFixed(1);
+        const spin = (Math.random() > 0.5 ? 1 : -1) * (210 + Math.random() * 340);
+
+        flower.className = `flower ${front ? "front" : "back"}`;
+        flower.style.setProperty("--x", `${Math.random() * 104 - 2}vw`);
+        flower.style.setProperty("--size", `${size.toFixed(1)}px`);
+        flower.style.setProperty("--duration", `${duration.toFixed(2)}s`);
+        flower.style.setProperty("--delay", `${(-Math.random() * duration).toFixed(2)}s`);
+        flower.style.setProperty("--drift", `${drift}vw`);
+        flower.style.setProperty("--spin", `${spin.toFixed(0)}deg`);
+        flower.style.setProperty("--alpha", front ? "0.86" : "0.58");
+        flower.style.setProperty("--flutter", `${1.1 + Math.random() * 1.7}s`);
+        flower.style.setProperty("--light", palette[0]);
+        flower.style.setProperty("--petal", palette[1]);
+        flower.style.setProperty("--deep", palette[2]);
+        flower.innerHTML = petalMarkup;
+        layer.appendChild(flower);
+      }
+    }
+
+    addFlowers(document.querySelector(".flowers.back"), 38, false);
+    addFlowers(document.querySelector(".flowers.front"), 28, true);
+  </script>
+</body>
+</html>

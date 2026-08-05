@@ -2451,14 +2451,16 @@ def append_jsonl_log(path: Path, record: dict, keep_days: int = 31, database_rec
     return payload
 
 
-def append_learning_log(record: dict) -> None:
-    append_jsonl_log(
+def append_learning_log(record: dict) -> dict:
+    event = append_jsonl_log(
         LEARNING_LOG_FILE,
         record,
         database_recorded=bool(isinstance(record, dict) and record.get("database_final_event_committed")),
     )
+    SERVER_STATE["last_learning_event"] = event
     source = record if isinstance(record, dict) else {}
     bump_login_preload_cache_generation(source.get("user") or source.get("username") or "")
+    return event
 
 
 def record_login_event(username: str, info: dict | None = None) -> None:
@@ -2466,7 +2468,7 @@ def record_login_event(username: str, info: dict | None = None) -> None:
     if not username:
         return
     source = info if isinstance(info, dict) else {}
-    append_jsonl_log(
+    event = append_jsonl_log(
         LOGIN_LOG_FILE,
         {
             "event": "login",
@@ -2475,6 +2477,33 @@ def record_login_event(username: str, info: dict | None = None) -> None:
             "user_agent": clean(source.get("user_agent", ""))[:260],
         },
     )
+    SERVER_STATE["last_login_event"] = event
+
+
+# Added 2026-08-05: restores the dashboard's lightweight recent log snapshot after Server 2 restarts.
+def hydrate_dashboard_recent_log_state(keep_days: int = 3, limit: int = 500) -> dict:
+    keep_days = max(1, min(7, int(keep_days or 3)))
+    limit = max(1, min(1000, int(limit or 500)))
+    summary = {"ok": True, "keep_days": keep_days, "learning": 0, "login": 0}
+    try:
+        learning_rows = server_database_read_events("learning", limit=limit, keep_days=keep_days)
+    except Exception as exc:
+        learning_rows = []
+        summary["learning_error"] = clean(exc)
+    try:
+        login_rows = server_database_read_events("login", limit=limit, keep_days=keep_days)
+    except Exception as exc:
+        login_rows = []
+        summary["login_error"] = clean(exc)
+    learning_rows = [row for row in learning_rows if isinstance(row, dict)]
+    login_rows = [row for row in login_rows if isinstance(row, dict)]
+    summary["learning"] = len(learning_rows)
+    summary["login"] = len(login_rows)
+    SERVER_STATE["last_learning_event"] = learning_rows[0] if learning_rows else {}
+    SERVER_STATE["learning_total"] = len(learning_rows)
+    SERVER_STATE["last_login_event"] = login_rows[0] if login_rows else {}
+    SERVER_STATE["dashboard_recent_log_state"] = summary
+    return summary
 
 
 def active_session_login_rows(date: str = "", search: str = "") -> list[dict]:

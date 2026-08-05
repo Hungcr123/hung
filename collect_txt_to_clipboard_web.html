@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TXT Prompt Split Clipboard</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #657083;
+      --line: #d7dde8;
+      --blue: #0f75bc;
+      --blue-soft: #e8f4ff;
+      --green: #087f5b;
+      --amber: #a16207;
+      --shadow: 0 10px 28px rgba(15, 30, 60, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      background: #101827;
+      color: #f8fafc;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    main {
+      padding: 18px;
+      overflow: auto;
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    aside .panel {
+      background: #182235;
+      border-color: #26344d;
+      box-shadow: none;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button, .file-button {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 8px 11px;
+      font: inherit;
+      cursor: pointer;
+      min-height: 36px;
+    }
+
+    button.primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    button.success {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    button:hover, .file-button:hover {
+      filter: brightness(0.97);
+    }
+
+    .file-button {
+      display: inline-flex;
+      align-items: center;
+      max-width: 240px;
+      background: var(--blue-soft);
+      border-color: #7cc4f8;
+      color: #063e68;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-button.active {
+      background: #0f75bc;
+      border-color: #0f75bc;
+      color: #fff;
+    }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 9px;
+      color: var(--text);
+      font: inherit;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 94px;
+      resize: vertical;
+      font-family: "Consolas", "Segoe UI", monospace;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    aside label {
+      color: #cbd5e1;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .grid > div {
+      min-width: 0;
+    }
+
+    .blocks {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 2px 10px;
+      min-height: 54px;
+    }
+
+    .parts {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 8px;
+    }
+
+    .part-button {
+      text-align: left;
+      border-color: #b7c3d6;
+      background: #fff;
+    }
+
+    .part-button.highlighted {
+      background: #fff3bf;
+      border-color: #f59f00;
+      color: #5f3f00;
+      box-shadow: 0 0 0 2px rgba(245, 159, 0, 0.2);
+      font-weight: 700;
+    }
+
+    .part-button.selected-source2 {
+      background: #dcfce7;
+      border-color: #16a34a;
+      color: #14532d;
+      font-weight: 800;
+    }
+
+    .history {
+      display: grid;
+      gap: 7px;
+    }
+
+    .history-item {
+      width: 100%;
+      text-align: left;
+      background: #22314b;
+      border-color: #334663;
+      color: #e5edf8;
+    }
+
+    .preview {
+      min-height: 280px;
+      overflow: auto;
+      background: #0b1020;
+      color: #e5edf8;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: Consolas, monospace;
+      line-height: 1.45;
+    }
+
+    .preview-part {
+      white-space: pre-wrap;
+    }
+
+    .preview-part.copied {
+      color: #fde047;
+    }
+
+    .preview-separator {
+      color: #64748b;
+      white-space: pre-wrap;
+    }
+
+    .status {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    aside .status {
+      color: #cbd5e1;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>TXT Prompt Split</h1>
+      <div class="panel">
+        <h2>Nguồn 1</h2>
+        <div class="row">
+          <label class="file-button">
+            Open Files
+            <input id="fileInput" class="hidden" type="file" accept=".txt,.Space_V,.space_v,text/plain" multiple>
+          </label>
+          <label class="file-button">
+            Open Folder
+            <input id="folderInput" class="hidden" type="file" accept=".txt,.Space_V,.space_v,text/plain" webkitdirectory multiple>
+          </label>
+        </div>
+        <p id="sourceStatus" class="status">Chưa mở file. Hỗ trợ .txt và .Space_V; Space_V chỉ xuất word, mỗi dòng một từ.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Nguồn 2</h2>
+        <div class="row">
+          <label class="file-button">
+            Open Files 2
+            <input id="fileInput2" class="hidden" type="file" accept=".txt,.Space_V,.space_v,text/plain" multiple>
+          </label>
+          <label class="file-button">
+            Open Folder 2
+            <input id="folderInput2" class="hidden" type="file" accept=".txt,.Space_V,.space_v,text/plain" webkitdirectory multiple>
+          </label>
+        </div>
+        <p id="sourceStatus2" class="status">Nguồn 2 sẽ được nối vào sau Prompt 2 trong mỗi lần copy.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Lịch Sử</h2>
+        <div id="history" class="history"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Prompt 1</h2>
+        <label for="promptInput">Prompt ở đầu mỗi phần</label>
+        <textarea id="promptInput" placeholder="Nhập prompt ở đây..."></textarea>
+      </div>
+
+      <div class="panel">
+        <h2>Prompt 2</h2>
+        <label for="promptInput2">Prompt nối trước nguồn 2</label>
+        <textarea id="promptInput2" placeholder="Ví dụ: Dựa thêm vào danh sách/tài liệu sau..."></textarea>
+      </div>
+
+      <div class="panel">
+        <h2>Format</h2>
+        <div class="grid">
+          <div>
+            <label for="openWrap">Ngoặc mở</label>
+            <input id="openWrap" type="text" value="&quot;">
+          </div>
+          <div>
+            <label for="closeWrap">Ngoặc đóng</label>
+            <input id="closeWrap" type="text" value="&quot;">
+          </div>
+          <div>
+            <label for="splitMode">Nguồn 1 split</label>
+            <select id="splitMode">
+              <option value="none">Không split</option>
+              <option value="chars">Theo số ký tự</option>
+              <option value="words">Theo số từ</option>
+              <option value="lines">Theo số dòng</option>
+            </select>
+          </div>
+          <div>
+            <label for="splitAmount">Nguồn 1 số lượng</label>
+            <input id="splitAmount" type="number" min="1" value="4000">
+          </div>
+          <div>
+            <label for="splitMode2">Nguồn 2 split</label>
+            <select id="splitMode2">
+              <option value="none">Không split</option>
+              <option value="chars">Theo số ký tự</option>
+              <option value="words">Theo số từ</option>
+              <option value="lines">Theo số dòng</option>
+            </select>
+          </div>
+          <div>
+            <label for="splitAmount2">Nguồn 2 số lượng</label>
+            <input id="splitAmount2" type="number" min="1" value="4000">
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="panel">
+        <div class="row">
+          <h2 style="margin-right:auto">File Blocks</h2>
+          <button id="selectAllButton">Select All</button>
+          <button id="copyAllButton" class="success">Copy All</button>
+        </div>
+        <div id="fileBlocks" class="blocks"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <h2 style="margin-right:auto">Split Parts</h2>
+          <button id="refreshButton" class="primary">Refresh Split</button>
+        </div>
+        <div id="parts" class="parts"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <h2 style="margin-right:auto">Nguồn 2 Split Parts</h2>
+          <span id="source2SplitStatus" class="status"></span>
+        </div>
+        <div id="parts2" class="parts"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <button id="copyPreviewButton" class="success">Copy Preview All</button>
+          <h2 style="margin-left:4px">Preview</h2>
+        </div>
+        <div id="preview" class="preview"></div>
+        <p id="status" class="status"></p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "collectTxtPromptSplitWeb.v1";
+    const MAX_HISTORY = 20;
+
+    const state = {
+      files: [],
+      secondaryFiles: [],
+      activeIndexes: [],
+      chunks: [],
+      secondaryChunks: [],
+      selectedSecondaryIndex: 0,
+      highlightedPartKeys: [],
+      copiedPartKeys: [],
+      history: [],
+    };
+
+    const els = {
+      fileInput: document.getElementById("fileInput"),
+      folderInput: document.getElementById("folderInput"),
+      fileInput2: document.getElementById("fileInput2"),
+      folderInput2: document.getElementById("folderInput2"),
+      sourceStatus: document.getElementById("sourceStatus"),
+      sourceStatus2: document.getElementById("sourceStatus2"),
+      history: document.getElementById("history"),
+      promptInput: document.getElementById("promptInput"),
+      promptInput2: document.getElementById("promptInput2"),
+      openWrap: document.getElementById("openWrap"),
+      closeWrap: document.getElementById("closeWrap"),
+      splitMode: document.getElementById("splitMode"),
+      splitAmount: document.getElementById("splitAmount"),
+      splitMode2: document.getElementById("splitMode2"),
+      splitAmount2: document.getElementById("splitAmount2"),
+      selectAllButton: document.getElementById("selectAllButton"),
+      copyAllButton: document.getElementById("copyAllButton"),
+      refreshButton: document.getElementById("refreshButton"),
+      fileBlocks: document.getElementById("fileBlocks"),
+      parts: document.getElementById("parts"),
+      parts2: document.getElementById("parts2"),
+      source2SplitStatus: document.getElementById("source2SplitStatus"),
+      copyPreviewButton: document.getElementById("copyPreviewButton"),
+      preview: document.getElementById("preview"),
+      status: document.getElementById("status"),
+    };
+
+    function naturalKey(value) {
+      return String(value).toLowerCase().split(/(\d+)/).map((part) => /^\d+$/.test(part) ? Number(part) : part);
+    }
+
+    function naturalCompare(a, b) {
+      const ak = naturalKey(a);
+      const bk = naturalKey(b);
+      const len = Math.max(ak.length, bk.length);
+      for (let i = 0; i < len; i += 1) {
+        if (ak[i] === undefined) return -1;
+        if (bk[i] === undefined) return 1;
+        if (ak[i] < bk[i]) return -1;
+        if (ak[i] > bk[i]) return 1;
+      }
+      return 0;
+    }
+
+    function loadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        els.promptInput.value = saved.prompt || "";
+        els.promptInput2.value = saved.prompt2 || "";
+        els.openWrap.value = saved.openWrap ?? "\"";
+        els.closeWrap.value = saved.closeWrap ?? "\"";
+        els.splitMode.value = saved.splitMode || "none";
+        els.splitAmount.value = saved.splitAmount || 4000;
+        els.splitMode2.value = saved.splitMode2 || "none";
+        els.splitAmount2.value = saved.splitAmount2 || 4000;
+        state.history = Array.isArray(saved.history) ? saved.history.slice(0, MAX_HISTORY) : [];
+        state.files = Array.isArray(saved.files) ? saved.files.map((item) => ({
+          file: null,
+          name: item.name || item.label || "file.txt",
+          label: item.label || item.name || "file.txt",
+          text: item.text || "",
+          type: item.type || "txt",
+        })) : [];
+        state.secondaryFiles = Array.isArray(saved.secondaryFiles) ? saved.secondaryFiles.map((item) => ({
+          file: null,
+          name: item.name || item.label || "file.txt",
+          label: item.label || item.name || "file.txt",
+          text: item.text || "",
+          type: item.type || "txt",
+        })) : [];
+        state.activeIndexes = Array.isArray(saved.activeIndexes) ? saved.activeIndexes.filter((index) => Number.isInteger(index)) : [];
+        state.selectedSecondaryIndex = Number.isInteger(saved.selectedSecondaryIndex) ? saved.selectedSecondaryIndex : 0;
+        state.highlightedPartKeys = Array.isArray(saved.highlightedPartKeys) ? saved.highlightedPartKeys : [];
+        state.copiedPartKeys = Array.isArray(saved.copiedPartKeys) ? saved.copiedPartKeys : [];
+      } catch {
+        state.history = [];
+      }
+    }
+
+    function saveSettings() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          prompt: els.promptInput.value,
+          prompt2: els.promptInput2.value,
+          openWrap: els.openWrap.value,
+          closeWrap: els.closeWrap.value,
+          splitMode: els.splitMode.value,
+          splitAmount: Number(els.splitAmount.value || 4000),
+          splitMode2: els.splitMode2.value,
+          splitAmount2: Number(els.splitAmount2.value || 4000),
+          history: state.history.slice(0, MAX_HISTORY),
+          files: state.files.map((item) => ({ name: item.name, label: item.label, text: item.text, type: item.type })),
+          secondaryFiles: state.secondaryFiles.map((item) => ({ name: item.name, label: item.label, text: item.text, type: item.type })),
+          activeIndexes: state.activeIndexes,
+          selectedSecondaryIndex: state.selectedSecondaryIndex,
+          highlightedPartKeys: state.highlightedPartKeys,
+          copiedPartKeys: state.copiedPartKeys,
+        }));
+      } catch {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          prompt: els.promptInput.value,
+          prompt2: els.promptInput2.value,
+          openWrap: els.openWrap.value,
+          closeWrap: els.closeWrap.value,
+          splitMode: els.splitMode.value,
+          splitAmount: Number(els.splitAmount.value || 4000),
+          splitMode2: els.splitMode2.value,
+          splitAmount2: Number(els.splitAmount2.value || 4000),
+          history: state.history.slice(0, MAX_HISTORY),
+          activeIndexes: state.activeIndexes,
+          selectedSecondaryIndex: state.selectedSecondaryIndex,
+          highlightedPartKeys: state.highlightedPartKeys,
+          copiedPartKeys: state.copiedPartKeys,
+        }));
+        els.status.textContent = "Không đủ dung lượng trình duyệt để lưu toàn bộ nội dung file; đã lưu lại setting và highlight.";
+      }
+    }
+
+    async function readTextFile(file) {
+      return await file.text();
+    }
+
+    function isSpaceVFile(file) {
+      return file.name.toLowerCase().endsWith(".space_v");
+    }
+
+    function base64UrlToBytes(value) {
+      const base64 = String(value || "").replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - String(value || "").length % 4) % 4);
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return bytes;
+    }
+
+    async function gzipBytesToText(bytes) {
+      if (!("DecompressionStream" in window)) {
+        throw new Error("Browser này chưa hỗ trợ DecompressionStream để đọc Space_V nén.");
+      }
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      return await new Response(stream).text();
+    }
+
+    async function decodeFuturePayloadText(text) {
+      const raw = String(text || "").replace(/^\uFEFF/, "").trim();
+      if (!raw) return {};
+      if (raw.startsWith("FTG1.")) {
+        const bytes = base64UrlToBytes(raw.slice("FTG1.".length));
+        return JSON.parse(await gzipBytesToText(bytes));
+      }
+      return JSON.parse(raw);
+    }
+
+    function wordsFromSpaceVPayload(payload) {
+      const rawItems = Array.isArray(payload.w) ? payload.w : (Array.isArray(payload.words) ? payload.words : []);
+      const words = [];
+      const seen = new Set();
+      for (const item of rawItems) {
+        const word = typeof item === "string"
+          ? item
+          : (item && typeof item === "object" ? (item.w || item.word || item.key || item.text || "") : "");
+        const clean = String(word || "").trim();
+        const key = clean.toLowerCase();
+        if (clean && !seen.has(key)) {
+          seen.add(key);
+          words.push(clean);
+        }
+      }
+      return words;
+    }
+
+    async function readSourceFile(file) {
+      if (!isSpaceVFile(file)) {
+        return await readTextFile(file);
+      }
+      const payload = await decodeFuturePayloadText(await readTextFile(file));
+      if (payload && String(payload.k || "").toLowerCase() === "ftg_manifest") {
+        throw new Error(`${file.name}: Space_V manifest trỏ tới Structure nên browser không đọc được nếu không chọn Structure JSON kèm theo.`);
+      }
+      const words = wordsFromSpaceVPayload(payload);
+      return words.join("\n");
+    }
+
+    function fileLabel(file) {
+      return file.webkitRelativePath || file.name;
+    }
+
+    async function setFiles(fileList, sourceKind, target = "primary") {
+      const files = Array.from(fileList)
+        .filter((file) => file.name.toLowerCase().endsWith(".txt") || file.name.toLowerCase().endsWith(".space_v") || file.type === "text/plain")
+        .sort((a, b) => naturalCompare(fileLabel(a), fileLabel(b)));
+      const targetFiles = [];
+      const errors = [];
+      for (const file of files) {
+        try {
+          const text = await readSourceFile(file);
+          targetFiles.push({
+            file,
+            name: file.name,
+            label: fileLabel(file),
+            text,
+            type: isSpaceVFile(file) ? "space_v_words" : "txt",
+          });
+        } catch (err) {
+          errors.push(String(err && err.message ? err.message : err));
+        }
+      }
+      if (target === "secondary") {
+        state.secondaryFiles = targetFiles;
+        state.selectedSecondaryIndex = 0;
+      } else {
+        state.files = targetFiles;
+        state.activeIndexes = state.files.map((_, index) => index);
+        state.highlightedPartKeys = [];
+        state.copiedPartKeys = [];
+        addHistory(sourceKind, state.files);
+      }
+      renderAll();
+      if (errors.length) {
+        els.status.textContent = `Có ${errors.length} file không đọc được: ${errors.slice(0, 3).join(" | ")}`;
+      }
+    }
+
+    function addHistory(kind, files) {
+      if (!files.length) return;
+      const entry = {
+        kind,
+        count: files.length,
+        first: files[0].label,
+        labels: files.map((item) => item.label),
+        time: new Date().toLocaleString(),
+      };
+      const key = JSON.stringify(entry.labels);
+      state.history = state.history.filter((item) => JSON.stringify(item.labels || []) !== key);
+      state.history.unshift(entry);
+      state.history = state.history.slice(0, MAX_HISTORY);
+      saveSettings();
+    }
+
+    function renderHistory() {
+      els.history.innerHTML = "";
+      if (!state.history.length) {
+        els.history.innerHTML = "<p class='status'>Chưa có lịch sử.</p>";
+        return;
+      }
+      for (const entry of state.history) {
+        const button = document.createElement("button");
+        button.className = "history-item";
+        button.textContent = `${entry.kind === "folder" ? "Folder" : "Files"} | ${entry.count} file | ${entry.first}`;
+        button.title = `${entry.time}\n${(entry.labels || []).join("\n")}`;
+        button.addEventListener("click", () => {
+          els.sourceStatus.textContent = "Lịch sử web chỉ lưu tên file để nhìn lại; hãy bấm Open Files/Open Folder để nạp lại file thật.";
+        });
+        els.history.appendChild(button);
+      }
+    }
+
+    function renderFileBlocks() {
+      els.fileBlocks.innerHTML = "";
+      if (!state.files.length) {
+        els.fileBlocks.innerHTML = "<span class='status'>Chưa có file block. Bấm Open Files hoặc Open Folder.</span>";
+        return;
+      }
+      const active = new Set(state.activeIndexes);
+      for (const [index, item] of state.files.entries()) {
+        const button = document.createElement("button");
+        button.className = `file-button${active.has(index) && state.activeIndexes.length === 1 ? " active" : ""}`;
+        button.textContent = item.name;
+        button.title = `${item.label}\n${wordCount(item.text).toLocaleString()} từ`;
+        button.addEventListener("click", () => {
+          state.activeIndexes = [index];
+          renderAll();
+        });
+        els.fileBlocks.appendChild(button);
+      }
+    }
+
+    function activeText() {
+      return state.activeIndexes
+        .map((index) => state.files[index])
+        .filter(Boolean)
+        .map((item) => item.text.trim())
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+    }
+
+    function secondaryText() {
+      return state.secondaryFiles
+        .map((item) => item.text.trim())
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+    }
+
+    function wordCount(text) {
+      const matches = String(text || "").trim().match(/\S+/g);
+      return matches ? matches.length : 0;
+    }
+
+    function splitText(text, mode = els.splitMode.value, amountValue = els.splitAmount.value) {
+      const amount = Math.max(1, Number(amountValue || 1));
+      if (!text) return [];
+      if (mode === "lines") {
+        const lines = text.split(/\r?\n/);
+        const chunks = [];
+        for (let index = 0; index < lines.length; index += amount) {
+          const chunk = lines.slice(index, index + amount).join("\n").trim();
+          if (chunk) chunks.push(chunk);
+        }
+        return chunks;
+      }
+      if (mode === "words") {
+        const tokens = Array.from(text.matchAll(/\S+/g));
+        const chunks = [];
+        for (let index = 0; index < tokens.length; index += amount) {
+          const start = tokens[index].index;
+          const lastToken = tokens[Math.min(index + amount, tokens.length) - 1];
+          const end = lastToken.index + lastToken[0].length;
+          const chunk = text.slice(start, end).trim();
+          if (chunk) chunks.push(chunk);
+        }
+        return chunks;
+      }
+      if (mode === "chars") {
+        const chunks = [];
+        let remaining = text;
+        while (remaining) {
+          if (remaining.length <= amount) {
+            chunks.push(remaining.trim());
+            break;
+          }
+          let cut = remaining.lastIndexOf("\n", amount);
+          if (cut < Math.max(1, Math.floor(amount / 2))) cut = remaining.lastIndexOf(" ", amount);
+          if (cut < Math.max(1, Math.floor(amount / 2))) cut = amount;
+          chunks.push(remaining.slice(0, cut).trim());
+          remaining = remaining.slice(cut).trimStart();
+        }
+        return chunks.filter(Boolean);
+      }
+      return [text.trim()];
+    }
+
+    function payloadForChunk(chunk) {
+      const prompt = els.promptInput.value.trim();
+      const prompt2 = els.promptInput2.value.trim();
+      const secondary = selectedSecondaryChunk();
+      const wrapped = `${els.openWrap.value}${chunk.trim()}${els.closeWrap.value}`;
+      const parts = [prompt, wrapped].filter(Boolean);
+      if (secondary) {
+        const wrapped2 = `${els.openWrap.value}${secondary}${els.closeWrap.value}`;
+        parts.push(...[prompt2, wrapped2].filter(Boolean));
+      } else if (prompt2) {
+        parts.push(prompt2);
+      }
+      return parts.join("\n").trim();
+    }
+
+    function selectedSecondaryChunk() {
+      if (!state.secondaryChunks.length) return "";
+      const index = Math.max(0, Math.min(state.selectedSecondaryIndex || 0, state.secondaryChunks.length - 1));
+      return state.secondaryChunks[index] || "";
+    }
+
+    function simpleHash(text) {
+      let hash = 0;
+      for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+      }
+      return String(hash >>> 0);
+    }
+
+    function partKey(index, chunk) {
+      return `${index}:${simpleHash(chunk)}:${chunk.length}`;
+    }
+
+    function toggleHighlightPart(index, chunk) {
+      const key = partKey(index, chunk);
+      if (state.highlightedPartKeys.includes(key)) {
+        state.highlightedPartKeys = state.highlightedPartKeys.filter((item) => item !== key);
+      } else {
+        state.highlightedPartKeys.push(key);
+      }
+      renderAll();
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-1000px";
+        textarea.style.top = "-1000px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+    }
+
+    function renderParts() {
+      els.parts.innerHTML = "";
+      const text = activeText();
+      state.chunks = splitText(text, els.splitMode.value, els.splitAmount.value);
+      if (!state.chunks.length) {
+        els.parts.innerHTML = "<span class='status'>Chưa có phần nào để copy.</span>";
+        return;
+      }
+      state.chunks.forEach((chunk, index) => {
+        const button = document.createElement("button");
+        const key = partKey(index, chunk);
+        button.className = `part-button${state.highlightedPartKeys.includes(key) ? " highlighted" : ""}`;
+        const lineCount = chunk.split(/\r?\n/).length;
+        button.textContent = `Copy phần ${index + 1} | ${wordCount(chunk).toLocaleString()} từ | ${lineCount.toLocaleString()} dòng`;
+        button.title = "Click trái để copy. Chuột phải để bật/tắt highlight.";
+        button.addEventListener("click", async () => {
+          await copyText(payloadForChunk(chunk));
+          if (!state.copiedPartKeys.includes(key)) {
+            state.copiedPartKeys.push(key);
+          }
+          renderAll();
+          els.status.textContent = `Đã copy phần ${index + 1}.`;
+        });
+        button.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          toggleHighlightPart(index, chunk);
+        });
+        els.parts.appendChild(button);
+      });
+    }
+
+    function renderSecondaryParts() {
+      els.parts2.innerHTML = "";
+      state.secondaryChunks = splitText(secondaryText(), els.splitMode2.value, els.splitAmount2.value);
+      if (state.selectedSecondaryIndex >= state.secondaryChunks.length) {
+        state.selectedSecondaryIndex = 0;
+      }
+      els.source2SplitStatus.textContent = state.secondaryChunks.length ? `${state.secondaryChunks.length} phần, đang chọn phần ${(state.selectedSecondaryIndex || 0) + 1}` : "Chưa có phần nguồn 2.";
+      if (!state.secondaryChunks.length) {
+        els.parts2.innerHTML = "<span class='status'>Chưa có nguồn 2 hoặc nguồn 2 rỗng.</span>";
+        return;
+      }
+      state.secondaryChunks.forEach((chunk, index) => {
+        const button = document.createElement("button");
+        button.className = `part-button${index === state.selectedSecondaryIndex ? " selected-source2" : ""}`;
+        const lineCount = chunk.split(/\r?\n/).length;
+        button.textContent = `Chọn nguồn 2 phần ${index + 1} | ${wordCount(chunk).toLocaleString()} từ | ${lineCount.toLocaleString()} dòng`;
+        button.title = "Click để chọn phần nguồn 2 ghép vào preview/copy.";
+        button.addEventListener("click", () => {
+          state.selectedSecondaryIndex = index;
+          renderAll();
+        });
+        els.parts2.appendChild(button);
+      });
+    }
+
+    function renderPreview() {
+      const text = activeText();
+      els.preview.innerHTML = "";
+      if (!state.chunks.length) {
+        els.preview.textContent = "";
+      } else {
+        let renderedLength = 0;
+        state.chunks.forEach((chunk, index) => {
+          if (renderedLength >= 50000) return;
+          const key = partKey(index, chunk);
+          const part = document.createElement("div");
+          part.className = `preview-part${state.copiedPartKeys.includes(key) ? " copied" : ""}`;
+          const remaining = 50000 - renderedLength;
+          const payload = payloadForChunk(chunk);
+          const shown = payload.slice(0, remaining);
+          part.textContent = shown;
+          els.preview.appendChild(part);
+          renderedLength += shown.length;
+          if (index < state.chunks.length - 1 && renderedLength < 50000) {
+            const separator = document.createElement("div");
+            separator.className = "preview-separator";
+            separator.textContent = "\n\n--- phần " + (index + 2) + " ---\n\n";
+            els.preview.appendChild(separator);
+            renderedLength += separator.textContent.length;
+          }
+        });
+      }
+      const selectedCount = state.activeIndexes.length;
+      const suffix = text.length > 50000 ? " Preview bị cắt còn 50,000 ký tự." : "";
+      els.status.textContent = `${state.files.length} file block, đang chọn ${selectedCount} file, ${wordCount(text).toLocaleString()} từ, ${state.chunks.length} phần.${suffix}`;
+      els.sourceStatus.textContent = state.files.length ? `Nguồn 1: ${state.files.length} file (.txt/.Space_V).` : "Nguồn 1 chưa mở file.";
+      els.sourceStatus2.textContent = state.secondaryFiles.length ? `Nguồn 2: ${state.secondaryFiles.length} file, ${wordCount(secondaryText()).toLocaleString()} từ.` : "Nguồn 2 sẽ được nối vào sau Prompt 2 trong mỗi lần copy.";
+    }
+
+    function renderAll() {
+      renderHistory();
+      renderFileBlocks();
+      renderParts();
+      renderSecondaryParts();
+      renderPreview();
+      saveSettings();
+    }
+
+    els.fileInput.addEventListener("change", (event) => setFiles(event.target.files, "files", "primary"));
+    els.folderInput.addEventListener("change", (event) => setFiles(event.target.files, "folder", "primary"));
+    els.fileInput2.addEventListener("change", (event) => setFiles(event.target.files, "files2", "secondary"));
+    els.folderInput2.addEventListener("change", (event) => setFiles(event.target.files, "folder2", "secondary"));
+    els.selectAllButton.addEventListener("click", () => {
+      state.activeIndexes = state.files.map((_, index) => index);
+      renderAll();
+    });
+    els.copyAllButton.addEventListener("click", async () => {
+      const payload = state.chunks.map(payloadForChunk).join("\n\n");
+      if (!payload) return;
+      await copyText(payload);
+      state.copiedPartKeys = state.chunks.map((chunk, index) => partKey(index, chunk));
+      renderAll();
+      els.status.textContent = `Đã copy toàn bộ ${wordCount(payload).toLocaleString()} từ.`;
+    });
+    els.copyPreviewButton.addEventListener("click", async () => {
+      const payload = state.chunks.map(payloadForChunk).join("\n\n");
+      if (!payload) return;
+      await copyText(payload);
+      state.copiedPartKeys = state.chunks.map((chunk, index) => partKey(index, chunk));
+      renderAll();
+      els.status.textContent = `Đã copy toàn bộ preview ${wordCount(payload).toLocaleString()} từ.`;
+    });
+    els.refreshButton.addEventListener("click", renderAll);
+
+    for (const control of [els.promptInput, els.promptInput2, els.openWrap, els.closeWrap, els.splitMode, els.splitAmount, els.splitMode2, els.splitAmount2]) {
+      control.addEventListener("input", renderAll);
+      control.addEventListener("change", renderAll);
+    }
+
+    loadSettings();
+    if (!state.activeIndexes.length && state.files.length) {
+      state.activeIndexes = state.files.map((_, index) => index);
+    }
+    state.activeIndexes = state.activeIndexes.filter((index) => index >= 0 && index < state.files.length);
+    renderAll();
+  </script>
+</body>
+</html>

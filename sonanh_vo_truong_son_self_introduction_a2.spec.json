@@ -1,0 +1,334 @@
+{
+  "title": "sonanh - Vo Truong Son Self Introduction A2",
+  "hint_seconds": 30,
+  "voice": "kokoro:am_adam",
+  "vi_voice": "edge:vi-VN-NamMinhNeural",
+  "alt_voice": "kokoro:af_jessica",
+  "nodes": [
+    {
+      "id": "pnode-001",
+      "title": "Self Introduction",
+      "children": [
+        {
+          "id": "child-001",
+          "text": "Hello, my name is Vo Truong Son, and I am a dentist in Vietnam.",
+          "meaning": "Xin chào, tên tôi là Võ Trường Sơn, và tôi là một bác sĩ nha khoa ở Việt Nam.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Câu mở đầu tự giới thiệu tên và nghề nghiệp. Mẫu: My name is + tên; I am a + nghề."
+            }
+          ]
+        },
+        {
+          "id": "child-002",
+          "text": "I am happy to introduce myself and talk about my daily work.",
+          "meaning": "Tôi rất vui được giới thiệu bản thân và nói về công việc hằng ngày của tôi.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Dùng I am happy to + động từ để nói mình vui khi làm việc gì."
+            }
+          ]
+        },
+        {
+          "id": "child-003",
+          "text": "I chose dentistry because I wanted to help people have healthy smiles.",
+          "meaning": "Tôi chọn ngành nha khoa vì tôi muốn giúp mọi người có nụ cười khỏe mạnh.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Because dùng để đưa lý do. Dentistry nghĩa là ngành nha khoa."
+            }
+          ]
+        },
+        {
+          "id": "child-004",
+          "text": "A healthy smile can make a person feel more confident every day.",
+          "meaning": "Một nụ cười khỏe mạnh có thể làm một người cảm thấy tự tin hơn mỗi ngày.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Can make someone feel + tính từ nghĩa là có thể làm ai đó cảm thấy thế nào."
+            }
+          ]
+        },
+        {
+          "id": "child-005",
+          "text": "In my clinic, I meet many patients with different needs and worries.",
+          "meaning": "Ở phòng khám của tôi, tôi gặp nhiều bệnh nhân với các nhu cầu và lo lắng khác nhau.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "In my clinic chỉ địa điểm. Patients là bệnh nhân."
+            }
+          ]
+        },
+        {
+          "id": "child-006",
+          "text": "I listen carefully before I explain the treatment plan in simple words.",
+          "meaning": "Tôi lắng nghe cẩn thận trước khi giải thích kế hoạch điều trị bằng những từ đơn giản.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Before nối hai hành động theo thứ tự thời gian. Treatment plan là kế hoạch điều trị."
+            }
+          ]
+        },
+        {
+          "id": "child-007",
+          "text": "I believe a good dentist must be patient, gentle, and honest.",
+          "meaning": "Tôi tin rằng một bác sĩ nha khoa giỏi phải kiên nhẫn, nhẹ nhàng và trung thực.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Must be + tính từ diễn tả điều cần có hoặc bắt buộc phải có."
+            }
+          ]
+        },
+        {
+          "id": "child-008",
+          "text": "Today, I am the owner of two dental clinics in my city.",
+          "meaning": "Hiện nay, tôi là chủ của hai phòng khám nha khoa trong thành phố của tôi.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Owner nghĩa là chủ. Two dental clinics diễn tả hai chi nhánh phòng khám nha khoa."
+            }
+          ]
+        },
+        {
+          "id": "child-009",
+          "text": "This is a big responsibility, but it also gives me great motivation.",
+          "meaning": "Đây là một trách nhiệm lớn, nhưng nó cũng cho tôi nhiều động lực.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "But dùng để nối hai ý trái chiều hoặc bổ sung một ý khác."
+            }
+          ]
+        },
+        {
+          "id": "child-010",
+          "text": "I manage the clinics, support my team, and care for important cases.",
+          "meaning": "Tôi quản lý các phòng khám, hỗ trợ đội ngũ của tôi và chăm sóc các ca quan trọng.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Câu liệt kê ba việc chính: manage, support, and care for."
+            }
+          ]
+        },
+        {
+          "id": "child-011",
+          "text": "Many staff members work with me, including dentists, assistants, and receptionists.",
+          "meaning": "Nhiều nhân viên làm việc cùng tôi, bao gồm bác sĩ nha khoa, phụ tá và lễ tân.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Including dùng để đưa ví dụ trong một nhóm người hoặc đồ vật."
+            }
+          ]
+        },
+        {
+          "id": "child-012",
+          "text": "They help patients feel comfortable from the first phone call to the final visit.",
+          "meaning": "Họ giúp bệnh nhân cảm thấy thoải mái từ cuộc gọi đầu tiên đến lần thăm khám cuối cùng.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "From ... to ... diễn tả phạm vi từ điểm bắt đầu đến điểm kết thúc."
+            }
+          ]
+        },
+        {
+          "id": "child-013",
+          "text": "I try to create a friendly workplace where everyone can learn and improve.",
+          "meaning": "Tôi cố gắng tạo ra một nơi làm việc thân thiện, nơi mọi người có thể học hỏi và tiến bộ.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Where giới thiệu nơi chốn. Learn and improve là học hỏi và cải thiện."
+            }
+          ]
+        },
+        {
+          "id": "child-014",
+          "text": "Every morning, I check the schedule and speak with my team about the day.",
+          "meaning": "Mỗi buổi sáng, tôi kiểm tra lịch làm việc và trao đổi với đội ngũ về ngày làm việc.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Every morning đặt ở đầu câu để nói thói quen hằng ngày."
+            }
+          ]
+        },
+        {
+          "id": "child-015",
+          "text": "We prepare clean rooms, safe tools, and clear information for each patient.",
+          "meaning": "Chúng tôi chuẩn bị phòng sạch, dụng cụ an toàn và thông tin rõ ràng cho từng bệnh nhân.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Prepare nghĩa là chuẩn bị. Clean, safe, clear là các tính từ đơn giản mô tả chất lượng."
+            }
+          ]
+        },
+        {
+          "id": "child-016",
+          "text": "My main services include dental checkups, cleaning, fillings, crowns, and smile care.",
+          "meaning": "Các dịch vụ chính của tôi bao gồm khám răng, làm sạch răng, trám răng, bọc răng và chăm sóc nụ cười.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Main services include + danh sách dịch vụ. Đây là cách nói đơn giản về công việc chuyên môn."
+            }
+          ]
+        },
+        {
+          "id": "child-017",
+          "text": "I also help patients understand how to protect their teeth at home.",
+          "meaning": "Tôi cũng giúp bệnh nhân hiểu cách bảo vệ răng của họ tại nhà.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "How to + động từ nghĩa là cách làm việc gì."
+            }
+          ]
+        },
+        {
+          "id": "child-018",
+          "text": "I know many people are afraid of dental treatment, so I speak calmly.",
+          "meaning": "Tôi biết nhiều người sợ điều trị nha khoa, vì vậy tôi nói chuyện một cách bình tĩnh.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "So dùng để nói kết quả. Are afraid of nghĩa là sợ điều gì."
+            }
+          ]
+        },
+        {
+          "id": "child-019",
+          "text": "I want each patient to feel safe, respected, and well cared for.",
+          "meaning": "Tôi muốn mỗi bệnh nhân cảm thấy an toàn, được tôn trọng và được chăm sóc tốt.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Want someone to + động từ diễn tả mong muốn ai đó làm hoặc cảm thấy điều gì."
+            }
+          ]
+        },
+        {
+          "id": "child-020",
+          "text": "Running two clinics is not always easy, because I must solve many problems.",
+          "meaning": "Việc vận hành hai phòng khám không phải lúc nào cũng dễ, vì tôi phải giải quyết nhiều vấn đề.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Running two clinics là cụm danh động từ làm chủ ngữ của câu."
+            }
+          ]
+        },
+        {
+          "id": "child-021",
+          "text": "Sometimes I need to make quick decisions about staff, equipment, or patient service.",
+          "meaning": "Đôi khi tôi cần đưa ra quyết định nhanh về nhân viên, thiết bị hoặc dịch vụ bệnh nhân.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Need to + động từ nghĩa là cần làm gì. Make decisions là đưa ra quyết định."
+            }
+          ]
+        },
+        {
+          "id": "child-022",
+          "text": "However, I enjoy learning how to become a better doctor and business owner.",
+          "meaning": "Tuy nhiên, tôi thích học cách trở thành một bác sĩ và chủ doanh nghiệp tốt hơn.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "However dùng để chuyển ý. Enjoy + V-ing nghĩa là thích làm việc gì."
+            }
+          ]
+        },
+        {
+          "id": "child-023",
+          "text": "My goal is to build clinics that are trusted by families for many years.",
+          "meaning": "Mục tiêu của tôi là xây dựng các phòng khám được nhiều gia đình tin tưởng trong nhiều năm.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "My goal is to + động từ dùng để nói mục tiêu cá nhân hoặc công việc."
+            }
+          ]
+        },
+        {
+          "id": "child-024",
+          "text": "I want my patients to remember our clinics for good quality and kind service.",
+          "meaning": "Tôi muốn bệnh nhân nhớ đến các phòng khám của chúng tôi vì chất lượng tốt và dịch vụ tử tế.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Remember something for + danh từ nói lý do khiến người khác nhớ đến điều gì."
+            }
+          ]
+        },
+        {
+          "id": "child-025",
+          "text": "Outside work, I try to spend time with my family and keep my mind fresh.",
+          "meaning": "Ngoài công việc, tôi cố gắng dành thời gian cho gia đình và giữ tinh thần thoải mái.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Outside work nghĩa là ngoài công việc. Spend time with family là dành thời gian cho gia đình."
+            }
+          ]
+        },
+        {
+          "id": "child-026",
+          "text": "I also read about new dental methods so my clinics can improve.",
+          "meaning": "Tôi cũng đọc về các phương pháp nha khoa mới để các phòng khám của tôi có thể cải thiện.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "So trong câu này diễn tả mục đích hoặc kết quả mong muốn."
+            }
+          ]
+        },
+        {
+          "id": "child-027",
+          "text": "In the future, I hope to train more good staff and open more opportunities.",
+          "meaning": "Trong tương lai, tôi hy vọng đào tạo thêm nhiều nhân viên giỏi và mở ra thêm nhiều cơ hội.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "In the future đặt bối cảnh thời gian. Hope to + động từ nghĩa là hy vọng làm gì."
+            }
+          ]
+        },
+        {
+          "id": "child-028",
+          "text": "I believe small daily improvements can make a strong and professional clinic.",
+          "meaning": "Tôi tin rằng những cải thiện nhỏ hằng ngày có thể tạo nên một phòng khám mạnh và chuyên nghiệp.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Small daily improvements là những cải thiện nhỏ mỗi ngày. Professional nghĩa là chuyên nghiệp."
+            }
+          ]
+        },
+        {
+          "id": "child-029",
+          "text": "Thank you for listening to my introduction, and I hope to meet you soon.",
+          "meaning": "Cảm ơn bạn đã lắng nghe phần giới thiệu của tôi, và tôi hy vọng sớm được gặp bạn.",
+          "explanations": [
+            {
+              "title": "Gợi ý",
+              "text": "Thank you for + V-ing dùng để cảm ơn ai đó vì đã làm việc gì."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

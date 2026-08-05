@@ -1,0 +1,74 @@
+{
+  "ignoreAdditionalDirs": [
+    ".agent",
+    ".agents",
+    ".claude",
+    ".codebase-context",
+    ".git",
+    ".serena",
+    "__pycache__",
+    "extension_auth",
+    "local_models",
+    "node_modules",
+    "Picture",
+    "programe_cache",
+    "run"
+  ],
+  "exclude": [
+    "**/*.bak",
+    "**/*.db",
+    "**/*.gif",
+    "**/*.ico",
+    "**/*.jpeg",
+    "**/*.jpg",
+    "**/*.json",
+    "**/*.jsonl",
+    "**/*.log",
+    "**/*.mp3",
+    "**/*.pdf",
+    "**/*.png",
+    "**/*.tmp",
+    "**/*.webp",
+    "**/*.zip",
+    "**/__pycache__/**",
+    "FUTURE/web/future.js",
+    "FUTURE/web/future.css",
+    "FUTURE/web/future.min.js",
+    "FUTURE/web/future.min.css",
+    "server2_*.log",
+    "*_out.log",
+    "*_err.log",
+    "*.Space_P",
+    "*.Space_Q",
+    "*.Space_V",
+    "*.Space_W"
+  ],
+  "extensions": [
+    ".py",
+    ".js",
+    ".cjs",
+    ".mjs",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".css",
+    ".html",
+    ".pyfrag"
+  ],
+  "build": {
+    "incremental": true,
+    "dbPath": ".codegraph/graph.db",
+    "engine": "auto",
+    "typescriptResolver": true
+  },
+  "query": {
+    "defaultDepth": 3,
+    "defaultLimit": 20,
+    "excludeTests": false
+  },
+  "display": {
+    "maxColWidth": 48,
+    "excerptLines": 40,
+    "summaryMaxChars": 120
+  }
+}

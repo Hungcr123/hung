@@ -117,6 +117,9 @@ def main() -> int:
         database_info["vault_placements"] = server_database_load_vault_cache(None)
         load_auth_sessions()
         database_info["completion_recovery"] = recover_pending_learning_completion_intents()
+        hydrate_dashboard = globals().get("hydrate_dashboard_recent_log_state")
+        if callable(hydrate_dashboard):
+            database_info["dashboard_recent_logs"] = hydrate_dashboard(keep_days=3, limit=500)
         database_info["online_backup"] = {"started": False, "reason": "postgresql_authoritative"}
         SERVER_STATE["database"] = database_info
         print("Server database ready (PostgreSQL authority).", flush=True)

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic Radial Progress</title>
+    <style>
+        :root {
+            --cyan: #00f3ff;
+            --purple: #bc13fe;
+            --bg-dark: #05070a;
+            --text-glow: rgba(0, 243, 255, 0.8);
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background-color: var(--bg-dark);
+            background-image: radial-gradient(circle at center, #0a1120 0%, #030406 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+            color: white;
+            overflow: hidden;
+        }
+
+        /* --- CONTAINER ĐỒ THỊ --- */
+        .chart-container {
+            position: relative;
+            width: 350px;
+            height: 350px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- SVG STYLING --- */
+        .tech-svg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg); /* Xoay -90 độ để bắt đầu từ điểm 12 giờ */
+        }
+
+        /* Các vòng quay trang trí */
+        .ring-outer {
+            fill: none;
+            stroke: rgba(0, 243, 255, 0.15);
+            stroke-width: 2;
+            stroke-dasharray: 4 12 20 8;
+            transform-origin: center;
+            animation: spin 20s linear infinite;
+        }
+        
+        .ring-inner-dashed {
+            fill: none;
+            stroke: var(--purple);
+            stroke-width: 3;
+            stroke-dasharray: 10 30;
+            transform-origin: center;
+            animation: spin-rev 10s linear infinite;
+            opacity: 0.5;
+        }
+
+        .ring-ticks {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 15;
+            stroke-dasharray: 2 10; /* Tạo các vạch chia độ */
+        }
+
+        /* Thanh Track nền */
+        .progress-track {
+            fill: none;
+            stroke: rgba(0, 243, 255, 0.05);
+            stroke-width: 12;
+        }
+
+        /* THANH TIẾN ĐỘ CHÍNH */
+        .progress-fill {
+            fill: none;
+            stroke: var(--cyan);
+            stroke-width: 12;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 10px var(--cyan));
+            transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* --- TRUNG TÂM ĐỒ THỊ (NỘI DUNG) --- */
+        .chart-center {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .status-text {
+            font-size: 10px;
+            color: var(--purple);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            animation: pulse-text 2s infinite alternate;
+        }
+
+        .percentage {
+            font-size: 48px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 15px var(--text-glow);
+            margin: 0;
+            line-height: 1;
+            position: relative;
+        }
+
+        .percentage::after {
+            content: '%';
+            font-size: 20px;
+            color: var(--cyan);
+            position: absolute;
+            top: 5px;
+            right: -25px;
+        }
+
+        .data-stream {
+            margin-top: 10px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 1px;
+        }
+
+        /* --- BẢNG ĐIỀU KHIỂN (BUTTONS) --- */
+        .controls {
+            margin-top: 50px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .btn-tech {
+            background: rgba(0, 243, 255, 0.05);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            padding: 10px 25px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            position: relative;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: 0.3s;
+        }
+
+        .btn-tech:hover {
+            background: var(--cyan);
+            color: #000;
+            box-shadow: 0 0 20px var(--cyan);
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin-rev { 100% { transform: rotate(-360deg); } }
+        @keyframes pulse-text {
+            0% { opacity: 0.6; text-shadow: 0 0 5px var(--purple); }
+            100% { opacity: 1; text-shadow: 0 0 15px var(--purple); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chart-container">
+        <!-- SVG VẼ ĐỒ THỊ TRÒN -->
+        <svg class="tech-svg" viewBox="0 0 300 300">
+            <!-- Filter tạo độ sáng Glow -->
+            <defs>
+                <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+
+            <!-- Vòng trang trí đứt khúc ngoài cùng (Quay xuôi) -->
+            <circle class="ring-outer" cx="150" cy="150" r="140"></circle>
+            
+            <!-- Vòng trang trí vạch kẻ vạch (Đứng yên) -->
+            <circle class="ring-ticks" cx="150" cy="150" r="125"></circle>
+
+            <!-- Vòng Track làm nền cho thanh tiến độ -->
+            <circle class="progress-track" cx="150" cy="150" r="110"></circle>
+
+            <!-- THANH TIẾN ĐỘ CHÍNH (Sẽ được JS điều khiển độ dài) -->
+            <circle class="progress-fill" id="main-progress" cx="150" cy="150" r="110" filter="url(#neon-glow)"></circle>
+            
+            <!-- Vòng trang trí lõi (Quay ngược) -->
+            <circle class="ring-inner-dashed" cx="150" cy="150" r="90"></circle>
+        </svg>
+
+        <!-- NỘI DUNG HIỂN THỊ TRUNG TÂM -->
+        <div class="chart-center">
+            <div class="status-text" id="status-label">UPLINK STANDBY</div>
+            <div class="percentage" id="percent-text">0</div>
+            <div class="data-stream" id="hash-stream">0x000000</div>
+        </div>
+    </div>
+
+    <!-- Nút bấm test dữ liệu -->
+    <div class="controls">
+        <button class="btn-tech" onclick="setProgress(35, 'SYSTEM SCANNING')">Quét (35%)</button>
+        <button class="btn-tech" onclick="setProgress(87, 'DATA UPLOAD')">Tải Lên (87%)</button>
+        <button class="btn-tech" onclick="setProgress(100, 'SYNC COMPLETE')">Hoàn Tất (100%)</button>
+    </div>
+
+    <script>
+        const progressCircle = document.getElementById('main-progress');
+        const percentText = document.getElementById('percent-text');
+        const statusLabel = document.getElementById('status-label');
+        
+        // Tính toán chu vi của hình tròn tiến độ
+        const radius = progressCircle.r.baseVal.value;
+        const circumference = 2 * Math.PI * radius; // C = 2πr
+
+        // Khởi tạo đồ thị ở mức 0%
+        progressCircle.style.strokeDasharray = `${circumference}${circumference}`;
+        progressCircle.style.strokeDashoffset = circumference;
+
+        let currentPercent = 0;
+
+        /**
+         * Hàm chạy tiến độ
+         * @param {number} targetPercent Mục tiêu % (0-100)
+         * @param {string} status Thông điệp hiển thị
+         */
+        function setProgress(targetPercent, status) {
+            // Cập nhật text trạng thái
+            statusLabel.innerText = status;
+
+            // Tính toán offset mới cho thanh tiến độ
+            const offset = circumference - (targetPercent / 100) * circumference;
+            progressCircle.style.strokeDashoffset = offset;
+
+            // Hiệu ứng đếm số (Number Counter Animation)
+            animateValue(percentText, currentPercent, targetPercent, 1500);
+            
+            currentPercent = targetPercent;
+        }
+
+        /**
+         * Hàm đếm số mượt mà
+         */
+        function animateValue(obj, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                // Ease out quad function
+                const easeOut = 1 - (1 - progress) * (1 - progress);
+                
+                const current = Math.floor(easeOut * (end - start) + start);
+                obj.innerHTML = current;
+                
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                } else {
+                    obj.innerHTML = end; // Đảm bảo số cuối cùng chính xác
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // Tạo luồng dữ liệu HEX chạy ngẫu nhiên ở lõi cho ngầu
+        setInterval(() => {
+            const randomHex = Math.floor(Math.random() * 16777215).toString(16).toUpperCase();
+            document.getElementById('hash-stream').innerText = `0x${randomHex.padStart(6, '0')}`;
+        }, 150);
+
+        // Chạy thử khi vừa tải trang xong
+        window.onload = () => {
+            setTimeout(() => {
+                setProgress(68, "INITIALIZING CORE");
+            }, 500);
+        };
+    </script>
+</body>
+</html>

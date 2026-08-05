@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biển Cảnh Báo Phóng Xạ - SciFi</title>
+<style>
+  /* Phần body này chỉ dùng để căn giữa logo trên màn hình đen mô phỏng cửa. 
+     Bạn có thể bỏ qua khi nhúng vào web của bạn */
+  body {
+    background-color: #0a0a0c; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  /* Khung biển cảnh báo */
+  .cyber-sign {
+    position: relative;
+    width: 320px;
+    background: linear-gradient(135deg, #151515 0%, #050505 100%);
+    border-top: 2px solid #ffe600;
+    border-bottom: 2px solid #ffe600;
+    box-shadow: 0 0 20px rgba(255, 230, 0, 0.1), inset 0 0 30px rgba(255, 30, 0, 0.1);
+    padding: 50px 20px;
+    text-align: center;
+    overflow: hidden;
+    color: #ffe600;
+    /* Cắt góc tạo cảm giác tương lai */
+    clip-path: polygon(15% 0, 100% 0, 100% 85%, 85% 100%, 0 100%, 0 15%); 
+  }
+
+  /* Hiệu ứng tia laser quét (Scanline) */
+  .cyber-sign::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 230, 0, 0.5);
+    box-shadow: 0 0 20px #ffe600, 0 0 40px #ff3300;
+    animation: scan 3s linear infinite;
+    opacity: 0.7;
+    z-index: 10;
+  }
+
+  @keyframes scan {
+    0% { top: -10%; }
+    100% { top: 110%; }
+  }
+
+  /* Biểu tượng phóng xạ */
+  .icon {
+    font-size: 110px;
+    line-height: 1;
+    margin-bottom: 15px;
+    color: #ffe600;
+    /* Hiệu ứng toả sáng nhấp nháy */
+    animation: pulse 1.5s infinite alternate;
+  }
+
+  @keyframes pulse {
+    0% { 
+      text-shadow: 0 0 10px #ffe600, 0 0 20px #ff3300; 
+      transform: scale(0.98); 
+    }
+    100% { 
+      text-shadow: 0 0 30px #ffe600, 0 0 60px #ff3300, 0 0 90px #ff0000; 
+      transform: scale(1.05); 
+    }
+  }
+
+  /* Tiêu đề chính */
+  .title {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    text-shadow: 2px 2px 0px rgba(255, 50, 0, 0.5);
+  }
+
+  /* Thanh phân cách vi mạch (Circuit bar) */
+  .glitch-bar {
+    width: 70%;
+    height: 3px;
+    background: #ffe600;
+    margin: 15px auto;
+    position: relative;
+    box-shadow: 0 0 10px #ffe600;
+  }
+  
+  .glitch-bar::before {
+     content: '';
+     position: absolute;
+     left: -12px;
+     top: -4px;
+     width: 10px;
+     height: 10px;
+     background: #ff3300;
+     box-shadow: 0 0 10px #ff3300;
+  }
+
+  .glitch-bar::after {
+     content: '';
+     position: absolute;
+     right: -12px;
+     top: -4px;
+     width: 10px;
+     height: 10px;
+     background: #ff3300;
+     box-shadow: 0 0 10px #ff3300;
+  }
+
+  /* Phụ đề cảnh báo */
+  .subtitle {
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: #ff6600;
+    text-transform: uppercase;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+    line-height: 1.5;
+  }
+  
+  /* Mã code trang trí góc */
+  .deco-code {
+    position: absolute;
+    bottom: 10px;
+    right: 15px;
+    font-size: 9px;
+    color: rgba(255, 230, 0, 0.4);
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+
+  <!-- BẮT ĐẦU VÙNG LOGO CẦN COPY -->
+  <div class="cyber-sign">
+    <div class="icon">☢</div>
+    <div class="title">Phóng Xạ</div>
+    <div class="glitch-bar"></div>
+    <div class="subtitle">Khu Vực Nguy Hiểm<br>Cấp Độ 5</div>
+    <div class="deco-code">RAD-SYS.90.X</div>
+  </div>
+  <!-- KẾT THÚC VÙNG LOGO -->
+
+</body>
+</html>

@@ -19,7 +19,7 @@ const context = {
   serverLessonProgressPrefetchCache: new Map(),
   clean: (value) => String(value ?? "").trim(),
   normalizeServerPathValue: (value) => String(value ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, ""),
-  isSpacePictureExtension: () => false,
+  isSpacePictureExtension: (value) => /\.(?:png|jpe?g|webp|space_picture)$/i.test(String(value || "")),
   fetchProgressJsonFast: async (url) => {
     calls.push(url);
     return { payload: { ok: true }, etag: "etag" };
@@ -42,7 +42,32 @@ vm.runInContext(`${source.slice(start, end)}\n;globalThis.fetchProgress=fetchSer
   await context.fetchProgress({ path: "common/legacy-a.Space_W", extension: ".Space_W" });
   await context.fetchProgress({ path: "common/legacy-b.Space_W", extension: ".Space_W" });
   assert.equal(calls.length, 4, "legacy path fallback must remain distinct until migration");
-  console.log("lesson_progress_prefetch_identity=ok direct_link=shared revision=invalidate legacy=path-fallback");
+
+  calls.length = 0;
+  context.serverLessonProgressPrefetchCache.clear();
+  const endpointRows = [
+    ["common/v.Space_V", ".Space_V", "/space-v/progress"],
+    ["common/p.Space_P", ".Space_P", "/space-p/progress"],
+    ["common/l.Space_L", ".Space_L", "/space-p/progress"],
+    ["common/s.Space_S", ".Space_S", "/space-p/progress"],
+    ["common/w.Space_W", ".Space_W", "/space-w/progress"],
+  ];
+  for (const [path, extension, endpoint] of endpointRows) {
+    await context.fetchProgress({ path, extension });
+    assert.ok(calls.at(-1).startsWith(endpoint), `${extension} used the wrong progress endpoint`);
+  }
+
+  calls.length = 0;
+  context.serverLessonProgressPrefetchCache.clear();
+  context.lessonVaultProgressSnapshotForPaths = () => ({ progress: { current: 2, total: 8, percent: 25 } });
+  await context.fetchProgress({ path: "common/compact.Space_W", extension: ".Space_W" });
+  assert.equal(calls.length, 1, "compact Vault summary must fall through to the full progress endpoint");
+  calls.length = 0;
+  context.serverLessonProgressPrefetchCache.clear();
+  context.lessonVaultProgressSnapshotForPaths = () => ({ progress: { state: { currentIndex: 2 } } });
+  await context.fetchProgress({ path: "common/full.Space_W", extension: ".Space_W" });
+  assert.equal(calls.length, 0, "full checkpoint snapshot should avoid a duplicate progress request");
+  console.log("lesson_progress_prefetch_identity=ok aliases=shared endpoints=V/P/L/S/W compact=network full=cache");
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổng Tự Động Sci-Fi - Full Màn Hình</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #030712;
+            font-family: 'Courier New', Courier, monospace;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Khung cổng chính phủ kín toàn màn hình */
+        .gate-frame {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #0b0f19;
+            border: none;
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-radius: 0;
+        }
+
+        /* KHÔNG GIAN NỘI THẤT BÊN TRONG */
+        .gate-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #0a0b10 0%, #010307 100%);
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Lõi lò phản ứng Plasma phía sâu nhất */
+        .inner-vault {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2;
+        }
+
+        .core-reactor {
+            width: 350px;
+            height: 350px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(250,204,21,0.25) 0%, rgba(15,23,42,0.1) 60%, transparent 100%);
+            border: 3px dashed rgba(250, 204, 21, 0.6);
+            box-shadow: 0 0 120px rgba(250, 204, 21, 0.4), inset 0 0 60px rgba(250, 204, 21, 0.3);
+            animation: rotateCore 14s linear infinite;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .core-reactor::before {
+            content: '';
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            border: 3px solid #facc15;
+            box-shadow: 0 0 40px #facc15, inset 0 0 30px #facc15;
+            animation: rotateCoreReverse 8s linear infinite;
+        }
+
+        @keyframes rotateCore {
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes rotateCoreReverse {
+            100% { transform: rotate(-360deg); }
+        }
+
+        /* ==========================================
+           CÁNH CỔNG THỨ 2 (CHỨA MẮT QUÉT VÀ 2 NÚT MỚI)
+           ========================================== */
+        .gate2-panel {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            z-index: 3;
+            transition: transform 0.9s cubic-bezier(0.77, 0, 0.175, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+        }
+
+        .gate2-top {
+            top: 0;
+            background: linear-gradient(180deg, #040914 0%, #08162b 100%);
+            border-bottom: 4px solid #00f3ff;
+            box-shadow: inset 0 -40px 80px rgba(0, 243, 255, 0.35), 0 15px 35px rgba(0,0,0,0.8);
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .gate2-bottom {
+            bottom: 0;
+            background: linear-gradient(0deg, #040914 0%, #08162b 100%);
+            border-top: 4px solid #00f3ff;
+            box-shadow: inset 0 40px 80px rgba(0, 243, 255, 0.35), 0 -15px 35px rgba(0,0,0,0.8);
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        /* Họa tiết viền cọc */
+        .gate2-top::before, .gate2-bottom::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 8px;
+            background-image: radial-gradient(circle, #00f3ff 40%, transparent 40%);
+            background-size: 32px 8px;
+            opacity: 0.8;
+            z-index: 5;
+        }
+        .gate2-top::before { bottom: 6px; }
+        .gate2-bottom::before { top: 6px; }
+
+        /* KHU VỰC HIỂN THỊ 2 NÚT MỚI TRÊN CỔNG 2 */
+        .gate2-action-area {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+            z-index: 10;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.5s ease 0.6s, transform 0.5s ease 0.6s;
+            pointer-events: none; /* Mặc định chưa bấm được khi ẩn */
+        }
+
+        /* Khi Cổng 1 mở xong, 2 nút trên Cổng 2 sáng lên và tương tác được */
+        .gate-frame.gate2-ready .gate2-action-area {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+
+        /* Phong cách 2 nút mới trên Cổng 2 */
+        .gate2-nav-btn {
+            width: 160px;
+            height: 50px;
+            background: rgba(2, 6, 16, 0.9);
+            border: 2px solid #00f3ff;
+            border-radius: 6px;
+            color: #00f3ff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .gate2-nav-btn:hover {
+            background: rgba(0, 243, 255, 0.2);
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.7);
+            transform: translateY(-2px);
+        }
+
+        .gate2-nav-sub {
+            font-size: 8px;
+            opacity: 0.7;
+            font-weight: normal;
+            margin-top: 3px;
+        }
+
+        /* BẢNG ĐIỀU KHIỂN CỔNG 2 */
+        .console-gate2 {
+            width: 180px;
+            height: 90px;
+            background: rgba(5, 9, 18, 0.95);
+            border: 1px solid #00f3ff;
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.5), inset 0 0 12px rgba(0, 243, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px;
+            margin-bottom: 10px;
+            z-index: 6;
+            position: relative;
+        }
+
+        .console-gate2-screen {
+            width: 100%;
+            height: 22px;
+            background: #020409;
+            border: 1px solid rgba(0, 243, 255, 0.7);
+            color: #00f3ff;
+            font-size: 7px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.5);
+            letter-spacing: 1px;
+        }
+
+        /* Mắt Quét Lazer Hiện Đại */
+        .cyber-eye-scanner {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #00f3ff;
+            background: radial-gradient(circle, #020617 30%, rgba(0, 243, 255, 0.3) 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.6), inset 0 0 8px rgba(0, 243, 255, 0.5);
+        }
+
+        .cyber-eye-iris {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px dashed #00f3ff;
+            position: absolute;
+            animation: eyeSpin 4s linear infinite;
+        }
+
+        @keyframes eyeSpin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .cyber-eye-pupil {
+            width: 8px;
+            height: 8px;
+            background: #00f3ff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff;
+            animation: pupilPulse 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pupilPulse {
+            0% { transform: scale(0.8); opacity: 0.6; }
+            100% { transform: scale(1.2); opacity: 1; }
+        }
+
+        .cyber-eye-laser {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: #ffffff;
+            box-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff;
+            animation: laserScanMove 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes laserScanMove {
+            0% { top: 4px; }
+            100% { top: 34px; }
+        }
+
+        .gate2-status-led {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+
+        .gate2-hub-container {
+            width: 98%;
+            height: 65px;
+            background: rgba(2, 6, 16, 0.9);
+            border: 1px solid rgba(0, 243, 255, 0.6);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-shadow: inset 0 0 25px rgba(0, 243, 255, 0.25), 0 0 20px rgba(0, 243, 255, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gate2-hub-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.4), transparent);
+            animation: strangeHubScan 3.5s infinite linear;
+        }
+
+        @keyframes strangeHubScan {
+            0% { left: -100%; }
+            100% { left: 200%; }
+        }
+
+        .hub-column {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 6px;
+            z-index: 2;
+        }
+
+        .hub-telemetry {
+            font-size: 8px;
+            color: #00f3ff;
+            letter-spacing: 2px;
+            text-shadow: 0 0 6px rgba(0, 243, 255, 0.8);
+        }
+
+        .atomic-logo-center {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 243, 255, 0.5);
+            background: radial-gradient(circle, rgba(0, 243, 255, 0.2) 0%, transparent 70%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.4);
+            z-index: 3;
+        }
+
+        .atomic-nucleus {
+            width: 8px;
+            height: 8px;
+            background: #00f3ff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff;
+        }
+
+        .atomic-ring {
+            position: absolute;
+            width: 30px;
+            height: 15px;
+            border: 1px solid #00f3ff;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #00f3ff;
+        }
+
+        .atomic-ring:nth-child(2) { transform: rotate(60deg); }
+        .atomic-ring:nth-child(3) { transform: rotate(120deg); }
+
+        .gate-frame.open-gate2 .gate2-top { transform: translateY(-100%); }
+        .gate-frame.open-gate2 .gate2-bottom { transform: translateY(100%); }
+
+        /* ==========================================
+           CÁNH CỔNG 1 (TRÁI & PHẢI)
+           ========================================== */
+        .gate-panel {
+            position: absolute;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(135deg, #111827 0%, #1f2937 50%, #0f172a 100%);
+            z-index: 5;
+            transition: transform 1s cubic-bezier(0.77, 0, 0.175, 1);
+            border-top: 3px solid #334155;
+            border-bottom: 3px solid #334155;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px 15px;
+        }
+
+        .gate-panel::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 3px;
+            height: 100%;
+            background: #facc15;
+            box-shadow: 0 0 15px #facc15;
+        }
+
+        .gate-left {
+            left: 0;
+            border-right: 2px solid #374151;
+        }
+        .gate-left::after { right: 0; }
+
+        .gate-right {
+            right: 0;
+            border-left: 2px solid #374151;
+        }
+        .gate-right::after { left: 0; }
+
+        .gate-frame.open .gate-left { transform: translateX(-100%); }
+        .gate-frame.open .gate-right { transform: translateX(100%); }
+
+        .tech-lines {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            background-image: 
+                linear-gradient(90deg, rgba(250, 204, 21, 0.04) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(250, 204, 21, 0.04) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        .panel-circuit {
+            flex-grow: 1;
+            margin: 15px 10px;
+            border: 1px dashed rgba(250, 204, 21, 0.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .circuit-strip {
+            width: 100%;
+            height: 8px;
+            background: #1e293b;
+            border: 1px solid rgba(250, 204, 21, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .circuit-strip::before {
+            content: '';
+            position: absolute;
+            width: 30%;
+            height: 100%;
+            background: #facc15;
+            box-shadow: 0 0 10px #facc15;
+            animation: moveLightWarning 3s infinite linear;
+        }
+
+        @keyframes moveLightWarning {
+            0% { left: -30%; }
+            100% { left: 100%; }
+        }
+
+        .warning-stripe {
+            width: 100%;
+            height: 10px;
+            background: repeating-linear-gradient(
+                45deg,
+                #1e293b,
+                #1e293b 12px,
+                #facc15 12px,
+                #facc15 24px
+            );
+            opacity: 0.9;
+        }
+
+        /* LOGO PHÓNG XẠ HOLOGRAPHIC */
+        .sci-radiation-hub {
+            position: relative;
+            width: 90px;
+            height: 90px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px auto;
+        }
+
+        .sci-radar-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 1px dashed rgba(250, 204, 21, 0.6);
+            box-shadow: 0 0 12px rgba(250, 204, 21, 0.2);
+            animation: radarSpin 10s linear infinite;
+        }
+
+        @keyframes radarSpin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .sci-rad-core {
+            position: relative;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(250, 204, 21, 0.35) 0%, rgba(10, 15, 25, 0.9) 70%);
+            border: 2px solid #facc15;
+            box-shadow: 0 0 20px rgba(250, 204, 21, 0.7), inset 0 0 12px rgba(250, 204, 21, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: corePulse 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes corePulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 15px rgba(250, 204, 21, 0.5); }
+            100% { transform: scale(1.05); box-shadow: 0 0 30px rgba(250, 204, 21, 0.95); }
+        }
+
+        .sci-dot {
+            width: 9px;
+            height: 9px;
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #ffffff, 0 0 20px #facc15;
+            z-index: 3;
+        }
+
+        .sci-barrier {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border: 2px solid #0b0f19;
+            border-radius: 50%;
+            z-index: 2;
+        }
+
+        .sci-blade {
+            position: absolute;
+            width: 16px;
+            height: 22px;
+            background: linear-gradient(180deg, #fffbeb 0%, #facc15 100%);
+            border-radius: 40% 40% 10% 10% / 80% 80% 20% 20%;
+            box-shadow: 0 0 12px #facc15;
+            top: 5px;
+            left: 22.5px;
+            transform-origin: bottom center;
+            z-index: 1;
+        }
+
+        .sci-blade:nth-child(1) { transform: rotate(0deg) translateY(-2px); }
+        .sci-blade:nth-child(2) { transform: rotate(120deg) translateY(-2px); }
+        .sci-blade:nth-child(3) { transform: rotate(240deg) translateY(-2px); }
+
+        /* BẢNG ĐIỀU KHIỂN TRUNG TÂM (CỔNG 1) */
+        .center-console {
+            position: absolute;
+            left: -52px; 
+            top: 50%;
+            transform: translateY(-50%);
+            width: 104px;
+            height: 520px;
+            background: rgba(11, 15, 25, 0.95);
+            border: 2px solid #facc15;
+            border-radius: 10px;
+            z-index: 6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 6px;
+            box-shadow: 0 0 30px rgba(250, 204, 21, 0.5);
+        }
+
+        .clock {
+            color: #facc15;
+            font-size: 11px;
+            text-shadow: 0 0 6px #facc15;
+            text-align: center;
+            border-bottom: 1px solid rgba(250, 204, 21, 0.3);
+            padding-bottom: 6px;
+            width: 100%;
+        }
+
+        .scanner-area {
+            width: 56px;
+            height: 56px;
+            border: 2px solid #facc15;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: radial-gradient(circle, #0b0f19 50%, rgba(250, 204, 21, 0.2) 100%);
+            box-shadow: inset 0 0 10px rgba(250, 204, 21, 0.5);
+        }
+
+        .scanner-area:hover {
+            box-shadow: 0 0 20px #facc15, inset 0 0 15px #facc15;
+            transform: scale(1.05);
+        }
+
+        .fingerprint-icon {
+            width: 26px;
+            height: 32px;
+            background-image: radial-gradient(circle, #0b0f19 30%, transparent 40%),
+                              linear-gradient(to bottom, #facc15 10%, transparent 10%, transparent 20%, #facc15 20%, #facc15 30%, transparent 30%, transparent 40%, #facc15 40%, #facc15 50%, transparent 50%);
+            background-size: 26px 32px;
+            opacity: 0.9;
+        }
+
+        /* NÚT CONTINUE CŨ */
+        .continue-btn-sci {
+            width: 88px;
+            height: 36px;
+            background: linear-gradient(135deg, rgba(250, 204, 21, 0.15), rgba(11, 15, 25, 0.9));
+            border: 1px solid #facc15;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 12px rgba(250, 204, 21, 0.25), inset 0 0 6px rgba(250, 204, 21, 0.2);
+        }
+
+        .continue-btn-sci::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.4), transparent);
+            transition: 0.5s;
+        }
+
+        .continue-btn-sci:hover::before {
+            left: 100%;
+        }
+
+        .continue-btn-sci:hover {
+            background: rgba(250, 204, 21, 0.3);
+            box-shadow: 0 0 20px #facc15, inset 0 0 10px #facc15;
+            transform: scale(1.03);
+        }
+
+        .continue-logo-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            width: 16px;
+            height: 16px;
+        }
+
+        .arrow-part {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-top: 2px solid #facc15;
+            border-right: 2px solid #facc15;
+            transform: rotate(45deg);
+            box-shadow: 1px -1px 5px #facc15;
+            animation: arrowPulse 1.5s infinite alternate;
+        }
+
+        .arrow-part:nth-child(1) { right: 6px; opacity: 0.5; }
+        .arrow-part:nth-child(2) { right: 1px; opacity: 1; }
+
+        @keyframes arrowPulse {
+            0% { transform: rotate(45deg) scale(0.8); filter: drop-shadow(0 0 2px #facc15); }
+            100% { transform: rotate(45deg) scale(1.2); filter: drop-shadow(0 0 8px #facc15); }
+        }
+
+        .continue-text {
+            font-size: 8px;
+            color: #facc15;
+            font-weight: bold;
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 6px #facc15;
+        }
+
+        .status-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+            transition: background 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        .override-btn {
+            background: transparent;
+            border: 1px solid #facc15;
+            color: #facc15;
+            font-size: 9px;
+            padding: 5px 2px;
+            cursor: pointer;
+            text-align: center;
+            width: 100%;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+
+        .override-btn:hover {
+            background: #facc15;
+            color: #0b0f19;
+            box-shadow: 0 0 10px #facc15;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="gate-frame" id="gateFrame">
+        <!-- NỀN & KHÔNG GIAN BÊN TRONG -->
+        <div class="gate-background">
+            <div class="inner-vault">
+                <div class="core-reactor"></div>
+            </div>
+
+            <!-- CÁNH CỔNG THỨ 2 (CHỨA 2 NÚT ĐIỀU HƯỚNG MỚI) -->
+            <div class="gate2-panel gate2-top">
+                <!-- VÙNG 2 NÚT BẤM MỚI XUẤT HIỆN SAU KHI CỔNG 1 MỞ -->
+                <div class="gate2-action-area">
+                    <button class="gate2-nav-btn" onclick="alert('Đã tải từ vựng trước đó!')">
+                        TỪ VỰNG TRƯỚC
+                        <span class="gate2-nav-sub">PREV VOCAB</span>
+                    </button>
+                    <button class="gate2-nav-btn" onclick="openGate2Final()" style="border-color: #facc15; color: #facc15;">
+                        TIẾP TỤC (EN)
+                        <span class="gate2-nav-sub">CONTINUE ACCESS</span>
+                    </button>
+                </div>
+
+                <div class="console-gate2" id="consoleGate2">
+                    <div style="color: #00f3ff; font-size: 6px; letter-spacing: 1px;">CYBER_EYE_V2</div>
+                    <div class="cyber-eye-scanner">
+                        <div class="cyber-eye-laser"></div>
+                        <div class="cyber-eye-iris"></div>
+                        <div class="cyber-eye-pupil"></div>
+                    </div>
+                    <div class="console-gate2-screen">
+                        <span id="gate2Text">LOCKED</span>
+                    </div>
+                    <div class="gate2-status-led" id="gate2Led"></div>
+                </div>
+                
+                <div class="gate2-hub-container">
+                    <div class="hub-column">
+                        <span class="hub-telemetry">SYS_NODE: ALPHA</span>
+                        <span class="hub-telemetry" style="opacity: 0.6;">VOLT: 450KV</span>
+                    </div>
+
+                    <div class="atomic-logo-center">
+                        <div class="atomic-ring"></div>
+                        <div class="atomic-ring"></div>
+                        <div class="atomic-ring"></div>
+                        <div class="atomic-nucleus"></div>
+                    </div>
+
+                    <div class="hub-column" style="align-items: flex-end;">
+                        <span class="hub-telemetry">STATUS: SECURE</span>
+                        <span class="hub-telemetry" style="opacity: 0.6;">SYNC: OK</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gate2-panel gate2-bottom">
+                <div class="gate2-hub-container">
+                    <div class="hub-column">
+                        <span class="hub-telemetry">FLOW: STABLE</span>
+                        <span class="hub-telemetry" style="opacity: 0.6;">CORE: ACTIVE</span>
+                    </div>
+
+                    <div class="atomic-logo-center">
+                        <div class="atomic-ring"></div>
+                        <div class="atomic-ring"></div>
+                        <div class="atomic-ring"></div>
+                        <div class="atomic-nucleus"></div>
+                    </div>
+
+                    <div class="hub-column" style="align-items: flex-end;">
+                        <span class="hub-telemetry">SHIELD: 99.9%</span>
+                        <span class="hub-telemetry" style="opacity: 0.6;">GRID: ONLINE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CÁNH CỔNG TRÁI -->
+        <div class="gate-panel gate-left">
+            <div class="tech-lines"></div>
+            <div class="warning-stripe"></div>
+            <div class="panel-circuit">
+                <div class="circuit-strip"></div>
+                
+                <div class="sci-radiation-hub">
+                    <div class="sci-radar-ring"></div>
+                    <div class="sci-rad-core">
+                        <div class="sci-blade"></div>
+                        <div class="sci-blade"></div>
+                        <div class="sci-blade"></div>
+                        <div class="sci-barrier"></div>
+                        <div class="sci-dot"></div>
+                    </div>
+                </div>
+
+                <div class="circuit-strip"></div>
+                <div style="color: #facc15; font-size: 9px; opacity: 0.8; text-align: center; letter-spacing: 1px;">HAZARD_ZONE_01</div>
+            </div>
+            <div class="warning-stripe"></div>
+        </div>
+
+        <!-- CÁNH CỔNG PHẢI (CÓ NÚT CONTINUE CŨ) -->
+        <div class="gate-panel gate-right">
+            <div class="tech-lines"></div>
+            
+            <div class="center-console">
+                <div class="clock" id="clockDisplay">00:00:00</div>
+                
+                <div style="color: #facc15; font-size: 8px; text-align: center; letter-spacing: 1px;">BIOMETRIC</div>
+                
+                <div class="scanner-area" onclick="toggleGateSequence()" title="Chạm để mở cổng">
+                    <div class="fingerprint-icon"></div>
+                </div>
+
+                <!-- NÚT CONTINUE CŨ -->
+                <div class="continue-btn-sci" onclick="triggerContinueAction()" title="Tiếp tục hệ thống tiếp theo">
+                    <span class="continue-text">CONT</span>
+                    <div class="continue-logo-icon">
+                        <div class="arrow-part"></div>
+                        <div class="arrow-part"></div>
+                    </div>
+                </div>
+
+                <div class="status-light" id="statusLight"></div>
+
+                <button class="override-btn" onclick="toggleGateSequence()">OVERRIDE</button>
+            </div>
+
+            <div class="warning-stripe"></div>
+            <div class="panel-circuit">
+                <div class="circuit-strip"></div>
+                
+                <div class="sci-radiation-hub">
+                    <div class="sci-radar-ring"></div>
+                    <div class="sci-rad-core">
+                        <div class="sci-blade"></div>
+                        <div class="sci-blade"></div>
+                        <div class="sci-blade"></div>
+                        <div class="sci-barrier"></div>
+                        <div class="sci-dot"></div>
+                    </div>
+                </div>
+
+                <div class="circuit-strip"></div>
+                <div style="color: #facc15; font-size: 9px; opacity: 0.8; text-align: center; letter-spacing: 1px;">RADIOACTIVE_SYS</div>
+            </div>
+            <div class="warning-stripe"></div>
+        </div>
+    </div>
+
+    <script>
+        const gateFrame = document.getElementById('gateFrame');
+        const statusLight = document.getElementById('statusLight');
+        const gate2Text = document.getElementById('gate2Text');
+        const gate2Led = document.getElementById('gate2Led');
+
+        let isAnimating = false;
+
+        function toggleGateSequence() {
+            if (isAnimating) return;
+
+            const isOpen = gateFrame.classList.contains('open');
+
+            if (!isOpen) {
+                isAnimating = true;
+
+                statusLight.style.background = '#22c55e';
+                statusLight.style.boxShadow = '0 0 12px #22c55e';
+                gateFrame.classList.add('open'); // Mở cổng 1
+
+                setTimeout(() => {
+                    gate2Text.textContent = 'SYNC...';
+
+                    setTimeout(() => {
+                        gate2Text.textContent = 'ACTIVE';
+                        gate2Text.style.color = '#00f3ff';
+                        gate2Led.style.background = '#22c55e';
+                        gate2Led.style.boxShadow = '0 0 10px #22c55e';
+
+                        // Hiển thị 2 nút bấm mới trên Cổng 2
+                        gateFrame.classList.add('gate2-ready');
+                        isAnimating = false;
+
+                    }, 800);
+
+                }, 1000);
+
+            } else {
+                isAnimating = true;
+
+                gateFrame.classList.remove('gate2-ready');
+                gateFrame.classList.remove('open-gate2');
+                gate2Text.textContent = 'SEALING';
+                gate2Text.style.color = '#00f3ff';
+                gate2Led.style.background = '#ef4444';
+                gate2Led.style.boxShadow = '0 0 10px #ef4444';
+
+                setTimeout(() => {
+                    gate2Text.textContent = 'LOCKED';
+                    gateFrame.classList.remove('open');
+                    statusLight.style.background = '#ef4444';
+                    statusLight.style.boxShadow = '0 0 12px #ef4444';
+                    isAnimating = false;
+                }, 900);
+            }
+        }
+
+        // Hàm mở nốt Cổng 2 khi bấm nút "TIẾP TỤC (EN)" mới
+        function openGate2Final() {
+            gateFrame.classList.add('open-gate2');
+        }
+
+        // Nút Continue cũ
+        function triggerContinueAction() {
+            const continueBtn = document.querySelector('.continue-btn-sci');
+            continueBtn.style.borderColor = '#22c55e';
+            continueBtn.style.boxShadow = '0 0 20px #22c55e';
+            
+            setTimeout(() => {
+                continueBtn.style.borderColor = '#facc15';
+                continueBtn.style.boxShadow = '0 0 12px rgba(250, 204, 21, 0.25), inset 0 0 6px rgba(250, 204, 21, 0.2)';
+            }, 500);
+
+            if (!gateFrame.classList.contains('open')) {
+                toggleGateSequence();
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clockDisplay').textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        statusLight.style.background = '#ef4444';
+        statusLight.style.boxShadow = '0 0 12px #ef4444';
+    </script>
+
+</body>
+</html>

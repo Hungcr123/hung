@@ -25,7 +25,11 @@ def main() -> int:
     assert app.lesson_tasks_runtime_signature(user_b) == task_b_before
     assert app.lesson_task_notices_runtime_signature(user_a) != notice_a_before
     assert app.lesson_task_notices_runtime_signature(user_b) == notice_b_before
-    manifest = {"updated_at": "revision-test", "signature": "revision-test"}
+    manifest = {
+        "runtime_revision": "revision-test",
+        "runtime_root_revision_version": 1,
+        "runtime_root_revisions": {"common": "common-rev", user_a: "a-rev", user_b: "b-rev"},
+    }
     list_b_before = app.server_data_list_cache_signature(manifest, study_user=user_b, task_owner=user_b, stats_user=user_b, viewer_user=user_b)
     app.lesson_tasks_user_revision(user_a, bump=True)
     app.lesson_task_notices_user_revision(user_a, bump=True)

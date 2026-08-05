@@ -1,0 +1,30 @@
+# Project-local LeanCTX tuning for Future Translation Gate.
+# Keep compact searches focused on source parts; use raw rg/Select-String for exhaustive generated-bundle checks.
+
+compression_level = "standard"
+output_density = "normal"
+reference_results = true
+symbol_map_auto = true
+content_defined_chunking = true
+
+extra_ignore_patterns = [
+  "node_modules/**",
+  "**/__pycache__/**",
+  "programe_cache/**",
+  ".codegraph/**",
+  ".serena/**",
+  "FUTURE/web/future.js",
+  "FUTURE/web/future.css",
+  "future_split.html",
+  "*.min.js",
+  "*.map",
+  "*.pyc",
+  "*.log"
+]
+
+[search]
+bm25_weight = 1.0
+dense_weight = 1.0
+splade_weight = 0.5
+bm25_candidates = 200
+dense_candidates = 200
