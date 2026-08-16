@@ -13280,12 +13280,29 @@
 
       const showSharedWorldBattleMissLabelAtPoint = (point = {}) => {
         if (!worldBattleCard || !point) return;
+        const size = sharedWorldTrainingEffectSize();
+        const rect = point.spriteRect || point.targetRect || null;
+        const labelX = rect && Number.isFinite(Number(rect.left))
+          ? (point.missOffset ? Number(point.x || 0) : Number(rect.left || 0) + Number(rect.width || 0) * 0.5)
+          : Number(point.x || 0);
+        const labelY = rect && Number.isFinite(Number(rect.top))
+          ? Number(rect.top || 0) - Math.max(16, Math.min(42, Number(rect.height || 0) * 0.08))
+          : Number(point.y || 0) - 44;
         const miss = document.createElement("span");
         miss.className = "ft-world-battle-miss-label";
         miss.textContent = "MISS";
-        miss.style.left = `${Math.max(0, Number(point.x || 0))}px`;
-        miss.style.top = `${Math.max(0, Number(point.y || 0) - 44)}px`;
-        worldBattleCard.appendChild(miss);
+        if (size.host && size.host.getBoundingClientRect) {
+          const hostRect = size.host.getBoundingClientRect();
+          miss.style.position = "fixed";
+          miss.style.left = `${Math.max(0, hostRect.left + labelX)}px`;
+          miss.style.top = `${Math.max(0, hostRect.top + labelY)}px`;
+          miss.style.zIndex = "2147480001";
+          document.body.appendChild(miss);
+        } else {
+          miss.style.left = `${Math.max(0, labelX)}px`;
+          miss.style.top = `${Math.max(0, labelY)}px`;
+          worldBattleCard.appendChild(miss);
+        }
         queueSharedWorldBattleVisualTimeout(() => miss.remove(), 860);
       };
 

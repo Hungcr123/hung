@@ -1,21 +1,69 @@
-def shared_world_battle_target_running(battle: dict, username: str) -> bool:
+def shared_world_battle_target_running_state(battle: dict, username: str) -> tuple[bool, dict, str]:
     username = normalize_username(username)
     movement = battle.get("movement") if isinstance(battle.get("movement"), dict) else {}
     row = movement.get(username) if isinstance(movement.get(username), dict) else {}
+    if clean(row.get("state", "running")).lower() != "running":
+        return False, row, "idle"
+    now = time.time()
+    started_epoch = float(row.get("started_epoch", 0.0) or 0.0)
+    if started_epoch and now < started_epoch - 0.05:
+        return False, row, "not-started"
     until_epoch = float(row.get("running_until_epoch", 0.0) or 0.0)
-    if until_epoch <= time.time():
-        return False
+    if until_epoch <= now:
+        return False, row, "expired"
     distance = float(row.get("distance", 0.0) or 0.0)
-    return distance >= 0.006
+    if distance < 0.006:
+        return False, row, "short-distance"
+    return True, row, "running"
+
+def shared_world_battle_target_running(battle: dict, username: str) -> bool:
+    running, _row, _reason = shared_world_battle_target_running_state(battle, username)
+    return running
+
+def shared_world_battle_clear_running(battle: dict, username: str, reason: str = "") -> bool:
+    username = normalize_username(username)
+    movement = battle.get("movement") if isinstance(battle.get("movement"), dict) else {}
+    row = movement.get(username) if isinstance(movement.get(username), dict) else None
+    if not isinstance(row, dict):
+        return False
+    if clean(row.get("state", "running")).lower() == "idle" and not float(row.get("running_until_epoch", 0.0) or 0.0):
+        return False
+    row["state"] = "idle"
+    row["running_until_epoch"] = 0.0
+    row["stopped_epoch"] = time.time()
+    row["stopped_reason"] = clean(reason)[:48]
+    return True
 
 def shared_world_battle_roll_running_dodge(battle: dict, target: str, effect: str) -> dict | None:
     effect_key = clean(effect).lower()
     if effect_key not in {"basic_attack", "ultimate", "inferno", "triple"}:
         return None
-    if not shared_world_battle_target_running(battle, target):
+    running, movement_row, reason = shared_world_battle_target_running_state(battle, target)
+    if not running:
+        stt_debug_log(
+            "shared_world_battle_dodge_roll",
+            target=normalize_username(target),
+            effect=effect_key,
+            running=False,
+            reason=reason,
+            distance=round(float(movement_row.get("distance", 0.0) or 0.0), 6),
+        )
         return None
     chance = 0.2 if effect_key in {"ultimate", "inferno", "triple"} else 0.5
-    if secrets.randbelow(10000) >= int(chance * 10000):
+    rolled = secrets.randbelow(10000)
+    dodged = rolled < int(chance * 10000)
+    stt_debug_log(
+        "shared_world_battle_dodge_roll",
+        target=normalize_username(target),
+        effect=effect_key,
+        running=True,
+        dodged=dodged,
+        chance=chance,
+        roll=rolled,
+        distance=round(float(movement_row.get("distance", 0.0) or 0.0), 6),
+        running_until_epoch=round(float(movement_row.get("running_until_epoch", 0.0) or 0.0), 3),
+    )
+    if not dodged:
         return None
     side = "left" if secrets.randbelow(2) == 0 else "right"
     return {
@@ -255,6 +303,7 @@ def shared_world_battle_answer(username: str, payload: dict) -> dict:
         if not shared_world_battle_all_players_ready(battle):
             raise RuntimeError("Waiting for both players to enter the Battle arena.")
         mutation_started = time.perf_counter()
+        shared_world_battle_clear_running(battle, username, "answer")
         shared_world_battle_apply_answer_locked(
             battle,
             username,
@@ -373,6 +422,7 @@ def shared_world_battle_skill(username: str, payload: dict) -> dict:
         if int((battle.get("mp") if isinstance(battle.get("mp"), dict) else {}).get(username, 0) or 0) < 100:
             raise RuntimeError("Battle mana is not full.")
         mutation_started = time.perf_counter()
+        shared_world_battle_clear_running(battle, username, "skill")
         if not shared_world_battle_apply_skill_locked(battle, username, skill):
             raise RuntimeError("Unknown battle skill.")
         mutation_ms = (time.perf_counter() - mutation_started) * 1000
@@ -618,13 +668,17 @@ def shared_world_battle_move(username: str, payload: dict) -> dict:
         movement = battle.setdefault("movement", {})
         if isinstance(movement, dict):
             moving = distance >= 0.006
+            now_epoch = time.time()
             movement[username] = {
                 "from": current,
                 "to": destination,
                 "distance": distance,
                 "distance_px": distance_px,
-                "started_epoch": time.time(),
-                "running_until_epoch": time.time() + duration + 0.45 if moving else 0.0,
+                "duration": duration,
+                "state": "running" if moving else "idle",
+                "started_epoch": now_epoch,
+                "running_until_epoch": now_epoch + duration + 0.08 if moving else 0.0,
+                "arrive_epoch": now_epoch + duration if moving else now_epoch,
             }
         battle["updated_at"] = utc_timestamp()
         write_shared_world_battle_state(state, notify_users=players)

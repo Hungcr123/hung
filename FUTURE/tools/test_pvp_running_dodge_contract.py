@@ -29,6 +29,7 @@ def main():
         "clean": lambda value="": str(value or "").strip(),
         "normalize_username": lambda value="": str(value or "").strip().lower(),
         "utc_timestamp": lambda: "2026-08-17T00:00:00Z",
+        "stt_debug_log": lambda *_args, **_kwargs: None,
         "shared_world_battle_other": lambda battle, username: next(
             item for item in battle["players"] if item != username
         ),
@@ -42,7 +43,9 @@ def main():
     functions_from(
         SOURCE,
         {
+            "shared_world_battle_target_running_state",
             "shared_world_battle_target_running",
+            "shared_world_battle_clear_running",
             "shared_world_battle_roll_running_dodge",
             "shared_world_battle_dodge_log_row",
             "shared_world_battle_apply_skill_locked",
@@ -57,13 +60,27 @@ def main():
         "movement": {
             "quynh": {
                 "distance": 0.12,
+                "state": "running",
+                "started_epoch": time.time() - 0.2,
                 "running_until_epoch": time.time() + 2.0,
             }
         },
         "log": [],
     }
+    assert namespace["shared_world_battle_target_running"](battle, "quynh") is True
     basic = namespace["shared_world_battle_roll_running_dodge"](battle, "quynh", "basic_attack")
     assert basic and basic["chance"] == 0.5 and basic["side"] == "left"
+    battle["movement"]["quynh"]["running_until_epoch"] = time.time() - 0.1
+    assert namespace["shared_world_battle_roll_running_dodge"](battle, "quynh", "basic_attack") is None
+    battle["movement"]["quynh"]["running_until_epoch"] = time.time() + 2.0
+    assert namespace["shared_world_battle_clear_running"](battle, "quynh", "skill") is True
+    assert namespace["shared_world_battle_roll_running_dodge"](battle, "quynh", "basic_attack") is None
+    battle["movement"]["quynh"].update({
+        "state": "running",
+        "distance": 0.12,
+        "started_epoch": time.time() - 0.2,
+        "running_until_epoch": time.time() + 2.0,
+    })
     assert namespace["shared_world_battle_apply_skill_locked"](battle, "hung", "ultimate") is True
     assert battle["hp"]["quynh"] == 100
     assert battle["mp"]["hung"] == 0
@@ -75,6 +92,9 @@ def main():
     frontend = FRONTEND.read_text(encoding="utf-8")
     assert "shared_world_battle_roll_running_dodge(battle, opponent, attack_effect)" in source
     assert "shared_world_battle_roll_running_dodge(battle, opponent, \"ultimate\")" in source
+    assert "shared_world_battle_clear_running(battle, username, \"answer\")" in source
+    assert "shared_world_battle_clear_running(battle, username, \"skill\")" in source
+    assert "\"state\": \"running\" if moving else \"idle\"" in source
     assert "running_until_epoch" in source and "distance_px" in source
     assert "impact_offset_side" in frontend and "ft-world-battle-character-impact" in frontend
     assert "correct: true," in frontend and "preview_only: Boolean(missed)" in frontend
@@ -87,7 +107,10 @@ def main():
     assert 'visualOwned: false' in frontend
     assert 'triggerSharedWorldBattleCast(self, opponent, "basic_attack", 10, false' not in frontend
     assert "queueSharedWorldBattleVisualTimeout(() => showSharedWorldBattleMissLabelAtPoint(missPoint)" not in frontend
-    print("pvp_running_dodge_contract=ok basic=50 ultimate=20 hp_unchanged miss_offset=server")
+    assert "point.spriteRect || point.targetRect" in frontend
+    assert 'miss.style.position = "fixed"' in frontend
+    assert 'miss.style.zIndex = "2147480001"' in frontend
+    print("pvp_running_dodge_contract=ok basic=50 ultimate=20 running_only=true miss_head_anchor=sprite")
 
 
 if __name__ == "__main__":
