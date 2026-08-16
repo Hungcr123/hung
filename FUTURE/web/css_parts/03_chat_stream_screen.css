@@ -4633,7 +4633,7 @@
         transform 360ms cubic-bezier(0.16, 0.9, 0.2, 1);
     }
 
-    .ft-world-character-pick.is-active {
+    .ft-world-character-pick.is-active.is-center {
       z-index: 3;
       left: 50%;
       height: 52%;
@@ -4644,7 +4644,7 @@
       transform: translate(-50%, -50%) perspective(900px) rotateY(0deg) scale(1);
     }
 
-    .ft-world-character-pick.is-preview:not(.is-locked) {
+    .ft-world-character-pick.is-preview.is-center:not(.is-locked) {
       z-index: 3;
       opacity: 1;
       filter:
@@ -4669,14 +4669,7 @@
       opacity: 0.72;
     }
 
-    .ft-world-character-pick.is-locked:not(.is-active) {
-      filter:
-        grayscale(0.72)
-        drop-shadow(0 0 14px rgba(255, 62, 88, 0.7))
-        drop-shadow(0 0 26px rgba(255, 42, 73, 0.36));
-    }
-
-    .ft-world-character-pick.is-locked.is-preview {
+    .ft-world-character-pick.is-locked.is-preview.is-center {
       opacity: 0.95;
       filter:
         grayscale(0.42)
