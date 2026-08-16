@@ -19274,7 +19274,7 @@
       width: auto;
       min-width: 0;
       max-width: none;
-      height: 70%;
+      height: 56%;
       aspect-ratio: 0.69;
       padding: 0;
       border: 0;
@@ -19284,7 +19284,7 @@
       cursor: pointer;
       scroll-snap-align: center;
       opacity: 0.92;
-      transform: translate(-50%, -50%) scale(0.92);
+      transform: translate(-50%, -50%) scale(1);
       transform-origin: 50% 50%;
       transition:
         left 360ms cubic-bezier(0.16, 0.9, 0.2, 1),
@@ -19297,22 +19297,24 @@
     .ft-world-character-pick.is-active {
       z-index: 3;
       left: 50%;
-      height: 80%;
+      height: 52%;
       opacity: 1;
       filter:
         drop-shadow(0 0 16px rgba(255, 209, 102, 0.72))
         drop-shadow(0 0 30px rgba(70, 240, 215, 0.42));
-      transform: translate(-50%, -51.5%) perspective(900px) rotateY(0deg) scale(1);
+      transform: translate(-50%, -50%) perspective(900px) rotateY(0deg) scale(1);
     }
 
     .ft-world-character-pick.is-left {
       left: 25%;
-      transform: translate(-50%, -50%) perspective(900px) rotateY(14deg) scale(0.92);
+      height: 60%;
+      transform: translate(-50%, -50%) perspective(900px) rotateY(14deg) scale(1);
     }
 
     .ft-world-character-pick.is-right {
       left: 75%;
-      transform: translate(-50%, -50%) perspective(900px) rotateY(-14deg) scale(0.92);
+      height: 60%;
+      transform: translate(-50%, -50%) perspective(900px) rotateY(-14deg) scale(1);
     }
 
     .ft-world-character-pick.is-locked {
