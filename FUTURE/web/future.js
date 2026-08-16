@@ -13436,15 +13436,25 @@
 
       const SHARED_WORLD_CHARACTER_SELECT_FRAME_URL = "/future-assets/character_select_frame.png";
       const SHARED_WORLD_CHARACTER_CHANGE_BUTTON_URL = "/future-assets/character_change_button.png";
+      const SHARED_WORLD_CHARACTER_MALE_CARD_URL = "/future-assets/character_male_default_card.png";
+      const SHARED_WORLD_CHARACTER_FEMALE_CARD_URL = "/future-assets/character_female_default_card.png";
+      const SHARED_WORLD_CHARACTER_SCORPIO_CARD_URL = "/future-assets/character_scorpio_card.png";
+      const SHARED_WORLD_CHARACTER_CARD_ASSETS = [
+        [SHARED_WORLD_CHARACTER_SELECT_FRAME_URL, "--qm-character-select-frame"],
+        [SHARED_WORLD_CHARACTER_MALE_CARD_URL, "--qm-male-card"],
+        [SHARED_WORLD_CHARACTER_FEMALE_CARD_URL, "--qm-female-card"],
+        [SHARED_WORLD_CHARACTER_SCORPIO_CARD_URL, "--qm-scorpio-card"],
+      ];
       let sharedWorldCharacterSelectFramePromise = null;
+      let sharedWorldCharacterCardDeckPromise = null;
 
       const sharedWorldCharacterAssets = [
         ["/future-assets/map_loading.png", "--qm-map-loading"],
         ["/future-assets/qm_city_map.png", "--qm-city-map"],
         ["/future-assets/train_map_1.png", "--qm-training-map"],
         ["/future-assets/qm_city_battle_map_1.png", "--qm-battle-map"],
-        [SHARED_WORLD_CHARACTER_SELECT_FRAME_URL, "--qm-character-select-frame"],
         [SHARED_WORLD_CHARACTER_CHANGE_BUTTON_URL, "--qm-character-change-button"],
+        ...SHARED_WORLD_CHARACTER_CARD_ASSETS,
         ["/future-assets/character_male_default_stand_atlas.png", "--qm-male-stand"],
         ["/future-assets/character_male_default_run_atlas.png", "--qm-male-run"],
         ["/future-assets/character_male_default_stand_style_2_atlas.png", "--qm-male-stand-style-2"],
@@ -13584,6 +13594,61 @@
         }
       });
 
+      const loadSharedWorldCharacterAssetRow = async ([url, cssVariable], trace = null) => {
+        const cached = await readSharedWorldCharacterAsset(url);
+        const headers = {};
+        if (cached && clean(cached.etag)) {
+          headers["If-None-Match"] = clean(cached.etag);
+        }
+        let blob = null;
+        let etag = clean(cached && cached.etag || "");
+        let mode = "network-first";
+        try {
+          const response = await fetch(url, { cache: "no-store", credentials: "same-origin", headers });
+          if (response.status === 304 && cached) {
+            blob = cached.blob;
+            mode = sharedWorldCharacterAssetState.objectUrls.has(url) ? "memory-304" : "idb-304";
+          } else if (response.ok) {
+            blob = await response.blob();
+            etag = clean(response.headers.get("ETag") || "");
+            mode = cached ? "network-update" : "network-first";
+            await writeSharedWorldCharacterAsset({ url, etag, blob, updatedAt: Date.now() });
+          }
+        } catch (_error) {
+          if (cached) {
+            blob = cached.blob;
+            mode = "idb-offline";
+          }
+        }
+        let source = url;
+        if (mode === "memory-304") {
+          source = sharedWorldCharacterAssetState.objectUrls.get(url);
+        } else if (blob instanceof Blob) {
+          const previous = sharedWorldCharacterAssetState.objectUrls.get(url);
+          source = URL.createObjectURL(blob);
+          sharedWorldCharacterAssetState.objectUrls.set(url, source);
+          if (cssVariable) {
+            document.documentElement.style.setProperty(cssVariable, `url("${source}")`);
+          }
+          if (previous && previous !== source) {
+            URL.revokeObjectURL(previous);
+          }
+        } else {
+          mode = "direct-fallback";
+        }
+        if (etag) {
+          sharedWorldCharacterAssetState.etags.set(url, etag);
+        }
+        if (mode !== "memory-304") {
+          await decodeSharedWorldCharacterAsset(source);
+        }
+        if (Array.isArray(trace)) {
+          trace.push({ url, mode, etag });
+          window.__ftQmCityCharacterAssetCacheTrace = trace.slice();
+        }
+        return { url, mode, etag, source };
+      };
+
       const preloadSharedWorldCharacterSelectFrame = () => {
         if (sharedWorldCharacterSelectFramePromise) {
           return sharedWorldCharacterSelectFramePromise;
@@ -13595,6 +13660,29 @@
         return sharedWorldCharacterSelectFramePromise;
       };
 
+      const preloadSharedWorldCharacterCardDeck = () => {
+        if (sharedWorldCharacterCardDeckPromise) {
+          return sharedWorldCharacterCardDeckPromise;
+        }
+        const trace = [];
+        sharedWorldCharacterCardDeckPromise = (async () => {
+          for (const asset of SHARED_WORLD_CHARACTER_CARD_ASSETS) {
+            await loadSharedWorldCharacterAssetRow(asset, trace);
+          }
+          window.__ftQmCityCharacterCardCacheTrace = trace.slice();
+          console.info("[FTG][QMCityCharacterCardCache]", JSON.stringify({
+            assets: trace.length,
+            modes: trace.reduce((result, row) => {
+              result[row.mode] = (result[row.mode] || 0) + 1;
+              return result;
+            }, {}),
+          }));
+        })().finally(() => {
+          sharedWorldCharacterCardDeckPromise = null;
+        });
+        return sharedWorldCharacterCardDeckPromise;
+      };
+
       // Added 2026-08-10: validate cached atlases on every QM-City entry and decode all missing assets before combat.
       const preloadSharedWorldCharacterAssets = (revalidate = false) => {
         if (sharedWorldCharacterAssetState.promise) {
@@ -13604,55 +13692,6 @@
           return Promise.resolve();
         }
         const trace = [];
-        const loadAsset = async ([url, cssVariable]) => {
-          const cached = await readSharedWorldCharacterAsset(url);
-          const headers = {};
-          if (cached && clean(cached.etag)) {
-            headers["If-None-Match"] = clean(cached.etag);
-          }
-          let blob = null;
-          let etag = clean(cached && cached.etag || "");
-          let mode = "network-first";
-          try {
-            const response = await fetch(url, { cache: "no-store", credentials: "same-origin", headers });
-            if (response.status === 304 && cached) {
-              blob = cached.blob;
-              mode = sharedWorldCharacterAssetState.objectUrls.has(url) ? "memory-304" : "idb-304";
-            } else if (response.ok) {
-              blob = await response.blob();
-              etag = clean(response.headers.get("ETag") || "");
-              mode = cached ? "network-update" : "network-first";
-              await writeSharedWorldCharacterAsset({ url, etag, blob, updatedAt: Date.now() });
-            }
-          } catch (_error) {
-            if (cached) {
-              blob = cached.blob;
-              mode = "idb-offline";
-            }
-          }
-          let source = url;
-          if (mode === "memory-304") {
-            source = sharedWorldCharacterAssetState.objectUrls.get(url);
-          } else if (blob instanceof Blob) {
-            const previous = sharedWorldCharacterAssetState.objectUrls.get(url);
-            source = URL.createObjectURL(blob);
-            sharedWorldCharacterAssetState.objectUrls.set(url, source);
-            document.documentElement.style.setProperty(cssVariable, `url("${source}")`);
-            if (previous && previous !== source) {
-              URL.revokeObjectURL(previous);
-            }
-          } else {
-            mode = "direct-fallback";
-          }
-          if (etag) {
-            sharedWorldCharacterAssetState.etags.set(url, etag);
-          }
-          if (mode !== "memory-304") {
-            await decodeSharedWorldCharacterAsset(source);
-          }
-          trace.push({ url, mode, etag });
-          window.__ftQmCityCharacterAssetCacheTrace = trace.slice();
-        };
         const orderedAssets = sharedWorldCharacterAssets.slice().sort(([leftUrl], [rightUrl]) => {
           const priority = (url) => {
             if (url.includes("map_loading.png")) return 0;
@@ -13668,14 +13707,14 @@
         sharedWorldCharacterAssetState.promise = (async () => {
           const criticalMaps = orderedAssets.splice(0, 2);
           for (const asset of criticalMaps) {
-            await loadAsset(asset);
+            await loadSharedWorldCharacterAssetRow(asset, trace);
           }
           let cursor = 0;
           const workers = Array.from({ length: 3 }, async () => {
             while (cursor < orderedAssets.length) {
               const asset = orderedAssets[cursor];
               cursor += 1;
-              await loadAsset(asset);
+              await loadSharedWorldCharacterAssetRow(asset, trace);
             }
           });
           await Promise.all(workers);
@@ -20706,10 +20745,11 @@
           } else {
             button.removeAttribute("aria-disabled");
           }
-          if (button.dataset.characterImage !== card.image) {
-            button.dataset.characterImage = card.image;
+          const cardImage = sharedWorldCharacterAssetState.objectUrls.get(card.image) || card.image;
+          if (button.dataset.characterImage !== cardImage) {
+            button.dataset.characterImage = cardImage;
             button.innerHTML = `
-              <div class="ft-world-character-art"><img alt="" src="${card.image}"></div>
+              <div class="ft-world-character-art"><img alt="" src="${cardImage}"></div>
             `;
           }
           button.querySelector(".ft-world-character-lock")?.remove();
@@ -20725,7 +20765,7 @@
 
       const openSharedWorldCharacterPicker = async () => {
         setSharedWorldCloseMenuOpen(false);
-        await preloadSharedWorldCharacterSelectFrame();
+        await preloadSharedWorldCharacterCardDeck();
         sharedWorldCharacterPickerOpen = true;
         sharedWorldCharacterCarouselKind = sharedWorldCurrentCharacterKind();
         renderSharedWorldCharacterCards();
