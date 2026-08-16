@@ -14519,6 +14519,9 @@
         impact.style.setProperty("--female-ultimate-impact-x", `${point.x}px`);
         impact.style.setProperty("--female-ultimate-impact-y", `${point.y}px`);
         effectHost.appendChild(impact);
+        if (event.missed || event.dodged || event.dodge) {
+          showSharedWorldBattleMissLabelAtPoint(point);
+        }
         const affected = Array.isArray(event.affected) ? event.affected : [];
         queueSharedWorldUltimateTimeout(() => {
           if (!sharedWorldUltimateLifecycleValid(lifecycleGeneration, pvp)) return;
@@ -14838,6 +14841,9 @@
             ? (sharedWorldTrainingUnderlayHost() || effectHost)
             : effectHost;
           underlayHost.appendChild(burst);
+          if (event.missed || event.dodged || event.dodge) {
+            showSharedWorldBattleMissLabelAtPoint(livePoint);
+          }
           const targetType = liveTarget && liveTarget.classList.contains("is-character-female-default")
             ? "battle-female"
             : (liveTarget && liveTarget.classList.contains("is-character-male-default")
@@ -15010,6 +15016,9 @@
             burn.style.setProperty("--scorpio-ultimate-burn-x", `${point.x}px`);
             burn.style.setProperty("--scorpio-ultimate-burn-y", `${point.y}px`);
             effectHost.appendChild(burn);
+            if (index === 0 && (event.missed || event.dodged || event.dodge)) {
+              showSharedWorldBattleMissLabelAtPoint(point);
+            }
             if (target && !(event.missed || event.dodged || event.dodge)) {
               target.classList.add("is-hit");
               animateSharedWorldUltimateDamageTarget(target);
@@ -15144,6 +15153,9 @@
               window.setTimeout(() => target.classList.remove("is-hit"), 720);
             }
             showSharedWorldTrainingImpactBurst(point, "critical");
+            if (event.missed || event.dodged || event.dodge) {
+              showSharedWorldBattleMissLabelAtPoint(point);
+            }
             if (!event.preview_only && !event.previewOnly && !(event.missed || event.dodged || event.dodge)) {
               showSharedWorldTrainingDamageFloatAtPoint(point, `-${damage} HP`, "critical", { y: -18 });
               if (row && (row.slime_defeated || row.slimeDefeated)) {
@@ -18559,10 +18571,6 @@
         triggerSharedWorldBattleSpeech(attacker, sharedWorldBattleMoveLabel(effectKey, damage), ultimateCast ? 2300 : 1900);
         if (ultimateCast) {
           triggerSharedWorldTrainingEarthquake(trainingEvent);
-          if (missed) {
-            const missPoint = sharedWorldTrainingTargetFootPoint(targetNode);
-            queueSharedWorldBattleVisualTimeout(() => showSharedWorldBattleMissLabelAtPoint(missPoint), attackerGender === "female" ? 1660 : attackerGender === "scorpio" ? 780 : 1080);
-          }
           // Female cast normally finishes in ~2.8s (9 frames + homing flight + impact); keep only a small safety margin.
           sharedWorldBattleFinalImpactAt = Math.max(sharedWorldBattleFinalImpactAt, performance.now() + (attackerGender === "female" ? 3100 : attackerGender === "scorpio" ? 2550 : 2250));
           return attackerGender === "female" ? 1450 : attackerGender === "scorpio" ? 1050 : 1100;
@@ -19994,35 +20002,15 @@
         if (clientFirst) {
           const { self, opponent } = sharedWorldBattlePlayersForView(battle);
           const correct = selectedIndex === correctIndex;
-          const opponentHp = Math.max(0, Math.round(Number((battle.hp || {})[opponent] ?? 100) || 0));
-          const predictedDamage = correct ? 10 : 0;
-          if (predictedDamage >= opponentHp && opponentHp > 0) {
-            sharedWorldBattlePendingLethalId = battleId;
-            traceSharedWorldBattleLifecycle("lethal-answer-predicted", { battleId, opponent, opponentHp, predictedDamage });
-          }
           const optimisticRecord = {
             actionId: clientActionId,
             correct,
-            visualOwned: correct,
+            visualOwned: false,
             visualCommitted: false,
             at: performance.now(),
           };
           sharedWorldBattleOptimisticActions.set(clientActionId, optimisticRecord);
-          if (correct) {
-            sharedWorldBattleCombatRenderLockUntil = performance.now() + 3200;
-            const impactDelay = triggerSharedWorldBattleCast(self, opponent, "basic_attack", 10, false, () => {
-              if (optimisticRecord.visualCommitted) return;
-              optimisticRecord.visualCommitted = true;
-              triggerSharedWorldBattleHit(opponent, 10, false, self);
-              if (optimisticRecord.pendingLoot) {
-                const pendingLoot = optimisticRecord.pendingLoot;
-                optimisticRecord.pendingLoot = null;
-                triggerSharedWorldBattleLoot(pendingLoot.attacker, pendingLoot.target, pendingLoot.loot);
-              }
-              releaseSharedWorldBattleCombatRender("basic-impact-frame-5");
-            });
-            optimisticRecord.impactAt = performance.now() + Math.max(0, impactDelay);
-          } else {
+          if (!correct) {
             triggerSharedWorldBattleCast(self, opponent, "basic_attack", 0, true);
           }
           if (sharedWorldBattlePendingLethalId === battleId) {

@@ -84,6 +84,9 @@ def main():
     assert 'target && !(event.missed || event.dodged || event.dodge)' in frontend
     assert 'triggerSharedWorldTrainingEarthquake(trainingEvent)' in frontend
     assert 'triggerSharedWorldTrainingSkill(trainingEvent, targetNode, () => {' in frontend
+    assert 'visualOwned: false' in frontend
+    assert 'triggerSharedWorldBattleCast(self, opponent, "basic_attack", 10, false' not in frontend
+    assert "queueSharedWorldBattleVisualTimeout(() => showSharedWorldBattleMissLabelAtPoint(missPoint)" not in frontend
     print("pvp_running_dodge_contract=ok basic=50 ultimate=20 hp_unchanged miss_offset=server")
 
 
