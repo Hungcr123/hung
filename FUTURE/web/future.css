@@ -19322,6 +19322,21 @@
       opacity: 0.72;
     }
 
+    .ft-world-character-pick.is-locked:not(.is-active) {
+      filter:
+        grayscale(0.72)
+        drop-shadow(0 0 14px rgba(255, 62, 88, 0.7))
+        drop-shadow(0 0 26px rgba(255, 42, 73, 0.36));
+    }
+
+    .ft-world-character-pick.is-locked.is-preview {
+      opacity: 0.95;
+      filter:
+        grayscale(0.42)
+        drop-shadow(0 0 18px rgba(255, 72, 96, 0.92))
+        drop-shadow(0 0 34px rgba(255, 35, 68, 0.62));
+    }
+
     .ft-world-character-art {
       min-height: 0;
       overflow: visible;

@@ -8600,11 +8600,7 @@
 
       const sharedWorldAdminCanUseAllCharacters = () => clean(currentAuthUsername).toLowerCase() === "hung";
 
-      const sharedWorldCurrentCharacterKind = () => {
-        const carouselKind = clean(sharedWorldCharacterCarouselKind).toLowerCase();
-        if (sharedWorldCharacterPickerOpen && ["male", "female", "scorpio"].includes(carouselKind)) {
-          return carouselKind;
-        }
+      const sharedWorldActualCharacterKind = () => {
         const self = typeof getSharedWorldSelfPosition === "function" ? getSharedWorldSelfPosition() : null;
         const ownKey = clean(currentAuthUsername).toLowerCase();
         const roster = ownKey && sharedWorldRoster ? sharedWorldRoster.get(ownKey) : null;
@@ -8614,6 +8610,14 @@
           || (currentAuthProfile && (currentAuthProfile.character_kind || currentAuthProfile.characterKind))
           || sharedWorldProfileDefaultCharacterKind()
         );
+      };
+
+      const sharedWorldCurrentCharacterKind = () => {
+        const carouselKind = clean(sharedWorldCharacterCarouselKind).toLowerCase();
+        if (sharedWorldCharacterPickerOpen && ["male", "female", "scorpio"].includes(carouselKind)) {
+          return carouselKind;
+        }
+        return sharedWorldActualCharacterKind();
       };
 
       const sharedWorldAvailableCharacterCards = () => {
@@ -8658,7 +8662,8 @@
 
       const renderSharedWorldCharacterCards = () => {
         if (!worldCharacterGrid) return;
-        const activeKind = sharedWorldCurrentCharacterKind();
+        const focusKind = sharedWorldCurrentCharacterKind();
+        const actualKind = sharedWorldActualCharacterKind();
         const cards = sharedWorldAvailableCharacterCards();
         const liveKinds = new Set(cards.map((card) => card.kind));
         worldCharacterGrid.querySelectorAll("[data-character-kind]").forEach((node) => {
@@ -8672,17 +8677,18 @@
             button.dataset.characterKind = card.kind;
             worldCharacterGrid.appendChild(button);
           }
-          const slot = sharedWorldCharacterCarouselSlot(cards, card.kind, activeKind);
+          const slot = sharedWorldCharacterCarouselSlot(cards, card.kind, focusKind);
           button.className = "ft-world-character-pick";
-          button.classList.toggle("is-active", card.kind === activeKind);
+          button.classList.toggle("is-active", card.kind === actualKind);
+          button.classList.toggle("is-preview", card.kind === focusKind && card.kind !== actualKind);
           button.classList.toggle("is-left", slot === "left");
           button.classList.toggle("is-center", slot === "center");
           button.classList.toggle("is-right", slot === "right");
           button.classList.toggle("is-locked", !card.owned);
           button.setAttribute("role", "button");
-          button.tabIndex = card.owned && !sharedWorldCharacterChanging ? 0 : -1;
-          button.setAttribute("aria-label", `${card.kind === activeKind ? "Selected" : "Select"} ${card.name}`);
-          if (!card.owned || sharedWorldCharacterChanging) {
+          button.tabIndex = !sharedWorldCharacterChanging ? 0 : -1;
+          button.setAttribute("aria-label", `${card.kind === actualKind ? "Current" : card.owned ? "Select" : "Locked preview"} ${card.name}`);
+          if (sharedWorldCharacterChanging) {
             button.setAttribute("aria-disabled", "true");
           } else {
             button.removeAttribute("aria-disabled");
@@ -8702,7 +8708,7 @@
             button.appendChild(lock);
           }
         });
-        window.requestAnimationFrame(() => centerSharedWorldCharacterCard(activeKind, false));
+        window.requestAnimationFrame(() => centerSharedWorldCharacterCard(focusKind, false));
       };
 
       const openSharedWorldCharacterPicker = async () => {
@@ -8744,9 +8750,16 @@
       const chooseSharedWorldCharacter = async (kind = "") => {
         const characterKind = normalizeSharedWorldCharacterKind(kind);
         if (!authToken || !["male", "female", "scorpio"].includes(characterKind) || sharedWorldCharacterChanging) return;
+        const selectedCard = sharedWorldAvailableCharacterCards().find((card) => card && card.kind === characterKind) || null;
         sharedWorldCharacterCarouselKind = characterKind;
         renderSharedWorldCharacterCards();
         centerSharedWorldCharacterCard(characterKind, true);
+        if (selectedCard && !selectedCard.owned) {
+          window.__ftCharacterSelectTrace = { action: "locked-preview", kind: characterKind, at: Date.now() };
+          console.info("[FTG][CharacterSelect]", window.__ftCharacterSelectTrace);
+          setSharedWorldStatus("This character card is locked.", "error");
+          return;
+        }
         window.__ftCharacterSelectTrace = { action: "select-start", kind: characterKind, at: Date.now() };
         console.info("[FTG][CharacterSelect]", window.__ftCharacterSelectTrace);
         sharedWorldCharacterChanging = true;
@@ -8766,8 +8779,11 @@
           if (result && result.inventory) {
             sharedWorldInventory = result.inventory;
           }
-          if (result && result.world) {
-            renderSharedWorld(result.world, { lightweightMoveAck: false });
+          const worldPayload = result && result.world && typeof result.world === "object"
+            ? result.world
+            : (result && (Array.isArray(result.players) || result.map_mode || result.mapMode) ? result : null);
+          if (worldPayload) {
+            renderSharedWorld(worldPayload, { lightweightMoveAck: false });
           }
           const selected = normalizeSharedWorldCharacterKind(result && (result.character_kind || result.characterKind || characterKind));
           currentAuthProfile = { ...currentAuthProfile, character_kind: selected, characterKind: selected };
@@ -8795,7 +8811,15 @@
           const self = typeof ensureSharedWorldSelfNode === "function" ? ensureSharedWorldSelfNode() : null;
           if (self && self.node) {
             const displayName = clean((self.node.querySelector(".ft-world-name-label") || {}).textContent || activeWorldUsername() || currentAuthUsername || "hung");
+            self.node.dataset.characterKind = selected;
             renderSharedWorldName(self.node, displayName, selected);
+          }
+          if (activeKey && typeof CSS !== "undefined" && CSS.escape) {
+            document.querySelectorAll(`.ft-world-player[data-username="${CSS.escape(activeKey)}"]`).forEach((node) => {
+              node.dataset.characterKind = selected;
+              const displayName = clean((node.querySelector(".ft-world-name-label") || {}).textContent || activeKey);
+              renderSharedWorldName(node, displayName, selected);
+            });
           }
           renderSharedWorldTrainingQuickSkill();
           renderSharedWorldTrainingBasicSkills();
