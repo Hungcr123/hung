@@ -5130,10 +5130,14 @@
         min-height: 0;
       }
 
-      .ft-world-head {
+      .ft-world-top-actions {
         top: 12px;
         left: 12px;
-        max-width: min(210px, calc(100vw - 76px));
+        max-width: calc(100vw - 76px);
+      }
+
+      .ft-world-head {
+        max-width: min(250px, calc(100vw - 138px));
         padding: 9px 11px 10px;
       }
 
@@ -5188,18 +5192,6 @@
         min-width: 128px;
         min-height: 52px;
         grid-template-columns: 46px minmax(0, 1fr);
-      }
-
-      .ft-world-training-portal {
-        left: 88%;
-        top: 46%;
-        width: 116px;
-        min-height: 124px;
-      }
-
-      .ft-world-training-gate {
-        width: 76px;
-        height: 88px;
       }
 
       .ft-world-training-modal {

@@ -2508,16 +2508,25 @@
       opacity: 0.62;
     }
 
-    .ft-world-head {
+    .ft-world-top-actions {
       position: absolute;
       top: 16px;
       left: 16px;
       z-index: 18;
       display: inline-flex;
+      align-items: flex-start;
+      gap: 10px;
+      max-width: calc(100vw - 92px);
+      pointer-events: none;
+    }
+
+    .ft-world-head {
+      position: relative;
+      display: inline-flex;
       align-items: center;
       gap: 12px;
       width: max-content;
-      max-width: min(260px, calc(100vw - 92px));
+      max-width: min(320px, calc(100vw - 92px));
       padding: 10px 14px 11px;
       border: 1px solid rgba(255, 156, 69, 0.34);
       border-left-color: rgba(255, 209, 102, 0.72);
@@ -2530,7 +2539,13 @@
         inset 0 0 22px rgba(70, 240, 215, 0.06);
       backdrop-filter: blur(12px);
       cursor: pointer;
+      pointer-events: auto;
       transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+
+    .ft-world-head > div:first-child {
+      flex: 0 1 auto;
+      min-width: 92px;
     }
 
     .ft-world-head:hover,
@@ -2695,11 +2710,25 @@
       z-index: 0;
       min-height: 0;
       overflow: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       cursor: default;
+      touch-action: none;
+      overscroll-behavior: contain;
+      contain: layout paint;
       background:
-        radial-gradient(circle at 50% 44%, rgba(255, 156, 69, 0.1), transparent 42%),
-        radial-gradient(circle at 18% 82%, rgba(70, 240, 215, 0.1), transparent 30%),
-        linear-gradient(180deg, rgba(6, 19, 27, 0.88), rgba(2, 7, 13, 0.96));
+        linear-gradient(180deg, #07140d, #020805);
+    }
+
+    .ft-world-stage::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .ft-world-stage.is-panning {
+      cursor: grabbing;
+      scroll-behavior: auto;
     }
 
     .ft-world-stage.is-picking-position {
@@ -2792,7 +2821,7 @@
 
     .ft-world-npc-tools {
       position: relative;
-      z-index: 12;
+      z-index: 42;
       display: inline-grid;
       gap: 8px;
       justify-items: start;
@@ -2915,13 +2944,359 @@
       font-weight: 850;
     }
 
-    .ft-world-arena {
+    .ft-world-card:not(.is-training-map) .ft-world-arena {
       position: relative;
-      width: max(200%, 1800px);
-      height: max(200%, 1160px);
+      width: max(200vw, 590.15vh);
+      height: max(166.6667vh, 56.48vw);
       min-width: 100%;
       min-height: 100%;
       overflow: hidden;
+      contain: layout paint;
+      background-image: var(--qm-city-map, url("/future-assets/qm_city_map.png"));
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+    }
+
+    .ft-world-card.is-training-map .ft-world-arena {
+      position: relative;
+      width: max(200vw, 592.28vh);
+      height: max(166.6667vh, 56.2775vw);
+      min-width: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      contain: layout paint;
+      background-image: var(--qm-training-map, url("/future-assets/train_map_1.png"));
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+    }
+
+    .ft-world-map-loading {
+      position: absolute;
+      inset: 0;
+      z-index: 240;
+      display: grid;
+      place-items: end center;
+      padding: clamp(28px, 6vh, 74px);
+      color: #f5fbff;
+      background:
+        linear-gradient(180deg, rgba(4, 13, 25, .04), rgba(4, 13, 25, .2) 58%, rgba(3, 9, 18, .78)),
+        var(--qm-map-loading, url("/future-assets/map_loading.png")) center / cover no-repeat;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: scale(1.015);
+      transition: opacity 220ms ease, visibility 220ms ease, transform 900ms cubic-bezier(.2, .72, .2, 1);
+    }
+
+    .ft-world-map-loading.is-visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: scale(1);
+    }
+
+    .ft-world-map-loading-copy {
+      display: grid;
+      width: min(520px, calc(100vw - 48px));
+      gap: 7px;
+      padding: 16px 20px 18px;
+      border: 1px solid rgba(179, 224, 255, .42);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(5, 19, 35, .88), rgba(9, 12, 28, .82));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .48), inset 0 0 28px rgba(92, 186, 255, .08);
+      backdrop-filter: blur(12px);
+    }
+
+    .ft-world-map-loading-copy small {
+      color: #77e9ff;
+      font-size: 9px;
+      font-weight: 1000;
+      letter-spacing: .18em;
+    }
+
+    .ft-world-map-loading-copy strong {
+      color: #fff4c7;
+      font-size: clamp(18px, 2.4vw, 28px);
+      line-height: 1.12;
+    }
+
+    .ft-world-map-loading-copy i {
+      position: relative;
+      display: block;
+      height: 4px;
+      margin-top: 5px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(132, 192, 225, .18);
+    }
+
+    .ft-world-map-loading-copy i b {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 42%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, transparent, #65eaff 28%, #fff2a8 72%, transparent);
+      box-shadow: 0 0 18px rgba(101, 234, 255, .72);
+      animation: ftWorldMapLoadingSweep 1.15s ease-in-out infinite;
+    }
+
+    @keyframes ftWorldMapLoadingSweep {
+      from { transform: translateX(-110%); }
+      to { transform: translateX(340%); }
+    }
+
+    .ft-world-card:not(.is-training-map) .ft-world-grid,
+    .ft-world-card:not(.is-training-map) .ft-world-stars,
+    .ft-world-card:not(.is-training-map) .ft-world-roads {
+      display: none !important;
+    }
+
+    .ft-world-obstacle-canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      width: 100%;
+      height: 100%;
+      display: none;
+      pointer-events: none;
+    }
+
+    .ft-world-stage.is-obstacle-editing .ft-world-obstacle-canvas {
+      display: block;
+      pointer-events: auto;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .ft-world-stage.is-obstacle-editing .ft-world-player,
+    .ft-world-stage.is-obstacle-editing .ft-world-npc,
+    .ft-world-stage.is-obstacle-editing .ft-world-training-slime,
+    .ft-world-stage.is-obstacle-editing .ft-world-battle-links,
+    .ft-world-stage.is-obstacle-editing .ft-world-move-marker {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    .ft-world-pen-tools {
+      position: absolute;
+      top: 16px;
+      right: 74px;
+      z-index: 2147483000;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      padding: 8px;
+      border: 1px solid rgba(109, 224, 255, 0.62);
+      border-radius: 15px;
+      color: #eaffff;
+      background: rgba(2, 13, 18, 0.92);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.52), 0 0 26px rgba(60, 193, 255, 0.22);
+      backdrop-filter: blur(12px);
+    }
+
+    .ft-world-admin-animation-test {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding-left: 7px;
+      border-left: 1px solid rgba(255, 209, 102, 0.28);
+    }
+
+    .ft-world-admin-animation-test[hidden] {
+      display: none !important;
+    }
+
+    .ft-world-admin-animation-test label {
+      display: grid;
+      gap: 2px;
+      color: rgba(220, 251, 255, 0.72);
+      font-size: 8px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .ft-world-admin-animation-test select {
+      height: 34px;
+      min-width: 126px;
+      border: 1px solid rgba(255, 209, 102, 0.44);
+      border-radius: 10px;
+      padding: 0 28px 0 9px;
+      color: #fff3c6;
+      background: rgba(8, 24, 30, 0.96);
+      font-size: 10px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .ft-world-pen-button.is-test {
+      border-color: rgba(126, 255, 221, 0.48);
+      color: #d9fff5;
+      background: linear-gradient(145deg, rgba(17, 83, 72, 0.94), rgba(5, 28, 27, 0.96));
+    }
+
+    .ft-world-pen-button.is-test.is-ultimate {
+      border-color: rgba(255, 209, 102, 0.62);
+      color: #fff1b5;
+      background: linear-gradient(145deg, rgba(114, 64, 15, 0.94), rgba(35, 20, 8, 0.96));
+    }
+
+    .ft-world-pen-tools[hidden] {
+      display: none !important;
+    }
+
+    .ft-world-pen-button {
+      min-height: 34px;
+      border: 1px solid rgba(109, 224, 255, 0.38);
+      border-radius: 10px;
+      padding: 0 11px;
+      color: #dcfbff;
+      background: linear-gradient(145deg, rgba(19, 63, 76, 0.94), rgba(5, 21, 29, 0.96));
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .ft-world-pen-button.is-active {
+      border-color: #ffd166;
+      color: #151006;
+      background: linear-gradient(145deg, #fff099, #ffad4e);
+      box-shadow: 0 0 20px rgba(255, 209, 102, 0.42);
+    }
+
+    .ft-world-pen-button.is-portal.is-active {
+      border-color: #79ffe1;
+      color: #031713;
+      background: linear-gradient(145deg, #baffef, #44dcb8);
+      box-shadow: 0 0 22px rgba(68, 220, 184, 0.48);
+    }
+
+    .ft-world-pen-button.is-danger {
+      border-color: rgba(255, 111, 128, 0.46);
+      color: #ffdce1;
+    }
+
+    .ft-world-pen-size {
+      display: grid;
+      grid-template-columns: auto 92px 26px;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .ft-world-pen-size input {
+      width: 92px;
+      accent-color: #ffd166;
+    }
+
+    .ft-world-pen-size output {
+      color: #ffd166;
+      text-align: right;
+    }
+
+    .ft-world-portal-menu {
+      position: fixed;
+      z-index: 2147483600;
+      width: min(340px, calc(100vw - 24px));
+      padding: 14px;
+      border: 1px solid rgba(105, 255, 219, 0.62);
+      border-radius: 16px;
+      color: #eafffa;
+      background: linear-gradient(155deg, rgba(3, 28, 27, 0.98), rgba(3, 12, 20, 0.98));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62), 0 0 28px rgba(68, 220, 184, 0.24);
+      backdrop-filter: blur(14px);
+    }
+
+    .ft-world-portal-menu[hidden] {
+      display: none !important;
+    }
+
+    .ft-world-portal-menu-head,
+    .ft-world-portal-menu-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .ft-world-portal-menu-head strong {
+      color: #86ffe2;
+      font-size: 15px;
+      letter-spacing: 0.04em;
+    }
+
+    .ft-world-portal-menu-head button {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 9px;
+      color: #dffff8;
+      background: rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .ft-world-portal-menu label {
+      display: grid;
+      gap: 6px;
+      margin-top: 12px;
+      color: rgba(222, 255, 248, 0.76);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .ft-world-portal-menu input,
+    .ft-world-portal-menu select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid rgba(119, 255, 225, 0.28);
+      border-radius: 10px;
+      padding: 0 10px;
+      color: #effffc;
+      background: rgba(2, 17, 23, 0.96);
+      outline: none;
+    }
+
+    .ft-world-portal-menu input:focus,
+    .ft-world-portal-menu select:focus {
+      border-color: #65f4d2;
+      box-shadow: 0 0 0 3px rgba(68, 220, 184, 0.16);
+    }
+
+    .ft-world-portal-menu-actions {
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    .ft-world-portal-menu-actions button {
+      min-height: 38px;
+      border: 1px solid rgba(111, 255, 222, 0.3);
+      border-radius: 10px;
+      padding: 0 14px;
+      color: #eafffa;
+      background: rgba(13, 54, 57, 0.9);
+      cursor: pointer;
+      font-weight: 900;
+    }
+
+    #ft-world-portal-menu-save {
+      color: #041713;
+      background: linear-gradient(145deg, #a9ffec, #43dcb8);
+    }
+
+    .ft-world-stage.is-panning .ft-world-road-map,
+    .ft-world-stage.is-panning .ft-world-battle-link {
+      filter: none;
+      animation-play-state: paused;
     }
 
     .ft-world-grid {
@@ -3002,22 +3377,21 @@
     .ft-world-training-field {
       position: absolute;
       inset: 0;
-      z-index: 2;
+      z-index: auto;
       display: none;
       pointer-events: none;
       overflow: hidden;
-      background:
-        radial-gradient(circle at 18% 22%, rgba(113, 255, 164, 0.18), transparent 18%),
-        radial-gradient(circle at 72% 68%, rgba(255, 209, 102, 0.12), transparent 20%),
-        linear-gradient(rgba(114, 255, 177, 0.06) 1px, transparent 1px) 0 0 / 48px 48px,
-        linear-gradient(90deg, rgba(114, 255, 177, 0.05) 1px, transparent 1px) 0 0 / 48px 48px,
-        linear-gradient(135deg, rgba(16, 70, 44, 0.86), rgba(4, 22, 24, 0.94));
+      background: transparent;
     }
 
     .ft-world-training-meadow,
     .ft-world-training-slime-map {
       position: absolute;
       inset: 0;
+    }
+
+    .ft-world-training-meadow {
+      display: none;
     }
 
     .ft-world-training-meadow span {
@@ -3082,21 +3456,18 @@
     .ft-world-training-meadow .is-grass-10 { left: 4%; top: 18%; rotate: -9deg; }
 
     .ft-world-card.is-training-map .ft-world-stage {
-      background:
-        radial-gradient(circle at 48% 48%, rgba(108, 240, 164, 0.12), transparent 40%),
-        linear-gradient(180deg, rgba(5, 39, 30, 0.94), rgba(2, 14, 18, 0.98));
+      background: #071108;
     }
 
     .ft-world-card.is-training-map {
       --training-command-width: clamp(300px, 32vw, 560px);
-      --training-skill-dock-width: 126px;
+      --training-skill-dock-width: clamp(380px, 24vw, 430px);
+      --training-hud-gap: 18px;
     }
 
     .ft-world-card.is-training-map .ft-world-roads,
     .ft-world-card.is-training-map .ft-world-witch,
-    .ft-world-card.is-training-map .ft-world-training-portal,
-    .ft-world-card.is-training-map .ft-world-battle-links,
-    .ft-world-card.is-training-map .ft-world-player:not(.is-me) {
+    .ft-world-card.is-training-map .ft-world-battle-links {
       display: none !important;
     }
 
@@ -3105,24 +3476,273 @@
     }
 
     .ft-world-training-slime-map {
-      z-index: 4;
+      z-index: auto;
       pointer-events: auto;
     }
 
     .ft-world-training-skill-dock {
       position: absolute;
-      right: 18px;
-      bottom: 18px;
+      right: 20px;
+      bottom: 4px;
       z-index: 52;
       display: none;
-      flex-direction: column-reverse;
-      align-items: flex-end;
-      gap: 10px;
+      grid-template-columns: 106px 206px;
+      align-items: end;
+      column-gap: 20px;
       pointer-events: none;
     }
 
+    .ft-world-card.has-female-default-training-controls .ft-world-training-skill-dock,
+    .ft-world-card.has-scorpio-training-controls .ft-world-training-skill-dock {
+      left: auto;
+      right: 28px;
+    }
+
+    .ft-world-training-avatar-cluster {
+      position: relative;
+      display: none;
+      width: 152px;
+      height: 152px;
+      grid-column: 2;
+      justify-self: center;
+      transform: translateY(76px);
+      pointer-events: none;
+    }
+
+    .ft-world-training-avatar-button {
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      cursor: pointer;
+      overflow: visible;
+      pointer-events: auto;
+      transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+    }
+
+    .ft-world-card.has-female-default-training-controls .ft-world-training-avatar-cluster,
+    .ft-world-card.has-male-default-training-controls .ft-world-training-avatar-cluster,
+    .ft-world-card.has-scorpio-training-controls .ft-world-training-avatar-cluster {
+      display: block;
+    }
+
+    .ft-world-training-avatar-button:hover,
+    .ft-world-training-avatar-button:focus-visible {
+      outline: none;
+      transform: scale(1.06);
+      filter: brightness(1.12);
+      box-shadow: none;
+    }
+
+    .ft-world-training-basic-orbit {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 280px;
+      height: 280px;
+      transform: translate(-50%, -50%);
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    .ft-world-training-basic-orbit-skill {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: none;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+      left: 50%;
+      top: 50%;
+      transform: translate(calc(-50% + var(--orbit-x)), calc(-50% + var(--orbit-y)));
+    }
+
+    .ft-world-training-basic-orbit-skill:nth-child(1) { --orbit-x: -137.873px; --orbit-y: -24.311px; }
+    .ft-world-training-basic-orbit-skill:nth-child(2) { --orbit-x: -89.990px; --orbit-y: -107.247px; }
+    .ft-world-training-basic-orbit-skill:nth-child(3) { --orbit-x: 0px; --orbit-y: -140px; }
+
+    .ft-world-training-basic-orbit-skill.is-empty {
+      border: 1px dashed rgba(103, 255, 232, .34);
+      background: rgba(3, 18, 26, .4);
+      box-shadow: inset 0 0 10px rgba(70, 240, 215, .06);
+    }
+
+    .ft-world-training-basic-orbit-skill.is-empty small {
+      color: rgba(143, 239, 229, .4);
+      font-size: 9px;
+      font-weight: 1000;
+    }
+
+    .ft-world-training-basic-orbit-skill.is-filled .ft-world-training-basic-skill-icon {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .ft-world-training-basic-orbit-skill.is-selected {
+      transform: translate(calc(-50% + var(--orbit-x)), calc(-50% + var(--orbit-y))) scale(1.12);
+    }
+
+    .ft-world-training-basic-orbit-skill.is-selected .ft-world-training-basic-skill-icon {
+      border: 0;
+      filter: brightness(1.1) saturate(1.08);
+    }
+
+    .ft-world-card.has-female-default-training-controls .ft-world-training-basic-orbit-skill.is-selected .ft-world-training-basic-skill-icon {
+      box-shadow: 0 0 12px rgba(255, 151, 247, .76), 0 0 28px rgba(178, 92, 255, .58);
+    }
+
+    .ft-world-battle-card.has-female-default-training-controls .ft-world-training-basic-orbit-skill.is-selected .ft-world-training-basic-skill-icon {
+      box-shadow: 0 0 12px rgba(255, 151, 247, .76), 0 0 28px rgba(178, 92, 255, .58);
+    }
+
+    :is(.ft-world-card, .ft-world-battle-card).has-scorpio-training-controls .ft-world-training-basic-orbit-skill.is-selected .ft-world-training-basic-skill-icon {
+      box-shadow: 0 0 13px rgba(221, 92, 255, .84), 0 0 30px rgba(99, 30, 181, .68);
+    }
+
+    .ft-world-card.has-male-default-training-controls .ft-world-training-basic-orbit-skill.is-selected .ft-world-training-basic-skill-icon {
+      box-shadow: 0 0 12px rgba(119, 225, 255, .78), 0 0 28px rgba(56, 145, 255, .58);
+    }
+
+    .ft-world-battle-card.has-male-default-training-controls .ft-world-training-basic-orbit-skill.is-selected .ft-world-training-basic-skill-icon {
+      box-shadow: 0 0 12px rgba(119, 225, 255, .78), 0 0 28px rgba(56, 145, 255, .58);
+    }
+
+    .ft-world-training-basic-orbit-skill:hover {
+      transform: translate(calc(-50% + var(--orbit-x)), calc(-50% + var(--orbit-y))) scale(1.14);
+    }
+
+    .ft-world-training-avatar-character {
+      position: absolute;
+      inset: 0;
+      border-radius: 0;
+      background: var(--training-avatar-image, var(--qm-female-avatar-one, url("/future-assets/character_female_default_avatar_1.png"))) center / contain no-repeat;
+      filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.48));
+      z-index: 2;
+    }
+
+    :is(.ft-world-card, .ft-world-battle-card).has-female-default-training-controls .ft-world-training-avatar-character {
+      background-size: 146%;
+      background-position: calc(50% - 3px) calc(50% - 4px);
+    }
+
+    :is(.ft-world-card, .ft-world-battle-card).has-scorpio-training-controls .ft-world-training-avatar-character {
+      background-size: 118%;
+      background-position: center;
+      filter: drop-shadow(0 0 16px rgba(195, 82, 255, .52)) drop-shadow(0 12px 16px rgba(0, 0, 0, .48));
+    }
+
+    .ft-world-training-avatar-energy {
+      position: absolute;
+      inset: -27px;
+      z-index: 1;
+      pointer-events: none;
+      border-radius: 50%;
+      background: radial-gradient(circle, transparent 61%, rgba(4, 18, 27, .18) 62%, transparent 69%);
+      filter: saturate(1.08);
+    }
+
+    .ft-world-training-energy-ring {
+      --energy-fill: 100%;
+      --energy-color: #ffd166;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--energy-color) 52%, transparent));
+    }
+
+    .ft-world-training-energy-ring.is-level {
+      --energy-color: #ffd166;
+      --energy-fill: var(--avatar-exp-fill, 0%);
+      background:
+        repeating-conic-gradient(from -90deg, transparent 0 11deg, rgba(2, 9, 14, .9) 11deg 15deg),
+        conic-gradient(from -90deg, #fffbd1 0 1%, #ffe178 3%, #ffb62e var(--energy-fill), rgba(55, 42, 14, .66) var(--energy-fill) 100%);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      filter: drop-shadow(0 0 4px rgba(255, 198, 77, .64)) drop-shadow(0 0 12px rgba(255, 169, 32, .18));
+      opacity: .96;
+    }
+
+    .ft-world-training-energy-ring.is-vitals {
+      width: calc(100% - 24px);
+      height: calc(100% - 24px);
+      background: rgba(3, 13, 20, .72);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+      filter: drop-shadow(-3px 0 6px rgba(255, 73, 77, .5)) drop-shadow(3px 0 6px rgba(66, 245, 223, .52));
+    }
+
+    .ft-world-training-energy-ring.is-vitals::before,
+    .ft-world-training-energy-ring.is-vitals::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+    }
+
+    .ft-world-training-energy-ring.is-vitals::before {
+      clip-path: inset(0 50% 0 0);
+      background:
+        repeating-conic-gradient(from 180deg, transparent 0 9deg, rgba(42, 10, 20, .94) 9deg 12deg),
+        conic-gradient(from 180deg, #fff7df 0 1%, #ff8a68 3%, #f33b51 var(--avatar-hp-half, 50%), rgba(48, 13, 23, .76) var(--avatar-hp-half, 50%) 50%, transparent 50% 100%);
+    }
+
+    .ft-world-training-energy-ring.is-vitals::after {
+      clip-path: inset(0 0 0 50%);
+      background:
+        repeating-conic-gradient(from 0deg, transparent 0 6deg, rgba(5, 29, 47, .94) 6deg 8deg),
+        conic-gradient(from 0deg, #f1ffff 0 1%, #66ffe9 3%, #16bdeb var(--avatar-mp-half, 50%), rgba(6, 31, 48, .78) var(--avatar-mp-half, 50%) 50%, transparent 50% 100%);
+    }
+
+    .ft-world-training-avatar-level {
+      position: absolute;
+      left: 50%;
+      top: -3px;
+      z-index: 4;
+      min-width: 38px;
+      padding: 3px 7px;
+      border: 1px solid rgba(255, 220, 126, .76);
+      border-radius: 999px;
+      color: #fff0ae;
+      background: linear-gradient(180deg, rgba(43, 31, 9, .96), rgba(14, 12, 8, .94));
+      box-shadow: 0 0 10px rgba(255, 198, 77, .34), inset 0 0 8px rgba(255, 244, 190, .08);
+      transform: translate(-50%, -50%);
+      font-size: 9px;
+      font-weight: 1000;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    :is(.ft-world-card, .ft-world-battle-card).has-male-default-training-controls .ft-world-training-avatar-character {
+      background: var(--qm-male-avatar, url("/future-assets/character_male_default_avatar.png")) center / contain no-repeat;
+    }
+
     .ft-world-card.is-training-map .ft-world-training-skill-dock {
-      display: flex;
+      display: grid;
+    }
+
+    /* 2026-08-12: the same avatar/loadout DOM remains mounted in City, Training, and PvP. */
+    .ft-world-card.has-female-default-training-controls .ft-world-training-skill-dock,
+    .ft-world-card.has-male-default-training-controls .ft-world-training-skill-dock,
+    .ft-world-card.has-scorpio-training-controls .ft-world-training-skill-dock {
+      display: grid;
     }
 
     .ft-world-training-quick-skill {
@@ -3152,6 +3772,10 @@
       overflow: hidden;
       pointer-events: auto;
       transition: transform 180ms ease, filter 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+      grid-column: 1;
+      align-self: center;
+      justify-self: end;
+      margin-bottom: 20px;
     }
 
     .ft-world-training-quick-skill::before,
@@ -3235,6 +3859,15 @@
       filter: grayscale(0.28) brightness(0.86);
     }
 
+    .ft-world-training-quick-skill.is-ready {
+      border-color: rgba(255, 241, 166, 0.98);
+      filter: brightness(1.12) saturate(1.16);
+      box-shadow:
+        0 0 22px rgba(255, 209, 102, 0.48),
+        0 0 48px rgba(103, 255, 232, 0.18),
+        inset 0 0 20px rgba(255, 241, 166, 0.12);
+    }
+
     .ft-world-training-quick-skill > * {
       position: relative;
       z-index: 1;
@@ -3255,6 +3888,187 @@
         inset 0 0 16px rgba(255, 255, 255, 0.24);
       animation: ftWorldTrainingQuickSkillOrb 2.8s ease-in-out infinite;
       overflow: hidden;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate .ft-world-training-quick-skill-orb {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--qm-female-ultimate-skill-button, url("/future-assets/character_female_default_ultimate_skill_button.png")) center / cover no-repeat;
+      border-color: rgba(226, 183, 255, 0.88);
+      box-shadow: 0 0 26px rgba(177, 91, 255, 0.68), 0 0 42px rgba(92, 55, 225, 0.38), inset 0 0 12px rgba(255, 255, 255, 0.2);
+      animation: none !important;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate {
+      left: -38px;
+      width: 84px;
+      min-height: 84px;
+      display: grid;
+      grid-template-rows: 1fr;
+      place-items: center;
+      padding: 9px;
+      border-radius: 50%;
+      border-width: 2px;
+      overflow: visible;
+      animation: none !important;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate::before {
+      inset: -11px;
+      border: 0;
+      border-radius: 50%;
+      background:
+        conic-gradient(from -90deg, #fff4ff 0 1.5%, #d783ff 5%, #7c5cff var(--skill-mana-fill, 0%), rgba(45, 29, 74, 0.7) var(--skill-mana-fill, 0%) 100%);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      box-shadow: 0 0 24px rgba(177, 91, 255, 0.42), inset 0 0 16px rgba(255, 255, 255, 0.16);
+      animation: none;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate.is-cooling::before,
+    .ft-world-training-quick-skill.is-male-ultimate.is-cooling::before,
+    .ft-world-training-quick-skill.is-scorpio-ultimate.is-cooling::before {
+      background: conic-gradient(from -90deg, #fff9df 0 1.5%, #ffd166 5%, #ff8a3d var(--skill-cooldown-fill, 0%), rgba(40, 27, 17, 0.76) var(--skill-cooldown-fill, 0%) 100%);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+      animation: ftWorldTrainingUltimateCooldownSweep 1.2s linear infinite;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate::after {
+      display: block;
+      inset: -15px;
+      height: auto;
+      border-radius: 50%;
+      background: repeating-conic-gradient(from -90deg, rgba(255, 244, 255, 0.62) 0 1deg, transparent 1deg 14deg);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      opacity: 0.7;
+      transform: none;
+      animation: none;
+      box-shadow: none;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate.is-low-mana::before {
+      background: conic-gradient(from -90deg, #fff0ea 0 1.5%, #ff8b73 5%, #ff4f70 var(--skill-mana-fill, 0%), rgba(67, 25, 42, 0.76) var(--skill-mana-fill, 0%) 100%);
+      box-shadow: 0 0 24px rgba(255, 79, 112, 0.46);
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate .ft-world-training-quick-skill-copy {
+      display: none;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate .ft-world-training-quick-skill-orb::before,
+    .ft-world-training-quick-skill.is-female-ultimate .ft-world-training-quick-skill-orb::after {
+      display: none;
+    }
+
+    .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-orb {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--qm-male-ultimate-skill-button, url("/future-assets/character_male_default_ultimate_skill_button.png")) center / cover no-repeat;
+      border-color: rgba(112, 209, 255, 0.9);
+      box-shadow: 0 0 26px rgba(36, 151, 255, 0.62), 0 0 44px rgba(64, 226, 255, 0.3), inset 0 0 12px rgba(255, 255, 255, 0.18);
+      animation: none !important;
+    }
+
+    .ft-world-training-quick-skill.is-male-ultimate {
+      left: -38px;
+      width: 84px;
+      min-height: 84px;
+      grid-template-rows: 1fr;
+      padding: 9px;
+      border-radius: 50%;
+      border-width: 2px;
+      border-color: rgba(89, 194, 255, 0.82);
+      animation: none !important;
+    }
+
+    .ft-world-training-quick-skill.is-male-ultimate::before {
+      inset: -11px;
+      border-radius: 50%;
+      background: conic-gradient(from -90deg, #e9fbff 0 1.5%, #59c2ff 5%, #1e72ff var(--skill-mana-fill, 0%), rgba(15, 32, 76, 0.76) var(--skill-mana-fill, 0%) 100%);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      box-shadow: 0 0 24px rgba(36, 151, 255, 0.44), inset 0 0 16px rgba(255, 255, 255, 0.16);
+      animation: none;
+    }
+
+    .ft-world-training-quick-skill.is-male-ultimate::after {
+      display: block;
+      inset: -15px;
+      height: auto;
+      border-radius: 50%;
+      background: repeating-conic-gradient(from -90deg, rgba(223, 249, 255, 0.62) 0 1deg, transparent 1deg 14deg);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      opacity: 0.72;
+      animation: none;
+    }
+
+    .ft-world-training-quick-skill.is-female-ultimate.is-cooling::after,
+    .ft-world-training-quick-skill.is-male-ultimate.is-cooling::after,
+    .ft-world-training-quick-skill.is-scorpio-ultimate.is-cooling::after {
+      background: repeating-conic-gradient(from -90deg, rgba(255, 248, 211, 0.7) 0 1deg, transparent 1deg 16deg);
+      opacity: 0.46;
+    }
+
+    .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-copy,
+    .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-orb::before,
+    .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-orb::after {
+      display: none;
+    }
+
+    /* Added 2026-08-16: Scorpio Nộ uses supplied skill button 19. */
+    .ft-world-training-quick-skill.is-scorpio-ultimate {
+      left: -38px;
+      width: 84px;
+      min-height: 84px;
+      grid-template-rows: 1fr;
+      padding: 9px;
+      border-radius: 50%;
+      border-width: 2px;
+      border-color: rgba(205, 92, 255, .86);
+      animation: none !important;
+    }
+
+    .ft-world-training-quick-skill.is-scorpio-ultimate .ft-world-training-quick-skill-orb {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--qm-scorpio-ultimate-skill-button, url("/future-assets/character_scorpio_ultimate_skill_button.png")) center / cover no-repeat;
+      border-color: rgba(222, 153, 255, .92);
+      box-shadow: 0 0 28px rgba(196, 72, 255, .7), 0 0 46px rgba(82, 24, 165, .48), inset 0 0 12px rgba(255, 255, 255, .2);
+      animation: none !important;
+    }
+
+    .ft-world-training-quick-skill.is-scorpio-ultimate::before {
+      inset: -11px;
+      border-radius: 50%;
+      background: conic-gradient(from -90deg, #fff0ff 0 1.5%, #d45cff 5%, #7626d9 var(--skill-mana-fill, 0%), rgba(42, 16, 67, .78) var(--skill-mana-fill, 0%) 100%);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+      box-shadow: 0 0 24px rgba(196, 72, 255, .48), inset 0 0 16px rgba(255, 255, 255, .16);
+      animation: none;
+    }
+
+    .ft-world-training-quick-skill.is-scorpio-ultimate::after {
+      display: block;
+      inset: -15px;
+      height: auto;
+      border-radius: 50%;
+      background: repeating-conic-gradient(from -90deg, rgba(246, 220, 255, .68) 0 1deg, transparent 1deg 14deg);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+      opacity: .72;
+      animation: none;
+    }
+
+    .ft-world-training-quick-skill.is-scorpio-ultimate .ft-world-training-quick-skill-copy,
+    .ft-world-training-quick-skill.is-scorpio-ultimate .ft-world-training-quick-skill-orb::before,
+    .ft-world-training-quick-skill.is-scorpio-ultimate .ft-world-training-quick-skill-orb::after {
+      display: none;
     }
 
     .ft-world-training-quick-skill-orb::before,
@@ -3339,6 +4153,21 @@
       display: grid;
     }
 
+    .ft-world-training-quick-skill.is-female-ultimate.is-cooling .ft-world-training-quick-skill-cooldown,
+    .ft-world-training-quick-skill.is-male-ultimate.is-cooling .ft-world-training-quick-skill-cooldown,
+    .ft-world-training-quick-skill.is-scorpio-ultimate.is-cooling .ft-world-training-quick-skill-cooldown {
+      inset: -1px;
+      border-radius: 50%;
+      background: rgba(1, 8, 12, 0.2);
+      backdrop-filter: none;
+      clip-path: circle(50%);
+      font-size: 18px;
+    }
+
+    @keyframes ftWorldTrainingUltimateCooldownSweep {
+      to { transform: rotate(360deg); }
+    }
+
     @keyframes ftWorldTrainingQuickSkillSweep {
       to { transform: rotate(360deg); }
     }
@@ -3361,63 +4190,22 @@
     .ft-world-training-effects {
       position: absolute;
       inset: 0;
-      z-index: 18;
+      z-index: 10000;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    /* Added 2026-08-14: ground explosions sit above the map but below Slimes and players. */
+    .ft-world-training-underlay-effects {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
       pointer-events: none;
       overflow: visible;
     }
 
     .ft-world-training-effects .ft-world-training-slime {
       pointer-events: none;
-    }
-
-    .ft-world-training-exit-gate {
-      --world-x: 6.5%;
-      --world-y: 50%;
-      position: absolute;
-      left: var(--world-x);
-      top: var(--world-y);
-      z-index: 5;
-      width: 118px;
-      min-height: 170px;
-      display: grid;
-      place-items: center;
-      gap: 7px;
-      border: 0;
-      color: #fff6d5;
-      background: transparent;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-    }
-
-    .ft-world-training-exit-gate::before {
-      content: "";
-      width: 78px;
-      height: 112px;
-      border: 2px solid rgba(255, 209, 102, 0.7);
-      border-radius: 999px 999px 18px 18px;
-      background:
-        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.26), transparent 18%),
-        radial-gradient(ellipse at 50% 58%, rgba(70, 240, 215, 0.42), rgba(70, 240, 215, 0.12) 44%, transparent 68%),
-        linear-gradient(180deg, rgba(255, 126, 52, 0.24), rgba(3, 15, 20, 0.84));
-      box-shadow:
-        0 0 32px rgba(255, 126, 52, 0.34),
-        0 0 46px rgba(70, 240, 215, 0.2),
-        inset 0 0 26px rgba(70, 240, 215, 0.22);
-      animation: ftWorldTrainingGatePulse 2.6s ease-in-out infinite;
-    }
-
-    .ft-world-training-exit-gate::after {
-      content: "QM-City";
-      padding: 4px 9px;
-      border: 1px solid rgba(255, 209, 102, 0.42);
-      border-radius: 999px;
-      background: rgba(4, 13, 16, 0.78);
-      box-shadow: 0 0 18px rgba(255, 126, 52, 0.16);
-      font-size: 10px;
-      font-weight: 1000;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      white-space: nowrap;
     }
 
     .ft-world-npc {
@@ -3525,117 +4313,6 @@
       transform: translateY(0) scale(1);
     }
 
-    .ft-world-training-portal {
-      position: absolute;
-      left: 93%;
-      top: 53%;
-      z-index: 4;
-      width: 150px;
-      min-height: 154px;
-      display: grid;
-      place-items: center;
-      gap: 3px;
-      border: 0;
-      color: #fff4d1;
-      background: transparent;
-      cursor: pointer;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 0 22px rgba(255, 126, 52, 0.28));
-    }
-
-    .ft-world-training-portal b,
-    .ft-world-training-portal small {
-      position: relative;
-      z-index: 2;
-      padding: 3px 9px;
-      border: 1px solid rgba(255, 209, 102, 0.28);
-      border-radius: 999px;
-      background: rgba(12, 8, 5, 0.72);
-      box-shadow: 0 0 18px rgba(255, 126, 52, 0.12);
-      font-weight: 950;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .ft-world-training-portal b {
-      font-size: 10px;
-    }
-
-    .ft-world-training-portal small {
-      color: rgba(216, 255, 248, 0.78);
-      font-size: 8px;
-    }
-
-    .ft-world-training-gate {
-      position: relative;
-      width: 98px;
-      height: 116px;
-      border-radius: 48% 48% 14px 14px;
-      border: 2px solid rgba(255, 209, 102, 0.62);
-      background:
-        radial-gradient(ellipse at 50% 48%, rgba(70, 240, 215, 0.46), rgba(70, 240, 215, 0.1) 38%, transparent 62%),
-        conic-gradient(from 180deg, rgba(255, 126, 52, 0.06), rgba(255, 209, 102, 0.28), rgba(70, 240, 215, 0.2), rgba(255, 126, 52, 0.06));
-      box-shadow:
-        0 0 28px rgba(255, 126, 52, 0.34),
-        inset 0 0 26px rgba(70, 240, 215, 0.2);
-      overflow: hidden;
-      animation: ftWorldPracticeGateBreath 3.6s ease-in-out infinite;
-    }
-
-    .ft-world-training-gate::before,
-    .ft-world-training-gate::after {
-      content: "";
-      position: absolute;
-      inset: 11px;
-      border-radius: inherit;
-      border: 1px solid rgba(70, 240, 215, 0.36);
-      box-shadow: inset 0 0 18px rgba(255, 209, 102, 0.12);
-    }
-
-    .ft-world-training-gate::after {
-      inset: 23px;
-      border-color: rgba(255, 126, 52, 0.34);
-      animation: ftWorldPracticeGateSpin 6s linear infinite;
-    }
-
-    .ft-world-training-gate i {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 7px;
-      height: 7px;
-      border-radius: 999px;
-      background: #fff9ca;
-      box-shadow: 0 0 16px rgba(255, 209, 102, 0.8);
-      transform-origin: -27px 0;
-      animation: ftWorldPracticeGateOrbit 2.4s linear infinite;
-    }
-
-    .ft-world-training-gate i:nth-child(2) {
-      animation-delay: -0.8s;
-      background: #7cfff0;
-      box-shadow: 0 0 16px rgba(70, 240, 215, 0.82);
-    }
-
-    .ft-world-training-gate i:nth-child(3) {
-      animation-delay: -1.6s;
-      background: #ff8a3d;
-      box-shadow: 0 0 16px rgba(255, 126, 52, 0.82);
-    }
-
-    .ft-world-training-portal:hover .ft-world-training-gate,
-    .ft-world-training-portal:focus-visible .ft-world-training-gate {
-      border-color: rgba(255, 244, 191, 0.92);
-      box-shadow:
-        0 0 34px rgba(255, 126, 52, 0.5),
-        0 0 44px rgba(70, 240, 215, 0.2),
-        inset 0 0 30px rgba(70, 240, 215, 0.28);
-    }
-
-    .ft-world-training-portal:focus-visible {
-      outline: none;
-    }
-
     .ft-world-training-modal {
       position: absolute;
       inset: 0;
@@ -3658,6 +4335,10 @@
       z-index: 25;
       gap: 6px;
       padding: 7px;
+    }
+
+    .ft-world-card.is-training-map .ft-world-chat:has(.ft-world-training-history[aria-hidden="true"]) {
+      display: none;
     }
 
     .ft-world-card.is-training-map .ft-world-chat-lane {
@@ -3684,6 +4365,10 @@
         radial-gradient(circle at 14% 0%, rgba(255, 209, 102, 0.14), transparent 32%),
         linear-gradient(135deg, rgba(3, 19, 25, 0.92), rgba(18, 8, 15, 0.9));
       box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), inset 0 0 20px rgba(124, 255, 240, 0.04);
+    }
+
+    .ft-world-card.is-training-map .ft-world-training-history[aria-hidden="true"] {
+      display: none;
     }
 
     .ft-world-training-history header {
@@ -3796,7 +4481,7 @@
 
     .ft-world-card.is-training-map .ft-world-training-modal {
       left: calc(var(--training-command-width) + 28px);
-      right: calc(var(--training-skill-dock-width) + 18px);
+      right: calc(var(--training-skill-dock-width) + var(--training-hud-gap));
       bottom: 14px;
       top: auto;
       height: auto;
@@ -3903,7 +4588,7 @@
 
     .ft-world-card.is-training-map .ft-world-training-read-card {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(220px, 0.86fr);
+      grid-template-columns: minmax(0, 1fr) 108px;
       align-items: stretch;
       gap: 6px 10px;
       min-height: 0;
@@ -3942,16 +4627,47 @@
     .ft-world-card.is-training-map .ft-world-training-read-status {
       grid-row: 1 / span 3;
       grid-column: 2;
+      width: 108px;
+      min-width: 108px;
       margin-top: 0;
-      padding: 6px;
-      gap: 5px 7px;
+      padding: 8px;
+      grid-template-columns: 1fr;
+      justify-items: center;
+      gap: 7px;
       align-self: stretch;
-      align-content: start;
+      align-content: center;
       overflow: hidden;
     }
 
     .ft-world-card.is-training-map .ft-world-training-read-card.is-vi-cue {
-      grid-template-columns: minmax(0, 0.86fr) minmax(220px, 1fr);
+      grid-template-columns: minmax(0, 1fr) 108px;
+    }
+
+    .ft-world-card.is-training-map .ft-world-training-read-status .ft-world-training-mic-pulse {
+      width: 24px;
+      height: 24px;
+      animation: none;
+      filter: grayscale(.45) brightness(.72);
+      opacity: .72;
+    }
+
+    .ft-world-card.is-training-map .ft-world-training-read-status.is-live .ft-world-training-mic-pulse {
+      animation: ftWorldTrainingMicPulse 1.1s ease-in-out infinite;
+      filter: none;
+      opacity: 1;
+    }
+
+    .ft-world-card.is-training-map .ft-world-training-read-status .ft-world-training-countdown {
+      min-width: 82px;
+      padding: 4px 7px;
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+
+    .ft-world-card.is-training-map .ft-world-training-read-status.is-live .ft-world-training-countdown {
+      color: #7cfff0;
+      border-color: rgba(70, 240, 215, .48);
+      box-shadow: 0 0 14px rgba(70, 240, 215, .16);
     }
 
     .ft-world-card.is-training-map .ft-world-training-read-card.is-vi-cue > span:not([class]) {
@@ -4113,14 +4829,107 @@
       z-index: 20;
     }
 
+    @media (max-width: 1180px), (max-height: 760px) {
+      .ft-world-card.is-training-map {
+        --training-skill-dock-width: 304px;
+        --training-hud-gap: 12px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-skill-dock {
+        right: 10px;
+        bottom: 10px;
+        grid-template-columns: 72px 170px;
+        column-gap: 8px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-avatar-cluster {
+        width: 116px;
+        height: 116px;
+        transform: translateY(52px);
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-basic-orbit {
+        width: 216px;
+        height: 216px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-basic-orbit-skill {
+        width: 36px;
+        height: 36px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-basic-orbit-skill:nth-child(1) { --orbit-x: -106.359px; --orbit-y: -18.754px; }
+      .ft-world-card.is-training-map .ft-world-training-basic-orbit-skill:nth-child(2) { --orbit-x: -69.421px; --orbit-y: -82.733px; }
+      .ft-world-card.is-training-map .ft-world-training-basic-orbit-skill:nth-child(3) { --orbit-x: 0px; --orbit-y: -108px; }
+
+      .ft-world-card.is-training-map .ft-world-training-basic-orbit-skill.is-filled .ft-world-training-basic-skill-icon {
+        width: 36px;
+        height: 36px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-female-ultimate,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-scorpio-ultimate {
+        left: -34px;
+        width: 66px;
+        min-height: 66px;
+        padding: 7px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-female-ultimate .ft-world-training-quick-skill-orb,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-orb,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-scorpio-ultimate .ft-world-training-quick-skill-orb {
+        width: 50px;
+        height: 50px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-female-ultimate::before,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate::before,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-scorpio-ultimate::before {
+        inset: -8px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-female-ultimate::after,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate::after,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-scorpio-ultimate::after {
+        inset: -11px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-modal {
+        left: clamp(12px, calc(var(--training-command-width) + 18px), 34vw);
+      }
+    }
+
     @media (max-width: 860px) {
       .ft-world-card.is-training-map {
-        --training-skill-dock-width: 88px;
+        --training-skill-dock-width: 296px;
       }
 
       .ft-world-card.is-training-map .ft-world-training-skill-dock {
         right: 10px;
         bottom: 14px;
+        grid-template-columns: 76px 170px;
+        column-gap: 10px;
+      }
+
+      .ft-world-card.is-training-map.has-female-default-training-controls .ft-world-training-skill-dock,
+      .ft-world-card.is-training-map.has-scorpio-training-controls .ft-world-training-skill-dock {
+        left: auto;
+        right: 10px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-avatar-button {
+        width: 100%;
+        height: 100%;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-avatar-button:hover,
+      .ft-world-card.is-training-map .ft-world-training-avatar-button:focus-visible {
+        transform: scale(1.06);
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-avatar-character {
+        inset: 0;
       }
 
       .ft-world-card.is-training-map .ft-world-training-quick-skill {
@@ -4136,6 +4945,35 @@
         border-radius: 14px;
       }
 
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-female-ultimate {
+        left: -34px;
+        width: 62px;
+        min-height: 62px;
+        grid-template-rows: 1fr;
+        border-radius: 50%;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-female-ultimate .ft-world-training-quick-skill-orb {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate,
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-orb {
+        border-radius: 50%;
+      }
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate {
+        left: -34px;
+        width: 62px;
+        min-height: 62px;
+        grid-template-rows: 1fr;
+      }
+      .ft-world-card.is-training-map .ft-world-training-quick-skill.is-male-ultimate .ft-world-training-quick-skill-orb {
+        width: 46px;
+        height: 46px;
+      }
+
       .ft-world-card.is-training-map .ft-world-chat {
         left: 12px;
         right: 12px;
@@ -4146,7 +4984,7 @@
       }
 
       .ft-world-card.is-training-map .ft-world-training-modal {
-        inset: auto 12px 96px 12px;
+        inset: auto calc(var(--training-skill-dock-width) + 10px) 12px 12px;
       }
 
       .ft-world-card.is-training-map .ft-world-training-card {
@@ -4162,10 +5000,38 @@
       .ft-world-card.is-training-map .ft-world-training-read-status {
         grid-row: auto;
         grid-column: auto;
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: auto 1fr;
+        justify-items: start;
       }
 
       .ft-world-card.is-training-map .ft-world-training-transcript {
         max-height: 50px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .ft-world-card.is-training-map .ft-world-training-modal {
+        inset: auto 8px 174px 8px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-card {
+        width: 100%;
+        max-height: min(34vh, 210px);
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-question {
+        padding: 7px 8px;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-answer {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .ft-world-card.is-training-map .ft-world-training-speech-mode {
+        grid-column: 1 / -1;
+        width: 100%;
       }
     }
 
@@ -4408,11 +5274,15 @@
       cursor: pointer;
       overflow: visible;
       transform: translate(-50%, -50%);
-      transition: left 1.08s cubic-bezier(0.18, 0.78, 0.22, 1), top 1.08s cubic-bezier(0.18, 0.78, 0.22, 1), border-color 180ms ease, box-shadow 180ms ease, filter 180ms ease, scale 180ms ease;
+      transition: left var(--slime-hop-duration, 860ms) cubic-bezier(0.18, 0.78, 0.22, 1), top var(--slime-hop-duration, 860ms) cubic-bezier(0.18, 0.78, 0.22, 1), border-color 180ms ease, box-shadow 180ms ease, filter 180ms ease, scale 180ms ease;
+    }
+
+    .ft-world-training-slime.is-initial-layout {
+      transition: none !important;
     }
 
     .ft-world-training-slime.is-hopping {
-      animation: ftWorldTrainingSlimeTravel 1.08s cubic-bezier(0.22, 0.82, 0.18, 1) both;
+      animation: ftWorldTrainingSlimeTravel var(--slime-hop-duration, 860ms) cubic-bezier(0.22, 0.82, 0.18, 1) both;
       filter:
         drop-shadow(0 24px 18px rgba(0, 0, 0, 0.36))
         brightness(1.08);
@@ -4462,7 +5332,7 @@
         linear-gradient(135deg, #7cfff0, #43d4b8 48%, #259e87);
       transform: translateX(-50%);
       box-shadow: 0 0 24px rgba(70, 240, 215, 0.32), inset 0 -12px 18px rgba(0, 0, 0, 0.18);
-      animation: ftWorldTrainingSlimeIdle 2.8s ease-in-out infinite;
+      animation: ftWorldTrainingSlimeIdle 2.8s ease-in-out var(--slime-idle-delay, 0s) infinite;
     }
 
     .ft-world-training-slime-crest {
@@ -5568,7 +6438,7 @@
     }
 
     .ft-world-player.is-training-cast {
-      animation: ftWorldTrainingCasterBody 920ms cubic-bezier(0.16, 0.82, 0.24, 1) both;
+      animation: none;
       filter: saturate(1.22) brightness(1.08);
     }
 
@@ -5852,7 +6722,7 @@
       border-radius: 999px;
       color: #fff4cf;
       background: rgba(16, 6, 5, 0.82);
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 1000;
       letter-spacing: 0.08em;
       box-shadow: 0 0 22px rgba(255, 126, 52, 0.26);
@@ -5952,4 +6822,40 @@
         drop-shadow(0 0 18px rgba(255, 209, 102, 0.62))
         drop-shadow(0 0 30px rgba(255, 126, 52, 0.42));
       animation: ftWorldTrainingImpactBurst 780ms cubic-bezier(0.16, 0.84, 0.22, 1) both !important;
+    }
+
+    .ft-world-training-male-basic-enemy-explosion {
+      position: absolute;
+      left: var(--impact-x, 50%);
+      top: var(--impact-y, 50%);
+      z-index: 2147480000;
+      width: 276px;
+      height: 276px;
+      pointer-events: none;
+      transform: translate(-50%, -56%);
+      background-image: var(--qm-male-basic-enemy-explosion, url("/future-assets/character_male_default_basic_enemy_explosion_atlas.png"));
+      background-position: 0 0;
+      background-size: 800% 100%;
+      background-repeat: no-repeat;
+      animation: ftWorldTrainingMaleBasicEnemyExplosion 760ms steps(8, end) both;
+      filter: drop-shadow(0 0 18px rgba(255, 168, 70, .7));
+    }
+
+    @keyframes ftWorldTrainingMaleBasicEnemyExplosion {
+      0% { background-position-x: 0%; opacity: .98; transform: translate(-50%, -56%) scale(.72); }
+      12.49% { background-position-x: 0%; opacity: 1; }
+      12.5% { background-position-x: 14.2857%; }
+      24.99% { background-position-x: 14.2857%; }
+      25% { background-position-x: 28.5714%; }
+      37.49% { background-position-x: 28.5714%; }
+      37.5% { background-position-x: 42.8571%; }
+      49.99% { background-position-x: 42.8571%; }
+      50% { background-position-x: 57.1429%; transform: translate(-50%, -56%) scale(.94); }
+      62.49% { background-position-x: 57.1429%; }
+      62.5% { background-position-x: 71.4286%; }
+      74.99% { background-position-x: 71.4286%; }
+      75% { background-position-x: 85.7143%; }
+      87.49% { background-position-x: 85.7143%; opacity: 1; }
+      87.5% { background-position-x: 100%; }
+      100% { background-position-x: 100%; opacity: 0; transform: translate(-50%, -56%) scale(1.12); }
     }

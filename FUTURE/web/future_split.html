@@ -9,6 +9,76 @@
   <link rel="icon" href="/favicon.ico?v=20260705" sizes="any">
   <link rel="shortcut icon" href="/favicon.ico?v=20260705">
   <link rel="stylesheet" href="/future-assets/future.css">
+  <style>
+    html.ft-refresh-restore-mask body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 2147483645;
+      pointer-events: auto;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(20, 184, 166, 0.14), transparent 34%),
+        linear-gradient(145deg, #020617, #071912 58%, #111827);
+    }
+    html.ft-refresh-restore-mask .ft-auth-gate {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+  </style>
+  <script>
+    (() => {
+      const clean = (value) => String(value || "").replace(/[\r\n\t]+/g, " ").trim();
+      const routeAliases = {
+        login: "login",
+        lesson_vault: "lesson_vault",
+        space_w: "space_w",
+        space_v: "space_v",
+        space_q: "space_q",
+        space_p: "space_p",
+        space_s: "space_s",
+        space_l: "space_l",
+        space_pdf: "space_pdf",
+        space_picture: "space_picture",
+      };
+      const normalizeRoute = (route) => routeAliases[clean(route).toLowerCase().replace(/[-\s]+/g, "_")] || "";
+      const routeFromPath = () => {
+        const pathname = String(location.pathname || "/").replace(/\/+$/, "") || "/";
+        const lower = pathname.toLowerCase();
+        if (lower === "/" || lower === "/future.html" || lower === "/future") return "login";
+        if (lower.startsWith("/future.html/")) return normalizeRoute(pathname.slice("/future.html/".length).split("/")[0] || "");
+        return normalizeRoute(pathname.replace(/^\/+/, "").split("/")[0] || "");
+      };
+      const params = new URLSearchParams(location.search || "");
+      const route = routeFromPath();
+      const hasRouteTarget = Boolean(route && route !== "login" && (params.get("file") || params.get("tree") || params.get("process") || route));
+      let hasReloadSession = false;
+      try {
+        const raw = sessionStorage.getItem("future_lesson_reload_session");
+        const state = raw ? JSON.parse(raw) : null;
+        hasReloadSession = Boolean(state && typeof state === "object" && state.token && Number(state.expiresAt || 0) >= Date.now());
+      } catch (_error) {
+        hasReloadSession = false;
+      }
+      let hasStoredToken = false;
+      try {
+        hasStoredToken = Boolean(clean(localStorage.getItem("future_lesson_auth_token") || ""));
+      } catch (_error) {
+        hasStoredToken = false;
+      }
+      const active = Boolean(hasReloadSession || (hasStoredToken && hasRouteTarget));
+      if (active) document.documentElement.classList.add("ft-refresh-restore-mask");
+      window.__ftEarlyRefreshRestoreMaskTrace = {
+        stage: active ? "early-mask-head" : "early-skip-head",
+        route,
+        hasRouteTarget,
+        hasReloadSession,
+        hasStoredToken,
+        time: new Date().toISOString(),
+      };
+      if (active) console.info("[FTG][RefreshGate]", window.__ftEarlyRefreshRestoreMaskTrace);
+    })();
+  </script>
 
 </head>
 <body translate="no" class="notranslate">
@@ -914,20 +984,64 @@
 
   <div class="ft-world-modal" id="ft-world-modal" aria-hidden="true">
     <section class="ft-world-card" role="dialog" aria-modal="true" aria-labelledby="ft-world-title">
-      <header class="ft-world-head" id="ft-world-menu-trigger" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" aria-controls="ft-world-close-menu">
-        <div>
-          <p class="ft-world-kicker">Shared portal</p>
-          <h2 class="ft-world-title" id="ft-world-title">QM-City</h2>
+      <div class="ft-world-pen-tools" id="ft-world-pen-tools" aria-label="QM-City obstacle pen" hidden>
+        <button class="ft-world-pen-button" id="ft-world-pen-toggle" type="button" aria-pressed="false">Pen</button>
+        <button class="ft-world-pen-button is-portal" id="ft-world-pen-portal" type="button" aria-pressed="false">Portal Pen</button>
+        <button class="ft-world-pen-button" id="ft-world-pen-map" type="button">Map</button>
+        <button class="ft-world-pen-button is-battle" id="ft-world-pen-battle" type="button" hidden>Battle map</button>
+        <button class="ft-world-pen-button" id="ft-world-pen-eraser" type="button" aria-pressed="false">Erase</button>
+        <label class="ft-world-pen-size">Size <input id="ft-world-pen-size" type="range" min="8" max="160" step="2" value="36"><output id="ft-world-pen-size-output">36</output></label>
+        <button class="ft-world-pen-button is-danger" id="ft-world-pen-clear" type="button">Clear</button>
+        <div class="ft-world-admin-animation-test" id="ft-world-admin-animation-test" aria-label="Admin character animation test" hidden>
+          <label>Character
+            <select id="ft-world-admin-character-select">
+              <option value="male">Male default</option>
+              <option value="female">Female default</option>
+              <option value="scorpio">Cung Bọ Cạp</option>
+            </select>
+          </label>
+          <button class="ft-world-pen-button is-test" id="ft-world-admin-basic-attack" type="button">Basic Attack</button>
+          <button class="ft-world-pen-button is-test is-ultimate" id="ft-world-admin-ultimate-attack" type="button">Skill Nộ</button>
         </div>
-      </header>
+      </div>
+      <div class="ft-world-portal-menu" id="ft-world-portal-menu" role="dialog" aria-label="Portal link settings" hidden>
+        <div class="ft-world-portal-menu-head">
+          <strong>Link portal</strong>
+          <button id="ft-world-portal-menu-close" type="button" aria-label="Close portal settings">×</button>
+        </div>
+        <label>Region name<input id="ft-world-portal-region-name" type="text" maxlength="80" autocomplete="off"></label>
+        <label>Target map<select id="ft-world-portal-target-map">
+          <option value="unlinked">Not linked</option>
+          <option value="city">QM-City</option>
+          <option value="training">Training</option>
+        </select></label>
+        <label>Target portal<select id="ft-world-portal-target-region"></select></label>
+        <div class="ft-world-portal-menu-actions">
+          <button id="ft-world-portal-menu-cancel" type="button">Cancel</button>
+          <button id="ft-world-portal-menu-save" type="button">Save link</button>
+        </div>
+      </div>
+      <div class="ft-world-top-actions">
+        <header class="ft-world-head" id="ft-world-menu-trigger" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" aria-controls="ft-world-close-menu">
+          <div>
+            <p class="ft-world-kicker">Shared portal</p>
+            <h2 class="ft-world-title" id="ft-world-title">QM-City</h2>
+          </div>
+          <div class="ft-world-head-actions">
+            <button class="ft-world-admin-tools-button" id="ft-world-admin-tools-button" type="button" aria-pressed="false" title="Admin tools" hidden>Tools</button>
+          </div>
+        </header>
+        <button class="ft-world-character-button" id="ft-world-character-button" type="button" aria-label="Change character">Change Character</button>
+      </div>
       <div class="ft-world-close-menu" id="ft-world-close-menu" aria-hidden="true">
         <button class="ft-world-menu-action" id="ft-world-inventory-button" type="button">Inventory</button>
         <button class="ft-world-menu-action" id="ft-world-exit-button" type="button">Exit to Lesson Vault</button>
       </div>
-      <div class="ft-world-stage" id="ft-world-stage" aria-label="Shared world. Use commands to move your fireball.">
+      <div class="ft-world-stage" id="ft-world-stage" aria-label="Shared world. Use commands to move your character.">
         <div class="ft-world-arena" id="ft-world-arena">
           <div class="ft-world-grid" aria-hidden="true"></div>
           <div class="ft-world-stars" aria-hidden="true"></div>
+          <canvas class="ft-world-obstacle-canvas" id="ft-world-obstacle-canvas" width="3332" height="941" aria-label="QM-City obstacle editor"></canvas>
           <div class="ft-world-roads" aria-hidden="true">
             <svg class="ft-world-road-map" viewBox="0 0 1000 640" preserveAspectRatio="none" focusable="false">
               <path class="ft-world-road-shadow" d="M86 490 H220 Q262 490 262 448 V362 Q262 322 302 322 H454 Q494 322 494 282 V168 Q494 132 532 132 H914" />
@@ -955,14 +1069,10 @@
           <div class="ft-world-npc ft-world-witch" id="ft-world-witch" data-username="witch" data-display-name="Mystic Witch" style="--world-x:74%;--world-y:34%;">
             <span class="ft-world-target-arrow" aria-hidden="true"></span>
             <div class="ft-world-witch-bubble" id="ft-world-witch-bubble"></div>
+            <span class="ft-world-character-shadow" aria-hidden="true"></span>
             <div class="ft-world-witch-body" aria-hidden="true"></div>
           <div class="ft-world-witch-name">Mystic Witch</div>
           </div>
-          <button class="ft-world-training-portal" id="ft-world-training-portal" type="button" aria-label="Open private slime practice gate">
-            <span class="ft-world-training-gate" aria-hidden="true"><i></i><i></i><i></i></span>
-            <b>Practice Gate</b>
-            <small>Private slime arena</small>
-          </button>
           <div class="ft-world-training-field" id="ft-world-training-field" aria-hidden="true">
             <div class="ft-world-training-meadow" aria-hidden="true">
               <span class="is-tree is-tree-1"></span>
@@ -984,7 +1094,6 @@
               <span class="is-grass is-grass-9"></span>
               <span class="is-grass is-grass-10"></span>
             </div>
-            <div class="ft-world-training-exit-gate" id="ft-world-training-exit-gate" aria-label="Return to QM-City"></div>
             <div class="ft-world-training-slime-map" id="ft-world-training-slime-map" aria-label="Training slime field"></div>
           </div>
           <div class="ft-world-battle-links" id="ft-world-battle-links" aria-hidden="true"></div>
@@ -992,6 +1101,23 @@
         </div>
       </div>
       <div class="ft-world-training-skill-dock" id="ft-world-training-skill-dock" aria-label="Training skills">
+        <div class="ft-world-training-avatar-cluster">
+          <button class="ft-world-training-avatar-button" id="ft-world-training-avatar-button" type="button" aria-label="Center on my character; right-click for Basic Skills" title="Center on my character · Right-click for Basic Skills">
+            <span class="ft-world-training-avatar-energy" id="ft-world-training-avatar-energy" aria-hidden="true">
+              <span class="ft-world-training-energy-ring is-level"></span>
+              <span class="ft-world-training-energy-ring is-vitals"></span>
+              <span class="ft-world-training-avatar-level">Lv 1</span>
+            </span>
+            <span class="ft-world-training-avatar-character" aria-hidden="true"></span>
+          </button>
+          <div class="ft-world-training-basic-orbit" id="ft-world-training-basic-orbit" aria-label="Equipped basic skills"></div>
+        </div>
+        <section class="ft-world-training-basic-skills" id="ft-world-training-basic-skills" aria-label="Character basic training skills" hidden>
+          <header><span><b>Basic Skills</b><small>Choose the question style</small></span><button id="ft-world-training-basic-skills-close" type="button" aria-label="Close basic skills">×</button></header>
+          <div class="ft-world-training-basic-skills-grid" id="ft-world-training-basic-skills-grid"></div>
+          <div class="ft-world-training-basic-slots-title">Drag skills into your 3 loadout slots</div>
+          <div class="ft-world-training-basic-slots" id="ft-world-training-basic-slots"></div>
+        </section>
         <button class="ft-world-training-quick-skill" id="ft-world-training-quick-skill" type="button" data-world-training-skill-cast="earthquake" aria-label="Cast Earthquake" title="Earthquake">
           <span class="ft-world-training-quick-skill-orb" aria-hidden="true"></span>
           <span class="ft-world-training-quick-skill-copy">
@@ -1029,7 +1155,7 @@
             <div class="ft-world-game-tools">
               <button class="ft-world-game-button" id="ft-world-game-button" type="button" aria-expanded="false">Game</button>
               <div class="ft-world-game-list" id="ft-world-game-list" hidden>
-                <button type="button" data-world-game="fireball_vocab">Fireball Vocabulary Battle</button>
+                <button type="button" data-world-game="fireball_vocab">QM-City Character Battle</button>
               </div>
             </div>
             <div class="ft-world-npc-tools">
@@ -1060,7 +1186,7 @@
             <div><b>13</b><span>Wave</span><code>wave</code></div>
             <div><b>14</b><span>Dance</span><code>dance</code></div>
             <div><b>15</b><span>Stop action</span><code>stop</code></div>
-            <div><b>16</b><span>Invite battle</span><code>Would you like to play Fireball Vocabulary Battle with me?</code></div>
+            <div><b>16</b><span>Invite battle</span><code>Would you like to play QM-City Character Battle with me?</code></div>
           </div>
         </div>
         <section class="ft-world-training-history" id="ft-world-training-history" aria-hidden="true">
@@ -1075,18 +1201,10 @@
       </form>
       <div class="ft-world-status ft-top-loading is-visible" id="ft-world-status" aria-live="polite" aria-hidden="false">
         <span class="ft-top-loading-core" aria-hidden="true"></span>
-        <span class="ft-top-loading-text" id="ft-world-status-text">Use command input to move your fireball. Click another player to select a target.</span>
+        <span class="ft-top-loading-text" id="ft-world-status-text">Use command input to move your character. Click another player to select a target.</span>
       </div>
       <aside class="ft-world-invite-panel" id="ft-world-invite-panel" hidden>
-        <div>
-          <span class="ft-world-invite-kicker">Battle invite</span>
-          <strong id="ft-world-invite-title">Fireball Vocabulary Battle</strong>
-          <p id="ft-world-invite-copy">A learner invited you to play.</p>
-        </div>
-        <div class="ft-world-invite-actions">
-          <button id="ft-world-invite-accept" type="button">Accept</button>
-          <button id="ft-world-invite-decline" type="button">Decline</button>
-        </div>
+        <div class="ft-world-invite-list" id="ft-world-invite-list"></div>
       </aside>
       <aside class="ft-world-training-modal" id="ft-world-training-modal" aria-hidden="true">
         <section class="ft-world-training-card" aria-labelledby="ft-world-training-title">
@@ -1101,12 +1219,13 @@
             <aside class="ft-world-training-stats" id="ft-world-training-stats"></aside>
             <main class="ft-world-training-main">
               <div class="ft-world-training-slimes" id="ft-world-training-slimes" aria-label="Training slimes"></div>
-              <section class="ft-world-training-question">
+              <section class="ft-world-training-question ft-world-combat-question-panel">
                 <div class="ft-world-training-question-top">
                   <span id="ft-world-training-target">Choose a slime</span>
               </div>
                 <p id="ft-world-training-question">The practice gate is loading your question.</p>
                 <form class="ft-world-training-answer" id="ft-world-training-answer-form">
+                  <div class="ft-world-combat-choices" id="ft-world-training-choices" role="group" aria-label="Choose one combat answer"></div>
                   <input id="ft-world-training-answer" autocomplete="off" placeholder="Type the English answer...">
                   <select class="ft-speech-mode-select ft-world-training-speech-mode" id="ft-world-training-speech-mode" aria-label="Training speech input mode" title="Speech input mode">
                     <option value="browser">Browser VI+EN</option>
@@ -1127,37 +1246,56 @@
 
   <div class="ft-world-battle-modal" id="ft-world-battle-modal" aria-hidden="true">
     <section class="ft-world-battle-card" role="dialog" aria-modal="true" aria-labelledby="ft-world-battle-title">
-      <header class="ft-world-battle-head">
+      <header class="ft-world-battle-head" aria-label="Battle controls">
         <div>
-          <p>QM-City Arena</p>
-          <h2 id="ft-world-battle-title">Fireball Vocabulary Battle</h2>
+          <p>Battle Field</p>
+          <h2 id="ft-world-battle-title">Battle Field</h2>
         </div>
-        <button class="ft-world-battle-forfeit" id="ft-world-battle-forfeit" type="button">Forfeit</button>
+        <div class="ft-world-battle-head-actions">
+          <button class="ft-world-admin-tools-button ft-world-battle-admin-tools-button" id="ft-world-battle-admin-tools-button" type="button" aria-pressed="false" title="Admin tools" hidden>Tools</button>
+          <div class="ft-world-pen-tools ft-world-battle-designer-tools" id="ft-world-battle-designer-tools" aria-label="Battle map obstacle pen" hidden>
+            <button class="ft-world-pen-button" id="ft-world-battle-pen" type="button" aria-pressed="false">Pen</button>
+            <button class="ft-world-pen-button is-portal" id="ft-world-battle-portal-pen" type="button" aria-pressed="false">Portal Pen</button>
+            <button class="ft-world-pen-button" id="ft-world-battle-map-label" type="button">Map: Battle</button>
+            <button class="ft-world-pen-button is-battle" id="ft-world-battle-city-map" type="button">City map</button>
+            <button class="ft-world-pen-button" id="ft-world-battle-erase" type="button" aria-pressed="false">Erase</button>
+            <label class="ft-world-pen-size">Size <input id="ft-world-battle-pen-size" type="range" min="8" max="160" step="2" value="36"><output id="ft-world-battle-pen-size-output">36</output></label>
+            <button class="ft-world-pen-button is-danger" id="ft-world-battle-clear" type="button">Clear</button>
+          </div>
+          <button class="ft-world-battle-forfeit" id="ft-world-battle-forfeit" type="button">Forfeit</button>
+        </div>
       </header>
       <div class="ft-world-battle-arena">
-        <section class="ft-world-battle-player is-left" id="ft-world-battle-left"></section>
-        <section class="ft-world-battle-referee">
+        <div class="ft-world-battle-viewport" id="ft-world-battle-viewport">
+          <div class="ft-world-battle-map" id="ft-world-battle-map">
+            <canvas class="ft-world-battle-obstacle-canvas" id="ft-world-battle-obstacle-canvas" width="1672" height="941" aria-label="Battle map obstacle editor"></canvas>
+            <section class="ft-world-battle-player is-left" id="ft-world-battle-left"></section>
+            <section class="ft-world-battle-player is-right" id="ft-world-battle-right"></section>
+          </div>
+        </div>
+        <section class="ft-world-battle-referee ft-world-combat-question-panel" aria-label="Battle question and skills">
           <div class="ft-world-referee-core" aria-hidden="true">
             <span></span><span></span><span></span>
           </div>
           <div class="ft-world-battle-timer" id="ft-world-battle-timer">30</div>
           <p class="ft-world-battle-phase" id="ft-world-battle-phase">Waiting</p>
-          <p class="ft-world-battle-question" id="ft-world-battle-question">The referee is preparing a word.</p>
-          <form class="ft-world-battle-answer" id="ft-world-battle-answer-form">
+          <p class="ft-world-battle-question ft-world-training-question" id="ft-world-battle-question">The battle question is loading.</p>
+          <form class="ft-world-battle-answer ft-world-training-answer" id="ft-world-battle-answer-form">
+            <div class="ft-world-combat-choices" id="ft-world-battle-choices" role="group" aria-label="Choose one battle answer"></div>
             <input id="ft-world-battle-answer" autocomplete="off" placeholder="Type your answer...">
-            <button class="ft-world-battle-speech-mic" id="ft-world-battle-speech-mic" type="button" aria-label="Battle speech answer input" aria-pressed="false" title="Battle speech answer input" hidden>Mic</button>
-            <button id="ft-world-battle-submit" type="submit">Cast</button>
+            <select class="ft-speech-mode-select ft-world-training-speech-mode" id="ft-world-battle-speech-mode" aria-label="Battle speech input mode" title="Speech input mode">
+              <option value="browser">Browser VI+EN</option>
+              <option value="zipformer">Zipformer VI</option>
+            </select>
+            <button class="ft-vietnamese-typing-toggle ft-world-training-speech-mic ft-world-battle-speech-mic" id="ft-world-battle-speech-mic" type="button" aria-label="Battle speech answer input" aria-pressed="false" title="Battle speech answer input" hidden>Mic</button>
+            <button class="ft-vietnamese-typing-toggle ft-world-training-vi-toggle" id="ft-world-battle-vi-toggle" type="button" aria-label="Vietnamese typing support" aria-pressed="false" title="Vietnamese typing support" hidden>VI</button>
+            <button id="ft-world-battle-submit" type="submit">Đánh thường</button>
           </form>
           <div class="ft-world-battle-skills" id="ft-world-battle-skills">
-            <button type="button" data-world-skill="inferno">Inferno x3</button>
-            <button type="button" data-world-skill="meteor">Meteor 25</button>
-            <button type="button" data-world-skill="shield">Guard 50%</button>
-            <button type="button" data-world-skill="drain">Drain MP</button>
-            <button type="button" data-world-skill="phoenix">Phoenix +45</button>
+            <button type="button" data-world-skill="inferno">Skill Nộ · 35 DMG</button>
           </div>
           <div class="ft-world-battle-log" id="ft-world-battle-log"></div>
         </section>
-        <section class="ft-world-battle-player is-right" id="ft-world-battle-right"></section>
       </div>
       <div class="ft-world-battle-result" id="ft-world-battle-result" aria-hidden="true">
         <section class="ft-world-battle-result-card" aria-labelledby="ft-world-battle-result-title">
@@ -1168,6 +1306,19 @@
           <button class="ft-world-battle-result-close" id="ft-world-battle-result-close" type="button">Return to QM-City</button>
         </section>
       </div>
+    </section>
+  </div>
+
+  <div class="ft-world-character-modal" id="ft-world-character-modal" aria-hidden="true">
+    <section class="ft-world-character-card" role="dialog" aria-modal="true" aria-labelledby="ft-world-character-title">
+      <header class="ft-world-character-head">
+        <div>
+          <p>Hero deck</p>
+          <h2 id="ft-world-character-title">Change Character</h2>
+        </div>
+        <button class="ft-world-character-close" id="ft-world-character-close" type="button" aria-label="Close character cards">x</button>
+      </header>
+      <div class="ft-world-character-grid" id="ft-world-character-grid" aria-label="Available character cards"></div>
     </section>
   </div>
 
@@ -1825,12 +1976,25 @@
           <span class="ft-complete-metric-value" id="ft-complete-runs">Sync</span>
         </div>
       </div>
-      <div class="ft-complete-crystals" id="ft-complete-crystals" aria-live="polite">
-        <div class="ft-complete-crystal-head">
-          <span class="ft-complete-crystal-kicker">Crystals earned in this file</span>
-          <span class="ft-complete-crystal-total"><strong id="ft-complete-crystal-total">0</strong> total</span>
+      <div class="ft-complete-reward-layout" aria-live="polite">
+        <div class="ft-complete-crystals" id="ft-complete-crystals">
+          <div class="ft-complete-crystal-head">
+            <span class="ft-complete-crystal-kicker">Items earned in this file</span>
+            <span class="ft-complete-crystal-total"><strong id="ft-complete-crystal-total">0</strong> received</span>
+          </div>
+          <div class="ft-complete-crystal-grid" id="ft-complete-crystal-grid"></div>
         </div>
-        <div class="ft-complete-crystal-grid" id="ft-complete-crystal-grid"></div>
+        <aside class="ft-complete-inventory" aria-labelledby="ft-complete-inventory-title">
+          <div class="ft-complete-inventory-head">
+            <span class="ft-complete-inventory-chest" aria-hidden="true"><i></i></span>
+            <span>
+              <span class="ft-complete-inventory-kicker">Your item chest</span>
+              <strong id="ft-complete-inventory-title">Thùng đồ của bạn</strong>
+            </span>
+            <span class="ft-complete-inventory-total"><strong id="ft-complete-inventory-total">0</strong> items</span>
+          </div>
+          <div class="ft-complete-inventory-grid" id="ft-complete-inventory-grid"></div>
+        </aside>
       </div>
       <div class="ft-complete-actions">
         <button class="ft-complete-action" id="ft-complete-review" type="button">Review</button>

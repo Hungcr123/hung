@@ -4220,10 +4220,64 @@
       let sharedWorldLoading = false;
       let sharedWorldLoadingAt = 0;
       let sharedWorldRequestSeq = 0;
+      let sharedWorldCityState = null;
+      let sharedWorldCityRevisionEpoch = 0;
+      let sharedWorldTrainingPresenceState = null;
+      let sharedWorldTrainingPresenceRevisionEpoch = 0;
       let sharedWorldReconnectTimer = 0;
       let sharedWorldReconnectAttempts = 0;
       let sharedWorldStatusHideTimer = 0;
       let sharedWorldMapMode = "city";
+      let sharedWorldPendingCheckpoint = null;
+      let sharedWorldRuntimeDeferredForGate = false;
+      let sharedWorldObstacles = { revision: 0, updated_at_epoch: 0, strokes: [] };
+      let sharedWorldObstacleCacheDatabasePromise = null;
+      const sharedWorldObstacleCacheLoaded = new Set();
+      const sharedWorldObstacleCacheLoading = new Map();
+      const sharedWorldNpcMotion = new Map();
+      let sharedWorldNpcMotionTimer = 0;
+      let sharedWorldNpcDistribution = null;
+      const sharedWorldObstacleSets = {
+        city: { revision: 0, updated_at_epoch: 0, strokes: [] },
+        training: { revision: 0, updated_at_epoch: 0, strokes: [] },
+      };
+      let sharedWorldObstacleMode = "off";
+      let sharedWorldObstacleDraft = null;
+      const SHARED_WORLD_ADMIN_CHARACTER_STORAGE_KEY = "future_qm_city_hung_character_v1";
+
+      // Added 2026-08-16: keep one character key shared by City, Training, Battle, and test casts.
+      const normalizeSharedWorldCharacterKind = (value = "") => {
+        const key = clean(value).toLowerCase();
+        return key === "female" || key === "scorpio" ? key : "male";
+      };
+
+      const sharedWorldCharacterKindFromNode = (node = null) => {
+        if (node && node.classList && node.classList.contains("is-character-scorpio")) return "scorpio";
+        if (node && node.classList && node.classList.contains("is-character-female-default")) return "female";
+        return "male";
+      };
+
+      // Added 2026-08-16: preserve hung's temporary character switch across local refreshes.
+      const readSharedWorldAdminCharacterPreview = () => {
+        try {
+          const stored = window.localStorage.getItem(SHARED_WORLD_ADMIN_CHARACTER_STORAGE_KEY);
+          return stored ? normalizeSharedWorldCharacterKind(stored) : "";
+        } catch (error) {
+          if (error && error.name !== "SecurityError") console.warn("[FTG][ScorpioCharacter] preview read failed", error);
+          return "";
+        }
+      };
+
+      let sharedWorldAdminCharacterPreview = readSharedWorldAdminCharacterPreview();
+      let sharedWorldMaleUltimateCastToken = 0;
+      let sharedWorldScorpioUltimateCastToken = 0;
+      let sharedWorldAdminBattleTestSequence = 0;
+      let sharedWorldAdminBattleTestQueue = Promise.resolve();
+      const sharedWorldObstacleDeleting = new Set();
+      let sharedWorldPortalCooldownUntil = 0;
+      let sharedWorldPortalLastRegionId = "";
+      let sharedWorldPortalEditingStrokeId = "";
+      let sharedWorldPortalMenuOpenedAt = 0;
       const sharedWorldNodes = new Map();
       const sharedWorldPositions = new Map();
       const sharedWorldRoster = new Map();
@@ -4231,6 +4285,7 @@
       let sharedWorldMotionFrame = 0;
       let sharedWorldMotionLastAt = 0;
       let sharedWorldStageDrag = null;
+      let sharedWorldStagePanFrame = 0;
       let sharedWorldSuppressNextMapClick = false;
       let sharedWorldMoveMarkerPoint = null;
       let sharedWorldMoveMarkerHideTimer = 0;
@@ -4238,6 +4293,47 @@
       let sharedWorldSelectedPoint = null;
       let sharedWorldPickingPosition = false;
       let sharedWorldNeedInitialCenter = false;
+      let sharedWorldViewportPrimedKey = "";
+
+      // Added 2026-08-11: keep each user's last QM-City map and normalized character point across F5.
+      const sharedWorldCheckpointKey = () => `future_qm_city_checkpoint_v1_${clean(activeWorldUsername() || currentAuthUsername || "guest").toLowerCase() || "guest"}`;
+      const readSharedWorldCheckpoint = () => {
+        try {
+          const row = JSON.parse(localStorage.getItem(sharedWorldCheckpointKey()) || "null");
+          if (!row || !["city", "training"].includes(clean(row.mapMode))) {
+            return null;
+          }
+          const mapMode = clean(row.mapMode);
+          const x = sharedWorldClamp(row.x, 0.5);
+          const y = sharedWorldClamp(row.y, 0.5);
+          return {
+            mapMode,
+            x,
+            y,
+            viewLeft: Math.max(0, Number(row.viewLeft || 0) || 0),
+            viewTop: Math.max(0, Number(row.viewTop || 0) || 0),
+          };
+        } catch (_error) {
+          return null;
+        }
+      };
+      const writeSharedWorldCheckpoint = (point = null) => {
+        try {
+          const self = point || getSharedWorldSelfPosition();
+          if (!self || !["city", "training"].includes(sharedWorldMapMode)) {
+            return;
+          }
+          localStorage.setItem(sharedWorldCheckpointKey(), JSON.stringify({
+            mapMode: sharedWorldMapMode,
+            x: sharedWorldClamp(self.x, 0.5),
+            y: sharedWorldClamp(self.y, 0.5),
+            viewLeft: Math.max(0, Number(worldStage && worldStage.scrollLeft || 0) || 0),
+            viewTop: Math.max(0, Number(worldStage && worldStage.scrollTop || 0) || 0),
+            updatedAt: Date.now(),
+          }));
+        } catch (_error) {
+        }
+      };
       let sharedWorldFollowSelf = false;
       let sharedWorldFollowFrame = 0;
       let sharedWorldAutoLocateAt = 0;
@@ -4258,6 +4354,10 @@
       let sharedWorldWitchBubbleTimer = 0;
       let sharedWorldShopOpenTimer = 0;
       let sharedWorldInventory = null;
+      let sharedWorldCharacterPickerOpen = false;
+      let sharedWorldCharacterChanging = false;
+      let sharedWorldCharacterCarouselKind = "";
+      let sharedWorldAdminToolsOpen = false;
       let sharedWorldSkinSettings = [];
       let sharedWorldBattleState = null;
       let sharedWorldActiveBattlePairs = [];
@@ -4271,21 +4371,154 @@
       let sharedWorldBattleLoading = false;
       let sharedWorldBattleLoadingAt = 0;
       let sharedWorldBattleRequestSeq = 0;
+      let sharedWorldBattleAcceptedSnapshot = { id: "", epoch: 0, seq: 0 };
+      let sharedWorldBattleReadyRequestId = "";
+      let sharedWorldBattleReadyRequestInFlight = false;
+      let sharedWorldBattleLifecycleGeneration = 1;
+      let sharedWorldBattleResultShownId = "";
+      const sharedWorldBattleClosedIds = new Map();
       let sharedWorldBattlePollingTimer = 0;
+      let sharedWorldBattlePollingGeneration = 0;
+      let sharedWorldBattleRealtimeRevision = 0;
+      let sharedWorldBattlePresenceHandoff = { id: "", at: 0 };
+      let sharedWorldBattleInviteCountdownTimer = 0;
+      const sharedWorldBattleInviteSeenIds = new Set();
       const sharedWorldBattleVisualTimers = new Set();
+      let sharedWorldBattleDesignerOpen = false;
+      let sharedWorldBattleObstacleMode = "off";
+      let sharedWorldBattleObstacles = { revision: 0, updated_at_epoch: 0, strokes: [] };
+      const sharedWorldBattleNpcMotion = new Map();
+      let sharedWorldBattleObstacleDraft = null;
+      let sharedWorldBattleMapPrimedId = "";
+      let sharedWorldBattleMoveSyncAt = 0;
+      let sharedWorldBattleViewportDrag = null;
+      let sharedWorldBattleSuppressClick = false;
+      const sharedWorldBattleActorPoints = new Map();
+      const sharedWorldBattleActorTargets = new Map();
+      const sharedWorldBattlePathQueues = new Map();
+      let sharedWorldBattleMotionFrame = 0;
+      let sharedWorldBattleMotionLastAt = 0;
+      let sharedWorldBattleSelectedTarget = "";
+      let sharedWorldBattleFinishTimer = 0;
+      let sharedWorldBattleResultRevealTimer = 0;
+      let sharedWorldBattleFinishingId = "";
+      let sharedWorldBattleFinalImpactAt = 0;
+      let sharedWorldBattleCombatRenderLockUntil = 0;
+      let sharedWorldBattleDeferredCombatPayload = null;
+      let sharedWorldBattleAnswerRecoveryTimer = 0;
+      let sharedWorldBattlePendingLethalId = "";
+      let sharedWorldBattlePendingFinish = null;
+      let sharedWorldBattleTrainingDockHomeParent = null;
+      let sharedWorldBattleTrainingDockHomeNext = null;
+      let sharedWorldBattleLoadoutHydratingId = "";
+      let sharedWorldBattleLoadoutHydratedId = "";
+      let sharedWorldBattleHudSignature = "";
+      let sharedWorldBattleOrbitSignature = "";
+      const sharedWorldBattleHudValues = new Map();
+      let sharedWorldBattleSkillCooldownTimer = 0;
+      let sharedWorldBattleSkillCooldownUntil = 0;
+      let sharedWorldBattleSkillCooldownBattleId = "";
+      const sharedWorldBattleSkillCooldownSeconds = 10;
+      let sharedWorldBattleAdminToolsHomeParent = null;
+      let sharedWorldBattleAdminToolsHomeNext = null;
+      let sharedWorldBattleMoveMarker = null;
       let sharedWorldTrainingState = null;
+      let sharedWorldTrainingBaselineCache = null;
+      let sharedWorldTrainingBaselineEtag = "";
       let sharedWorldTrainingLoading = false;
       let sharedWorldTrainingRequestSeq = 0;
+      let sharedWorldTrainingSelectSeq = 0;
+      let sharedWorldTrainingProjectileLockUntil = 0;
+      let sharedWorldTrainingDeferredRenderPayload = null;
+      let sharedWorldTrainingDeferredSharedSnapshot = null;
       let sharedWorldTrainingLastEventKey = "";
       let sharedWorldTrainingPollTimer = 0;
+      let sharedWorldTrainingSharedEtag = "";
+      let sharedWorldTrainingSharedCache = null;
+      let sharedWorldTrainingRealtimeGeneration = 0;
+      let sharedWorldTrainingVisualGeneration = 1;
+      let sharedWorldTrainingRealtimeFailures = 0;
+      const sharedWorldTrainingSeenCombatEvents = new Set();
+      let sharedWorldTrainingAutoReselectTimer = 0;
+      let sharedWorldTrainingSharedFastUntil = 0;
+      let sharedWorldTrainingServerClockOffsetMs = 0;
+      let sharedWorldTrainingRespawnTimer = 0;
       let sharedWorldTrainingLocalMotionTimer = 0;
-      let sharedWorldTrainingExitArmed = true;
+      const sharedWorldTrainingSlimeRoamState = new Map();
+      let sharedWorldTrainingSlimeRoamCursor = 0;
+      let sharedWorldTrainingSlimeSelectionQuietUntil = 0;
       let sharedWorldTrainingAutoSpeechKey = "";
       let sharedWorldTrainingAudioKey = "";
       let sharedWorldTrainingAudioPlayer = null;
-      let sharedWorldTrainingAnchorSyncAt = 0;
       let sharedWorldTrainingSkillCooldownTimer = 0;
+      let sharedWorldTrainingHistoryHideTimer = 0;
       const sharedWorldTrainingSkillCooldownUntil = new Map();
+      const sharedWorldTrainingSkillCooldownSeconds = new Map();
+      let sharedWorldTrainingBasicSkillKind = "random";
+      let sharedWorldTrainingBasicLoadout = ["", "", ""];
+      let sharedWorldTrainingCombatOverride = null;
+      const sharedWorldTrainingOptimisticActions = new Map();
+      let sharedWorldTrainingSessionCombatDatabasePromise = null;
+      const sharedWorldTrainingSessionCombatSessionId = (() => {
+        const key = "future_training_combat_session_id_v1";
+        try {
+          let value = clean(sessionStorage.getItem(key) || "");
+          if (!value) {
+            value = `training_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+            sessionStorage.setItem(key, value);
+          }
+          return value;
+        } catch (_error) {
+          return `training_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+        }
+      })();
+      const sharedWorldBattleOptimisticActions = new Map();
+      const sharedWorldCombatPendingAnswers = new Set();
+      const sharedWorldTrainingBasicSkillDefinitions = [
+        { index: 1, kind: "audio_word", title: "Listen Word", detail: "Nghe và nhập từ tiếng Anh", usage: "Nghe âm thanh, sau đó nhập chính xác từ tiếng Anh bạn đã học.", answerMode: "Bàn phím · 1 từ", example: "Nghe /ˈwɔːtə/ → nhập water" },
+        { index: 2, kind: "vi_to_en_word", title: "VI → EN Word", detail: "Chọn từ tiếng Anh đúng với nghĩa Việt", usage: "Đọc nghĩa tiếng Việt rồi chọn một trong ba từ tiếng Anh đã học.", answerMode: "Trắc nghiệm · 3 lựa chọn", example: "nước → water" },
+        { index: 3, kind: "translate_vi_speech", title: "EN → VI Meaning", detail: "Chọn nghĩa tiếng Việt của từ hoặc câu", usage: "Đọc nội dung tiếng Anh và chọn nghĩa tiếng Việt phù hợp nhất.", answerMode: "Trắc nghiệm · 3 lựa chọn", example: "wallet → ví tiền" },
+        { index: 4, kind: "vi_to_en_sentence", title: "Vietnamese Sentence", detail: "Viết hoặc nói câu tiếng Anh", usage: "Đọc câu gợi ý tiếng Việt rồi nhập hoặc đọc thành tiếng câu tiếng Anh tương ứng.", answerMode: "Bàn phím hoặc mic", example: "Tôi thích táo. → I like apples." },
+        { index: 5, kind: "audio_sentence", title: "Sentence Dictation", detail: "Nghe và viết lại cả câu", usage: "Nghe câu tiếng Anh nhưng không nhìn nội dung, sau đó nhập lại đầy đủ.", answerMode: "Bàn phím · câu hoàn chỉnh", example: "Nghe câu → nhập nguyên câu" },
+        { index: 6, kind: "read_sentence", title: "Read Sentence", detail: "Đọc câu theo chữ và IPA", usage: "Nhìn câu cùng phiên âm IPA, giữ Ctrl hoặc dùng mic và đọc rõ toàn bộ câu.", answerMode: "Mic · phát âm", example: "Đọc đủ câu để đạt tỷ lệ yêu cầu" },
+        { index: 7, kind: "space_w_sentence_choice", title: "Space Sentence", detail: "Chọn câu tiếng Anh theo nghĩa tiếng Việt", usage: "Hệ thống lấy câu đã học trong các Space. Đọc nghĩa tiếng Việt và chọn đúng câu tiếng Anh.", answerMode: "Trắc nghiệm · chấm ngay ở client", example: "Tôi ăn nhiều trái cây. → I eat a lot of fruit." },
+        { index: 8, kind: "space_grammar_pos_choice", title: "Space Grammar", detail: "Xác định loại từ trong câu đã học", usage: "Đọc câu, chú ý từ mục tiêu rồi chọn đúng loại từ theo phân tích grammar của Space.", answerMode: "Trắc nghiệm · chấm ngay ở client", example: "wallet trong câu → Noun / Danh từ" },
+        { index: 9, kind: "coming_9", title: "Basic 9", detail: "Sắp ra mắt", usage: "Kỹ năng này đang được chuẩn bị.", answerMode: "Chưa khả dụng", example: "" , disabled: true },
+        { index: 10, kind: "coming_10", title: "Basic 10", detail: "Sắp ra mắt", usage: "Kỹ năng này đang được chuẩn bị.", answerMode: "Chưa khả dụng", example: "", disabled: true },
+      ];
+      const sharedWorldTrainingRandomBasicKind = () => {
+        const available = sharedWorldTrainingBasicSkillDefinitions.filter((skill) => !skill.disabled);
+        return available.length ? available[Math.floor(Math.random() * available.length)].kind : "audio_word";
+      };
+      const sharedWorldTrainingBasicDefinition = (kind = "") => sharedWorldTrainingBasicSkillDefinitions.find((skill) => skill.kind === clean(kind)) || null;
+      const sharedWorldTrainingNormalizeBasicLoadout = (source = []) => {
+        const valid = new Set(sharedWorldTrainingBasicSkillDefinitions.filter((skill) => !skill.disabled).map((skill) => skill.kind));
+        const seen = new Set();
+        const result = (Array.isArray(source) ? source : []).slice(0, 3).map((kind) => {
+          const key = clean(kind).toLowerCase();
+          if (!valid.has(key) || seen.has(key)) return "";
+          seen.add(key);
+          return key;
+        });
+        result.push(...Array(Math.max(0, 3 - result.length)).fill(""));
+        return result;
+      };
+      const sharedWorldTrainingBasicLoadoutAssign = (slot = 0, kind = "") => {
+        const definition = sharedWorldTrainingBasicDefinition(kind);
+        const index = Math.max(0, Math.min(2, Math.floor(Number(slot) || 0)));
+        if (!definition || definition.disabled) return false;
+        const previous = sharedWorldTrainingBasicLoadout[index];
+        const existing = sharedWorldTrainingBasicLoadout.indexOf(definition.kind);
+        if (existing >= 0 && existing !== index) {
+          sharedWorldTrainingBasicLoadout[existing] = previous || "";
+        }
+        sharedWorldTrainingBasicLoadout[index] = definition.kind;
+        sharedWorldTrainingBasicLoadout = sharedWorldTrainingNormalizeBasicLoadout(sharedWorldTrainingBasicLoadout);
+        sharedWorldTrainingBasicSkillKind = definition.kind;
+        window.__ftTrainingBasicLoadoutTrace = { action: "drop", slot: index, kind: definition.kind, loadout: sharedWorldTrainingBasicLoadout.slice(), at: Date.now() };
+        console.info("[FTG][TrainingBasicLoadout]", window.__ftTrainingBasicLoadoutTrace);
+        return true;
+      };
       const sharedWorldTrainingLootDrops = new Map();
       let sharedWorldTrainingLootTimer = 0;
       let sharedWorldTrainingSpeech = {
@@ -4302,6 +4535,7 @@
         chunk: "",
         historyKey: "",
         hideTarget: false,
+        flightTokenCount: 0,
         posted: false,
         passed: false,
       };
@@ -4323,8 +4557,8 @@
       const sharedWorldActions = ["jump", "spin", "wave", "dance"];
       const sharedWorldMoveStep = 0.055;
       const sharedWorldVocabularyCrystalId = "leaderboard_space_v_crystal";
-      const sharedWorldCityTrainingGatePoint = { x: 0.88, y: 0.53 };
-      const sharedWorldTrainingEntryPoint = { x: 0.155, y: 0.5 };
+      const sharedWorldCityDefaultPoint = { x: 0.5, y: 0.5 };
+      const sharedWorldTrainingDefaultPoint = { x: 0.5, y: 0.5 };
       const defaultSharedWorldSkins = () => ([
         { id: "slime", name: "Slime", price: 35, image: "", description: "A soft crystal slime form with elastic motion." },
         { id: "cloud", name: "Cloud", price: 45, image: "", description: "A floating cloud spirit form with vapor trails." },
@@ -4475,14 +4709,35 @@
         && worldTrainingModal.classList.contains("is-open")
       );
 
-      const sharedWorldTrainingSlimeHost = () => (
-        sharedWorldMapMode === "training" && worldTrainingMapSlimes
+      const sharedWorldTrainingSlimeHost = () => {
+        if (sharedWorldTrainingCombatOverride && sharedWorldTrainingCombatOverride.targetHost) {
+          return sharedWorldTrainingCombatOverride.targetHost;
+        }
+        // Training owns its slime host whenever its real map is open, even if a
+        // closed Battle card still carries the last live-battle CSS class.
+        if (sharedWorldTrainingIsActive() && worldTrainingMapSlimes) {
+          return worldTrainingMapSlimes;
+        }
+        // Battle reuses the Training dock but never its slime roster; the opponent is a player actor.
+        const battleModalOpen = Boolean(worldBattleModal && (
+          worldBattleModal.classList.contains("is-open")
+          || worldBattleModal.getAttribute("aria-hidden") === "false"
+        ));
+        if (battleModalOpen) {
+          if (worldBattleMap) {
+            worldBattleMap.querySelectorAll(".ft-world-training-slime").forEach((node) => node.remove());
+          }
+          return null;
+        }
+        return sharedWorldMapMode === "training" && worldTrainingMapSlimes
           ? worldTrainingMapSlimes
-          : worldTrainingSlimes
-      );
+          : worldTrainingSlimes;
+      };
 
       const sharedWorldTrainingEffectHost = () => {
-        const parent = sharedWorldMapMode === "training" && worldTrainingField ? worldTrainingField : worldArena;
+        const parent = sharedWorldTrainingCombatOverride && sharedWorldTrainingCombatOverride.effectParent
+          ? sharedWorldTrainingCombatOverride.effectParent
+          : (sharedWorldMapMode === "training" && worldTrainingField ? worldTrainingField : worldArena);
         if (!parent) {
           return null;
         }
@@ -4497,12 +4752,37 @@
         return host;
       };
 
+      // Added 2026-08-14: keep large ultimate bursts below actor sprites.
+      const sharedWorldTrainingUnderlayHost = () => {
+        const parent = sharedWorldTrainingCombatOverride && sharedWorldTrainingCombatOverride.effectParent
+          ? (sharedWorldTrainingCombatOverride.mode === "pvp"
+            ? (sharedWorldTrainingCombatOverride.targetHost || worldBattleMap || sharedWorldTrainingCombatOverride.effectParent)
+            : sharedWorldTrainingCombatOverride.effectParent)
+          : (sharedWorldMapMode === "training" && worldTrainingField ? worldTrainingField : worldArena);
+        if (!parent) return null;
+        let host = parent.querySelector("#ft-world-training-underlay-effects");
+        if (!host) {
+          host = document.createElement("div");
+          host.id = "ft-world-training-underlay-effects";
+          host.className = "ft-world-training-underlay-effects";
+          host.setAttribute("aria-hidden", "true");
+          parent.appendChild(host);
+        }
+        return host;
+      };
+
       const ensureSharedWorldSelfNode = (point = null) => {
         if (!worldPlayers) {
           return null;
         }
         const username = clean(activeWorldUsername() || currentAuthUsername || "learner") || "learner";
         const key = username.toLowerCase();
+        // 2026-08-14: only the authenticated actor owns `is-me`; Training peers remain visible as remote actors.
+        sharedWorldNodes.forEach((candidate, candidateKey) => {
+          if (candidate && candidateKey !== key) {
+            candidate.classList.remove("is-me");
+          }
+        });
         let node = sharedWorldNodes.get(key);
         if (!node) {
           node = createSharedWorldNode(username);
@@ -4528,9 +4808,17 @@
           || username;
         const gender = clean(currentAuthProfile && (currentAuthProfile.gender || currentAuthProfile.sex || "")) || "other";
         renderSharedWorldName(node, displayName, gender);
-        renderSharedWorldLevel(node, {});
+        const existingRoster = sharedWorldRoster.get(key) || {};
+        const trainingStats = sharedWorldTrainingState && sharedWorldTrainingState.training && sharedWorldTrainingState.training.stats && typeof sharedWorldTrainingState.training.stats === "object"
+          ? sharedWorldTrainingState.training.stats
+          : {};
+        const levelData = Number(trainingStats.level || 0) > 0 ? trainingStats : (existingRoster.characterLevel || {});
+        if (Number(levelData.level || 0) > 0) {
+          renderSharedWorldLevel(node, levelData);
+        }
         renderSharedWorldTopMeta(node, {});
         sharedWorldRoster.set(key, {
+          ...existingRoster,
           username,
           displayName,
           gender,
@@ -4538,6 +4826,7 @@
           y: pos.y,
           tx: pos.tx,
           ty: pos.ty,
+          characterLevel: levelData,
         });
         applySharedWorldNodePosition(node, pos.x, pos.y);
         return { key, node, pos };
@@ -4555,29 +4844,19 @@
         self.pos.y = y;
         self.pos.tx = x;
         self.pos.ty = y;
+        self.pos.goalX = x;
+        self.pos.goalY = y;
+        self.pos.path = [];
+        self.pos.blockedSince = 0;
+        self.pos.mapMode = sharedWorldMapMode;
+        sharedWorldPathQueues.delete(self.key);
+        self.node.classList.remove("is-moving", "is-female-run-effect-six");
         applySharedWorldNodePosition(self.node, x, y);
         if (options.center !== false) {
           window.requestAnimationFrame(() => centerSharedWorldViewportOn(x, y, Boolean(options.smooth)));
         }
+        writeSharedWorldCheckpoint({ x, y });
         return { ...self, point: { x, y } };
-      };
-
-      const maybeExitSharedWorldTrainingByGate = () => {
-        if (sharedWorldMapMode !== "training" || !sharedWorldTrainingExitArmed) {
-          return;
-        }
-        const self = getSharedWorldSelfPosition();
-        const dx = sharedWorldClamp(self.x) - 0.065;
-        const dy = sharedWorldClamp(self.y) - 0.5;
-        if (Math.hypot(dx, dy) > 0.07) {
-          return;
-        }
-        sharedWorldTrainingExitArmed = false;
-        setSharedWorldStatus("Passing back through the QM-City gate...", "ok");
-        window.setTimeout(() => {
-          closeSharedWorldTraining({ returnToCityGate: true });
-          sharedWorldTrainingExitArmed = true;
-        }, 120);
       };
 
       const sharedWorldTrainingQuestionMeta = (question = {}) => {
@@ -4699,10 +4978,17 @@
           : "browser"
       );
 
-      const sharedWorldTrainingUsesBrowserSpeechInput = (question = {}) => (
-        sharedWorldTrainingSpeechInputMode() === "browser"
-        && sharedWorldTrainingQuestionSupportsVietnameseSpeech(question)
-      );
+      const sharedWorldTrainingUsesBrowserSpeechInput = (question = {}) => {
+        const row = question && typeof question === "object" ? question : {};
+        const explicitBrowserInput = Boolean(row.browser_speech_input || row.browserSpeechInput);
+        const speechLanguage = clean(row.speech_language || row.speechLanguage || "").toLowerCase();
+        if (explicitBrowserInput && (speechLanguage === "en" || speechLanguage.startsWith("en-"))) {
+          return true;
+        }
+        return sharedWorldTrainingSpeechInputMode() === "browser"
+          && (sharedWorldTrainingQuestionSupportsVietnameseSpeech(row) || explicitBrowserInput);
+      };
+      let sharedWorldTrainingSpeechClearTimer = 0;
 
       const sharedWorldTrainingSpeechText = (question = {}) => {
         const row = question && typeof question === "object" ? question : {};
@@ -4806,11 +5092,21 @@
         return id && (questionId || sourceText) ? `${id}:${questionId || sourceText}` : "";
       };
 
-      const sharedWorldTrainingServerSpeechStatusNode = () => (
-        worldTrainingQuestion && worldTrainingQuestion.querySelector
-          ? worldTrainingQuestion.querySelector("[data-training-server-speech-status]")
+      const sharedWorldTrainingServerSpeechStatusNode = (questionRoot = worldTrainingQuestion) => (
+        questionRoot && questionRoot.querySelector
+          ? questionRoot.querySelector("[data-training-server-speech-status]")
           : null
       );
+
+      // 2026-08-11: keep the lower question panel focused on the task; token detail lives in Speech Combat Log.
+      const renderSharedWorldTrainingMicOnlyStatus = (statusNode, active = false) => {
+        if (!statusNode) return;
+        statusNode.classList.toggle("is-live", Boolean(active));
+        statusNode.innerHTML = `
+          <span class="ft-world-training-mic-pulse" aria-hidden="true"></span>
+          <span class="ft-world-training-countdown">${active ? "MIC LIVE" : "MIC OFF"}</span>
+        `;
+      };
 
       const resetSharedWorldTrainingServerSpeech = (options = {}) => {
         const keepTranscript = Boolean(options && options.keepTranscript);
@@ -4838,50 +5134,36 @@
           cancel: false,
         };
         setSharedWorldTrainingMicEnergy(false);
+        clearSharedWorldTrainingSpeechOverhead();
       };
 
-      const renderSharedWorldTrainingServerSpeechStatus = (question = {}, slimeId = "") => {
-        const statusNode = sharedWorldTrainingServerSpeechStatusNode();
+      const renderSharedWorldTrainingServerSpeechStatus = (question = {}, slimeId = "", questionRoot = worldTrainingQuestion) => {
+        const statusNode = sharedWorldTrainingServerSpeechStatusNode(questionRoot);
         if (!statusNode) {
           return;
         }
         const row = question && typeof question === "object" ? question : {};
         if (sharedWorldTrainingUsesBrowserSpeechInput(row)) {
-          const expectedText = sharedWorldTrainingSpeechText(row);
-          const transcript = clean(`${sharedWorldTrainingSpeech.transcript || ""} ${sharedWorldTrainingSpeech.chunk || ""}`) || clean(worldTrainingAnswer && worldTrainingAnswer.value);
-          const passRatio = sharedWorldTrainingSpeechPassRatio(row, expectedText);
-          const result = sharedWorldTrainingSpeechScoreBundle(row, transcript, expectedText, passRatio);
-          const review = result.review || sharedWorldTrainingSpeechReview(transcript, expectedText, passRatio);
-          const liveRows = review.spokenLines;
           const active = Boolean(sharedWorldTrainingSpeech.active);
-          const passPercent = Math.max(1, Math.min(100, Math.round(Number(row.accept_percent ?? row.acceptPercent ?? result.passPercent ?? 60) || 60)));
-          statusNode.innerHTML = `
-          <span class="ft-world-training-mic-pulse" aria-hidden="true"></span>
-          <span class="ft-world-training-countdown">${active ? "Live" : "Mic"}</span>
-          <span class="ft-world-training-read-score">${Math.max(0, Number(result.correct || 0))}/${Math.max(0, Number(result.total || 0))} tokens · pass ${passPercent}%</span>
-          <span class="ft-world-training-transcript">
-            ${
-              liveRows.length
-                ? liveRows.map((line) => `<b>${sharedWorldTrainingSpeechTokenHtml(line, { empty: "Listening..." })}</b>`).join("")
-                : `<b>${sharedWorldTrainingSpeechTokenHtml([], { empty: transcript || "Speak Vietnamese..." })}</b>`
-            }
-          </span>
-        `;
+          renderSharedWorldTrainingMicOnlyStatus(statusNode, active);
           return;
         }
         const selectedId = clean(slimeId || (worldTrainingSelectedSlime() || {}).id || "");
         const active = Boolean(sharedWorldTrainingServerSpeech.active && selectedId && sharedWorldTrainingServerSpeech.slimeId === selectedId);
-        const elapsed = active ? Math.max(0, Math.round((Date.now() - Number(sharedWorldTrainingServerSpeech.startedAt || Date.now())) / 1000)) : 0;
-        const passPercent = Math.max(1, Math.min(100, Math.round(Number(row.accept_percent ?? row.acceptPercent ?? 60) || 60)));
         const transcript = clean(sharedWorldTrainingServerSpeech.transcript || (worldTrainingAnswer && worldTrainingAnswer.value) || "");
-        const message = clean(sharedWorldTrainingServerSpeech.message)
-          || (active ? "Recording Vietnamese... press Ctrl to stop." : "Press Ctrl to record Vietnamese translation.");
-        statusNode.innerHTML = `
-          <span class="ft-world-training-mic-pulse" aria-hidden="true"></span>
-          <span class="ft-world-training-countdown">${active ? `${elapsed}s` : "Ctrl"}</span>
-          <span class="ft-world-training-read-score">${escapeHtml(message)} Pass ${passPercent}%.</span>
-          <span class="ft-world-training-transcript"><b>${escapeHtml(transcript || "Zipformer transcript will appear here.")}</b></span>
-        `;
+        const expectedText = sharedWorldTrainingSpeechText(row);
+        const passRatio = sharedWorldTrainingSpeechPassRatio(row, expectedText);
+        const speechResult = sharedWorldTrainingSpeechScoreBundle(row, transcript, expectedText, passRatio);
+        if (active) {
+          renderSharedWorldTrainingSpeechOverhead(transcript, speechResult, {
+            expectedText,
+            active,
+            hideTarget: sharedWorldTrainingQuestionIsViPromptSpeech(row),
+          });
+        } else {
+          clearSharedWorldTrainingSpeechOverhead();
+        }
+        renderSharedWorldTrainingMicOnlyStatus(statusNode, active);
       };
 
       const cancelSharedWorldTrainingServerSpeech = () => {
@@ -5080,6 +5362,10 @@
 
       const handleSharedWorldTrainingServerSpeechCtrlKeyDown = (event) => {
         if (!event) return;
+        if (zipformerViCtrlToggleCandidate && zipformerViCtrlToggleCandidate.scope === "qm_city_training_answer") {
+          sharedWorldTrainingServerSpeechCtrlCandidate = "";
+          return;
+        }
         if (sharedWorldTrainingSpeechInputMode() === "browser") {
           sharedWorldTrainingServerSpeechCtrlCandidate = "";
           return;
@@ -5493,7 +5779,10 @@
         if (!node || !layer || !node.getBoundingClientRect || !layer.getBoundingClientRect) {
           return null;
         }
-        const anchor = node.querySelector && (node.querySelector(".ft-world-fireball") || node);
+        const trainingHud = node.querySelector && node.querySelector(".ft-world-training-player-hud");
+        const anchor = trainingHud && window.getComputedStyle(trainingHud).display !== "contents"
+          ? trainingHud
+          : (node.querySelector && (node.querySelector(".ft-world-fireball") || node));
         const layerRect = layer.getBoundingClientRect();
         const rect = (anchor || node).getBoundingClientRect();
         const x = Math.max(12, Math.min(Math.max(12, layerRect.width - 12), rect.left + rect.width * 0.5 - layerRect.left));
@@ -5570,6 +5859,8 @@
       };
 
       const clearSharedWorldTrainingSpeechOverhead = () => {
+        window.clearTimeout(sharedWorldTrainingSpeechClearTimer);
+        sharedWorldTrainingSpeechClearTimer = 0;
         const node = sharedWorldTrainingSelfNode();
         const bubble = node && node.querySelector ? node.querySelector(".ft-world-training-speech-live") : null;
         if (bubble) {
@@ -5585,17 +5876,22 @@
         }
       };
 
-      const renderSharedWorldTrainingSpeechOverhead = (text = "", result = null) => {
+      const renderSharedWorldTrainingSpeechOverhead = (text = "", result = null, options = {}) => {
         const node = sharedWorldTrainingSelfNode();
         const value = clean(text);
         if (!node) {
           return;
         }
-        const expectedText = clean(sharedWorldTrainingSpeech.expectedText || "");
-        if (!value && !sharedWorldTrainingSpeech.active && !expectedText) {
-            clearSharedWorldTrainingSpeechOverhead();
+        const opts = options && typeof options === "object" ? options : {};
+        const expectedText = clean(opts.expectedText || sharedWorldTrainingSpeech.expectedText || "");
+        const active = opts.active == null ? Boolean(sharedWorldTrainingSpeech.active) : Boolean(opts.active);
+        const hideTarget = opts.hideTarget == null ? Boolean(sharedWorldTrainingSpeech.hideTarget) : Boolean(opts.hideTarget);
+        if (!active) {
+          clearSharedWorldTrainingSpeechOverhead();
           return;
         }
+        window.clearTimeout(sharedWorldTrainingSpeechClearTimer);
+        sharedWorldTrainingSpeechClearTimer = 0;
         const useMapLayer = typeof sharedWorldTrainingIsActive === "function" && sharedWorldTrainingIsActive() && worldCard;
         const layer = useMapLayer ? sharedWorldTrainingSpeechLayer() : null;
         const host = layer || node;
@@ -5622,43 +5918,42 @@
         const review = result && result.review
           ? result.review
           : sharedWorldTrainingSpeechReview(value, expectedText, sharedWorldTrainingSpeech.passRatio || 1);
-        const shownLines = review.spokenLines.length ? review.spokenLines : [[{ text: "Listening...", status: "missing" }]];
+        // 2026-08-11: keep only the newest spoken line so the combat bubble stays compact.
+        const spokenLines = Array.isArray(review.spokenLines) ? review.spokenLines : [];
+        const shownLines = spokenLines.length ? [spokenLines[spokenLines.length - 1]] : [[{ text: "Listening...", status: "missing" }]];
         const correct = Math.max(0, Math.floor(Number(result && result.correct || 0) || 0));
         const total = Math.max(0, Math.floor(Number(result && result.total || 0) || 0));
-        const targetRows = sharedWorldTrainingSpeech.hideTarget
+        const targetRows = hideTarget
           ? review.expected.map((token) => clean(token && token.status).toLowerCase() === "correct" ? token : { ...token, text: "..." })
           : review.expected;
-        const key = `${targetRows.map((token) => `${token.text}:${token.status}`).join("|")}|${shownLines.map((line) => line.map((token) => `${token.text}:${token.status}`).join(" ")).join("|")}|${correct}/${total}|${sharedWorldTrainingSpeech.active ? "live" : "hold"}|${sharedWorldTrainingSpeech.hideTarget ? "masked" : "open"}`;
-        if (bubble.dataset.liveKey !== key) {
+        const key = `${targetRows.map((token) => `${token.text}:${token.status}`).join("|")}|${shownLines.map((line) => line.map((token) => `${token.text}:${token.status}`).join(" ")).join("|")}|${correct}/${total}|${active ? "live" : "hold"}|${hideTarget ? "masked" : "open"}`;
+        const contentChanged = bubble.dataset.liveKey !== key;
+        if (contentChanged) {
           bubble.dataset.liveKey = key;
           bubble.innerHTML = `
-            <b><i aria-hidden="true"></i>Speech combat log</b>
             <div class="ft-world-training-speech-target">
               <small>Target</small>
               <div>${sharedWorldTrainingSpeechTokenHtml(targetRows, { empty: expectedText || "Waiting for target..." })}</div>
             </div>
             <div class="ft-world-training-speech-lines">
-              ${shownLines.map((line, index) => {
-                const age = Math.max(0, shownLines.length - 1 - index);
-                const opacity = Math.max(0.48, 1 - age * 0.22).toFixed(2);
-                const border = Math.max(0.18, 0.38 - age * 0.08).toFixed(2);
-                const hot = Math.max(0.06, 0.16 - age * 0.04).toFixed(2);
-                const cyan = Math.max(0.04, 0.12 - age * 0.03).toFixed(2);
-                const glow = Math.max(0.06, 0.18 - age * 0.04).toFixed(2);
+              ${shownLines.map((line) => {
+                const age = 0;
+                const opacity = "1.00";
+                const border = "0.38";
+                const hot = "0.16";
+                const cyan = "0.12";
+                const glow = "0.18";
                 return `
-                <span class="${index === shownLines.length - 1 ? "is-live" : ""}" style="--line-age:${age};--line-opacity:${opacity};--line-border:${border};--line-hot:${hot};--line-cyan:${cyan};--line-glow:${glow}">
-                  <em>${String(index + 1).padStart(2, "0")}</em>
+                <span class="is-live" style="--line-age:${age};--line-opacity:${opacity};--line-border:${border};--line-hot:${hot};--line-cyan:${cyan};--line-glow:${glow}">
                   <strong>${sharedWorldTrainingSpeechTokenHtml(line, { empty: "Listening..." })}</strong>
                 </span>
               `; }).join("")}
             </div>
-            ${total ? `<small>${correct}/${total} tokens · pass ${Math.max(1, Number(result && result.requiredCorrect || total))}/${total} (${Math.max(1, Number(result && result.passPercent || 100))}%)</small>` : ""}
           `;
         }
       };
 
       const stopSharedWorldTrainingSpeech = (options = {}) => {
-        const shouldClearOverhead = !(options && options.clearOverhead === false);
         window.clearInterval(sharedWorldTrainingSpeech.timer);
         window.clearTimeout(sharedWorldTrainingSpeech.settleTimer);
         sharedWorldTrainingSpeech.timer = 0;
@@ -5668,9 +5963,7 @@
         sharedWorldTrainingSpeech.active = false;
         sharedWorldTrainingSpeech.passed = false;
         setSharedWorldTrainingMicEnergy(false);
-        if (shouldClearOverhead) {
-          clearSharedWorldTrainingSpeechOverhead();
-        }
+        clearSharedWorldTrainingSpeechOverhead();
         if (recognition) {
           try {
             recognition.onresult = null;
@@ -5683,7 +5976,7 @@
         }
       };
 
-      const renderSharedWorldTrainingSpeechStatus = (question = {}, slimeId = "") => {
+      const renderSharedWorldTrainingSpeechStatus = (question = {}, slimeId = "", questionRoot = worldTrainingQuestion) => {
         const expectedText = sharedWorldTrainingSpeechText(question);
         const selectedForKey = clean(slimeId || sharedWorldTrainingSpeech.slimeId || (worldTrainingSelectedSlime() || {}).id || "");
         const questionKey = sharedWorldTrainingSpeechQuestionKey(question, selectedForKey);
@@ -5704,35 +5997,11 @@
         sharedWorldTrainingSpeech.passRatio = passRatio;
         const result = scoreSharedWorldTrainingSpeech(liveText, expectedText, passRatio);
         renderSharedWorldTrainingSpeechOverhead(liveText, result);
-        const statusNode = worldTrainingQuestion ? worldTrainingQuestion.querySelector("[data-training-read-status]") : null;
+        const statusNode = questionRoot && questionRoot.querySelector ? questionRoot.querySelector("[data-training-read-status]") : null;
         if (!statusNode) {
           return;
         }
-        const configuredLimit = Math.max(3, Math.floor(Number(question.time_limit_seconds || question.timeLimitSeconds || 10) || 10));
-        const left = sharedWorldTrainingSpeech.active
-          ? Math.max(0, Math.ceil((sharedWorldTrainingSpeech.deadline - Date.now()) / 1000))
-          : configuredLimit;
-        const transcript = clean(liveText);
-        const expectedTokens = sharedWorldTrainingSpeechExpectedWords(expectedText);
-        const liveRows = sharedWorldTrainingSpeechReview(transcript, expectedText, passRatio).spokenLines;
-        statusNode.innerHTML = `
-          <span class="ft-world-training-mic-pulse" aria-hidden="true"></span>
-          <span class="ft-world-training-countdown">${left}s</span>
-          <span>${result.correct}/${result.total} tokens · pass ${result.passPercent}%</span>
-          <span class="ft-world-training-transcript">${escapeHtml(transcript || "Listening...")}</span>
-        `;
-        statusNode.innerHTML = `
-          <span class="ft-world-training-mic-pulse" aria-hidden="true"></span>
-          <span class="ft-world-training-countdown">${left}s</span>
-          <span class="ft-world-training-read-score">${result.correct}/${result.total || expectedTokens.length} tokens · pass ${result.passPercent}%</span>
-          <span class="ft-world-training-transcript">
-            ${
-              liveRows.length
-                ? liveRows.map((line) => `<b>${sharedWorldTrainingSpeechTokenHtml(line, { empty: "Listening..." })}</b>`).join("")
-                : `<b>${sharedWorldTrainingSpeechTokenHtml([], { empty: transcript || "Listening..." })}</b>`
-            }
-          </span>
-        `;
+        renderSharedWorldTrainingMicOnlyStatus(statusNode, sharedWorldTrainingSpeech.active);
       };
 
       const armSharedWorldTrainingSpeechSettle = (reason = "matched") => {
@@ -5811,6 +6080,7 @@
           historyKey: "",
           hideTarget: sharedWorldTrainingQuestionIsViPromptSpeech(question),
           scoringLanguage: "en",
+          flightTokenCount: 0,
           posted: false,
           passed: false,
         };
@@ -5835,7 +6105,9 @@
           }
           sharedWorldTrainingSpeech.chunk = interim;
           renderSharedWorldTrainingSpeechStatus(question);
-          const score = scoreSharedWorldTrainingSpeech(clean(`${sharedWorldTrainingSpeech.transcript} ${sharedWorldTrainingSpeech.chunk}`), expectedText, sharedWorldTrainingSpeech.passRatio || passRatio);
+          const liveTranscript = clean(`${sharedWorldTrainingSpeech.transcript} ${sharedWorldTrainingSpeech.chunk}`);
+          renderSharedWorldTrainingSpeechTokenFlights(liveTranscript, expectedText);
+          const score = scoreSharedWorldTrainingSpeech(liveTranscript, expectedText, sharedWorldTrainingSpeech.passRatio || passRatio);
           if (score.passed) {
             armSharedWorldTrainingSpeechSettle("matched_pause");
           }
@@ -5921,12 +6193,31 @@
         ["mana", "Mana Core", stats.mana_bonus || stats.manaBonus || 0, "Adds 10 max mana"],
       ];
 
+      let sharedWorldTrainingLevelTraceKey = "";
+      // Added 2026-08-11: prefer live Training stats and trace any city/training level mismatch.
+      const sharedWorldTrainingLevelStats = (stats = {}) => {
+        const key = (clean(activeWorldUsername() || currentAuthUsername || "learner") || "learner").toLowerCase();
+        const cityLevel = (sharedWorldRoster.get(key) || {}).characterLevel || {};
+        const trainingLevel = Number(stats.level || 0) || 0;
+        const cityLevelValue = Number(cityLevel.level || 0) || 0;
+        const resolved = trainingLevel > 0 ? stats : (cityLevelValue > 0 ? cityLevel : stats);
+        const resolvedLevel = Number(resolved.level || 1) || 1;
+        const traceKey = `${key}:${trainingLevel}:${cityLevelValue}:${resolvedLevel}`;
+        if (traceKey !== sharedWorldTrainingLevelTraceKey) {
+          sharedWorldTrainingLevelTraceKey = traceKey;
+          window.__ftTrainingLevelTrace = { user: key, trainingLevel, cityLevel: cityLevelValue, resolvedLevel, at: Date.now() };
+          console.info("[FTG][TrainingLevelSync]", window.__ftTrainingLevelTrace);
+        }
+        return resolved;
+      };
+
       const renderSharedWorldTrainingLoadoutPanel = () => {
         if (!worldTrainingLoadoutPanel) {
           return;
         }
         const training = sharedWorldTrainingState && sharedWorldTrainingState.training ? sharedWorldTrainingState.training : {};
-        const stats = training.stats && typeof training.stats === "object" ? training.stats : {};
+        const rawStats = training.stats && typeof training.stats === "object" ? training.stats : {};
+        const stats = sharedWorldTrainingLevelStats(rawStats);
         const points = Math.max(0, Math.floor(Number(stats.available_points || stats.availablePoints || 0) || 0));
         const skillPoints = Math.max(0, Math.floor(Number(stats.skill_points || stats.skillPoints || 0) || 0));
         const level = Math.max(1, Math.floor(Number(stats.level || 1) || 1));
@@ -5935,7 +6226,12 @@
         const progress = `${Math.max(0, Math.min(100, Math.round(Number(stats.progress || 0) * 100)))}%`;
         const trainingWords = Math.max(0, Math.floor(Number(stats.training_words || stats.trainingWords || 0) || 0));
         const skills = Array.isArray(stats.skills) ? stats.skills : [];
-        const earthquake = skills.find((skill) => clean(skill && skill.id).toLowerCase() === "earthquake") || skills[0] || {};
+        const self = typeof ensureSharedWorldSelfNode === "function" ? ensureSharedWorldSelfNode() : null;
+        const characterKind = sharedWorldCharacterKindFromNode(self && self.node);
+        const isFemaleDefault = characterKind === "female";
+        const isMaleDefault = characterKind === "male";
+        const preferredLoadoutSkillId = isFemaleDefault ? "female-ultimate" : isMaleDefault ? "male-ultimate" : characterKind === "scorpio" ? "scorpio-ultimate" : "earthquake";
+        const earthquake = skills.find((skill) => clean(skill && skill.id).toLowerCase() === preferredLoadoutSkillId) || skills.find((skill) => clean(skill && skill.id).toLowerCase() === "earthquake") || skills[0] || {};
         const skillLevel = Math.max(0, Math.floor(Number(earthquake.current_level || earthquake.currentLevel || earthquake.level || 0) || 0));
         const skillMax = Math.max(skillLevel, Math.floor(Number(earthquake.max_level || earthquake.maxLevel || skillLevel) || skillLevel));
         const skillDamage = Math.max(0, Math.floor(Number(earthquake.damage_percent || earthquake.damagePercent || 100) || 100));
@@ -5986,11 +6282,54 @@
         return skills.find((skill) => clean(skill && skill.id).toLowerCase() === id) || skills[0] || {};
       };
 
+      const sharedWorldTrainingControlSelf = () => {
+        const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+        const battleOpen = Boolean(worldBattleModal && worldBattleModal.classList.contains("is-open"));
+        if (battle && clean(battle.status) === "active" && battleOpen && worldBattleLeft) return { node: worldBattleLeft };
+        return typeof ensureSharedWorldSelfNode === "function" ? ensureSharedWorldSelfNode() : null;
+      };
+
+      // Added 2026-08-13: City, Training, and PvP share one avatar presentation path.
+      const syncSharedWorldTrainingAvatarPresentation = (gender = "female", host = worldCard) => {
+        const genderKey = normalizeSharedWorldCharacterKind(gender);
+        if (host) {
+          host.classList.toggle("has-female-default-training-controls", genderKey === "female");
+          host.classList.toggle("has-male-default-training-controls", genderKey === "male");
+          host.classList.toggle("has-scorpio-training-controls", genderKey === "scorpio");
+        }
+        if (worldTrainingAvatarButton) {
+          worldTrainingAvatarButton.classList.toggle("is-female-default", genderKey === "female");
+          worldTrainingAvatarButton.classList.toggle("is-male-default", genderKey === "male");
+          worldTrainingAvatarButton.classList.toggle("is-scorpio", genderKey === "scorpio");
+          const avatarImage = genderKey === "female"
+            ? "var(--qm-female-avatar-one, url('/future-assets/character_female_default_avatar_1.png'))"
+            : genderKey === "scorpio"
+              ? "var(--qm-scorpio-avatar, url('/future-assets/character_scorpio_avatar.png'))"
+              : "var(--qm-male-avatar, url('/future-assets/character_male_default_avatar.png'))";
+          worldTrainingAvatarButton.style.setProperty("--training-avatar-image", avatarImage);
+        }
+        return genderKey;
+      };
+
       const renderSharedWorldTrainingQuickSkill = () => {
         if (!worldTrainingQuickSkill) {
           return;
         }
-        const skill = sharedWorldTrainingSkillById("earthquake");
+        const activeBattle = sharedWorldBattleState && sharedWorldBattleState.battle;
+        if (activeBattle && clean(activeBattle.status) === "active" && worldBattleModal && worldBattleModal.classList.contains("is-open")) {
+          // 2026-08-13: the shared button belongs exclusively to PvP while Battle is open.
+          const players = sharedWorldBattlePlayersForView(activeBattle);
+          renderSharedWorldBattleCombatHud(activeBattle, players.self);
+          return;
+        }
+        const self = sharedWorldTrainingControlSelf();
+        const characterKind = sharedWorldCharacterKindFromNode(self && self.node);
+        const isFemaleDefault = characterKind === "female";
+        const isMaleDefault = characterKind === "male";
+        const isScorpio = characterKind === "scorpio";
+        syncSharedWorldTrainingAvatarPresentation(characterKind, worldCard);
+        const preferredSkillId = isFemaleDefault ? "female-ultimate" : isMaleDefault ? "male-ultimate" : isScorpio ? "scorpio-ultimate" : "earthquake";
+        const skill = sharedWorldTrainingSkillById(preferredSkillId);
         const skillId = clean(skill.id || "earthquake") || "earthquake";
         const name = clean(skill.name || "Earthquake");
         const level = Math.max(0, Math.floor(Number(skill.current_level || skill.currentLevel || skill.level || 0) || 0));
@@ -5998,21 +6337,28 @@
         const training = sharedWorldTrainingState && sharedWorldTrainingState.training ? sharedWorldTrainingState.training : {};
         const arena = training.arena && typeof training.arena === "object" ? training.arena : {};
         const mana = Math.max(0, Math.floor(Number(arena.player_mana || arena.playerMana || 0) || 0));
-        const serverCooldowns = arena.skill_cooldowns && typeof arena.skill_cooldowns === "object" ? arena.skill_cooldowns : (arena.skillCooldowns && typeof arena.skillCooldowns === "object" ? arena.skillCooldowns : {});
-        const rawServerUntil = Number(serverCooldowns[skillId] || 0);
-        const serverUntilMs = rawServerUntil > 0 && rawServerUntil < 100000000000 ? rawServerUntil * 1000 : rawServerUntil;
-        if (serverUntilMs > Date.now() && serverUntilMs > Number(sharedWorldTrainingSkillCooldownUntil.get(skillId) || 0)) {
-          sharedWorldTrainingSkillCooldownUntil.set(skillId, serverUntilMs);
-        }
         const cooldownUntil = Number(sharedWorldTrainingSkillCooldownUntil.get(skillId) || 0);
         const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
-        const disabled = sharedWorldMapMode !== "training" || !level || sharedWorldTrainingLoading || mana < manaCost || remaining > 0;
+        const cooldownSeconds = Math.max(1, Number(sharedWorldTrainingSkillCooldownSeconds.get(skillId) || 10) || 10);
+        const cooldownFill = remaining > 0
+          ? Math.max(0, Math.min(100, Math.round((1 - ((cooldownUntil - Date.now()) / (cooldownSeconds * 1000))) * 100)))
+          : 100;
+        const ready = Boolean(level && mana >= manaCost && remaining <= 0 && !sharedWorldTrainingLoading && sharedWorldMapMode === "training");
+        const disabled = !ready;
         worldTrainingQuickSkill.dataset.worldTrainingSkillCast = skillId;
+        worldTrainingQuickSkill.classList.toggle("is-female-ultimate", isFemaleDefault);
+        worldTrainingQuickSkill.classList.toggle("is-male-ultimate", isMaleDefault);
+        worldTrainingQuickSkill.classList.toggle("is-scorpio-ultimate", isScorpio);
+        worldTrainingQuickSkill.setAttribute("data-world-training-female", isFemaleDefault ? "true" : "false");
+        worldTrainingQuickSkill.setAttribute("data-world-training-male", isMaleDefault ? "true" : "false");
+        worldTrainingQuickSkill.setAttribute("data-world-training-scorpio", isScorpio ? "true" : "false");
         worldTrainingQuickSkill.disabled = disabled;
         worldTrainingQuickSkill.classList.toggle("is-cooling", remaining > 0);
+        worldTrainingQuickSkill.classList.toggle("is-ready", ready);
         worldTrainingQuickSkill.classList.toggle("is-locked", !level);
         worldTrainingQuickSkill.classList.toggle("is-low-mana", Boolean(level && mana < manaCost && remaining <= 0));
         worldTrainingQuickSkill.style.setProperty("--skill-mana-fill", `${manaCost > 0 ? Math.max(0, Math.min(100, Math.round((mana / manaCost) * 100))) : 100}%`);
+        worldTrainingQuickSkill.style.setProperty("--skill-cooldown-fill", `${cooldownFill}%`);
         worldTrainingQuickSkill.style.setProperty("--skill-level-fill", `${Math.max(0, Math.min(100, Math.round((level / Math.max(1, Number(skill.max_level || skill.maxLevel || level || 1))) * 100)))}%`);
         worldTrainingQuickSkill.setAttribute("aria-label", `Cast ${name}`);
         worldTrainingQuickSkill.title = remaining > 0 ? `${name} cooldown ${remaining}s` : `${name} - ${manaCost} MP`;
@@ -6038,4 +6384,283 @@
             }
           }, 250);
         }
+      };
+
+      const renderSharedWorldTrainingBasicOrbit = () => {
+        if (!worldTrainingBasicOrbit) return;
+        const self = sharedWorldTrainingControlSelf();
+        const characterKind = sharedWorldCharacterKindFromNode(self && self.node);
+        worldTrainingBasicOrbit.innerHTML = sharedWorldTrainingBasicLoadout.map((kind, slot) => {
+          const skill = sharedWorldTrainingBasicDefinition(kind);
+          return skill
+            ? `<button type="button" class="ft-world-training-basic-orbit-skill is-filled ${skill.kind === sharedWorldTrainingBasicSkillKind ? "is-selected" : ""}" data-training-basic-orbit-kind="${escapeHtml(skill.kind)}" title="${escapeHtml(skill.title)}"><span class="ft-world-training-basic-skill-icon" style="--basic-skill-image:var(--qm-${characterKind}-basic-skill-${skill.index}, url('/future-assets/character_${characterKind === "scorpio" ? "scorpio" : `${characterKind}_default`}_basic_skill_${skill.index}.png'))"></span></button>`
+            : `<span class="ft-world-training-basic-orbit-skill is-empty" aria-label="Empty Basic Skill slot ${slot + 1}"><small>${slot + 1}</small></span>`;
+        }).join("");
+      };
+
+      // Added 2026-08-12: one adaptive hover guide follows the shared palette across every combat map.
+      const renderSharedWorldTrainingBasicSkillGuide = (definition = null) => {
+        if (!worldTrainingBasicSkills) return;
+        let guide = worldTrainingBasicSkills.querySelector("[data-training-basic-guide]");
+        if (!definition) {
+          if (guide) guide.hidden = true;
+          return;
+        }
+        if (!guide) {
+          guide = document.createElement("aside");
+          guide.className = "ft-world-training-basic-guide";
+          guide.dataset.trainingBasicGuide = "true";
+          worldTrainingBasicSkills.appendChild(guide);
+        }
+        const self = sharedWorldTrainingControlSelf();
+        const characterKind = sharedWorldCharacterKindFromNode(self && self.node);
+        const isMaleDefault = characterKind === "male";
+        const isFemaleDefault = characterKind === "female";
+        guide.hidden = false;
+        guide.classList.toggle("is-male-default", isMaleDefault);
+        guide.classList.toggle("is-female-default", isFemaleDefault);
+        guide.classList.toggle("is-scorpio", characterKind === "scorpio");
+        guide.innerHTML = `
+          <div class="ft-world-training-basic-guide-head">
+            <span class="ft-world-training-basic-guide-icon ft-world-training-basic-skill-icon" style="--basic-skill-image:var(--qm-${characterKind}-basic-skill-${definition.index}, url('/future-assets/character_${characterKind === "scorpio" ? "scorpio" : `${characterKind}_default`}_basic_skill_${definition.index}.png'))" aria-hidden="true"></span>
+            <span class="ft-world-training-basic-guide-copy">
+              <span class="ft-world-training-basic-guide-kicker">Basic Skill ${definition.index}</span>
+              <strong>${escapeHtml(definition.title)}</strong>
+            </span>
+          </div>
+          <div class="ft-world-training-basic-guide-summary">
+            <span>Mục tiêu kỹ năng</span>
+            <strong>${escapeHtml(definition.detail || definition.usage || "")}</strong>
+          </div>
+          <p>${escapeHtml(definition.usage || definition.detail || "")}</p>
+          <dl>
+            <div><dt>Cách trả lời</dt><dd>${escapeHtml(definition.answerMode || "Theo hướng dẫn trong câu hỏi")}</dd></div>
+            ${definition.example ? `<div><dt>Ví dụ</dt><dd>${escapeHtml(definition.example)}</dd></div>` : ""}
+          </dl>
+        `;
+      };
+
+      // Added 2026-08-11: avatar right-click opens the character's visual Basic Skill choices.
+      const renderSharedWorldTrainingBasicSkills = () => {
+        if (!worldTrainingBasicSkillsGrid) {
+          return;
+        }
+        const self = sharedWorldTrainingControlSelf();
+        const characterKind = sharedWorldCharacterKindFromNode(self && self.node);
+        const isMaleDefault = characterKind === "male";
+        const isFemaleDefault = characterKind === "female";
+        const maxBasic = isMaleDefault ? 8 : 10;
+        const available = sharedWorldTrainingBasicSkillDefinitions.filter((skill) => skill.index <= maxBasic);
+        worldTrainingBasicSkills.classList.toggle("is-male-default", isMaleDefault);
+        worldTrainingBasicSkills.classList.toggle("is-female-default", isFemaleDefault);
+        worldTrainingBasicSkills.classList.toggle("is-scorpio", characterKind === "scorpio");
+        renderSharedWorldTrainingBasicSkillGuide(null);
+        worldTrainingBasicSkillsGrid.innerHTML = available.map((skill) => `
+          <button type="button" data-training-basic-draggable="${skill.disabled ? "false" : "true"}" data-training-basic-kind="${escapeHtml(skill.kind)}" class="${skill.kind === sharedWorldTrainingBasicSkillKind ? "is-active" : ""}" ${skill.disabled ? "disabled" : ""} title="${escapeHtml(skill.detail)}">
+            <span class="ft-world-training-basic-skill-icon" style="--basic-skill-image:var(--qm-${characterKind}-basic-skill-${skill.index}, url('/future-assets/character_${characterKind === "scorpio" ? "scorpio" : `${characterKind}_default`}_basic_skill_${skill.index}.png'))"></span>
+            <span><b>${skill.index}. ${escapeHtml(skill.title)}</b><small>${escapeHtml(skill.detail)}</small></span>
+          </button>
+        `).join("");
+        worldTrainingBasicSkillsGrid.querySelectorAll("[data-training-basic-kind]").forEach((button) => {
+          const preview = () => renderSharedWorldTrainingBasicSkillGuide(
+            sharedWorldTrainingBasicDefinition(button.dataset.trainingBasicKind)
+          );
+          button.addEventListener("pointerenter", preview, { passive: true });
+          button.addEventListener("pointerleave", () => renderSharedWorldTrainingBasicSkillGuide(null), { passive: true });
+          button.addEventListener("focus", preview);
+          button.addEventListener("blur", () => renderSharedWorldTrainingBasicSkillGuide(null));
+        });
+        worldTrainingBasicSkillsGrid.onpointerleave = () => renderSharedWorldTrainingBasicSkillGuide(null);
+        worldTrainingBasicSkillsGrid.onfocusout = (event) => {
+          if (!worldTrainingBasicSkillsGrid.contains(event.relatedTarget)) {
+            renderSharedWorldTrainingBasicSkillGuide(null);
+          }
+        };
+        if (worldTrainingBasicSlots) {
+          worldTrainingBasicSlots.innerHTML = sharedWorldTrainingBasicLoadout.map((kind, slot) => {
+            const skill = sharedWorldTrainingBasicDefinition(kind);
+            return `<button type="button" class="ft-world-training-basic-slot ${skill ? "is-filled" : "is-empty"}" data-training-basic-slot="${slot}" data-training-basic-kind="${skill ? escapeHtml(skill.kind) : ""}" ${skill ? `title="Slot ${slot + 1}: ${escapeHtml(skill.title)}"` : `title="Empty slot ${slot + 1}"`}>${skill ? `<span class="ft-world-training-basic-skill-icon" style="--basic-skill-image:var(--qm-${characterKind}-basic-skill-${skill.index}, url('/future-assets/character_${characterKind === "scorpio" ? "scorpio" : `${characterKind}_default`}_basic_skill_${skill.index}.png'))"></span><small>${slot + 1}</small>` : `<b>+</b><small>${slot + 1}</small>`}</button>`;
+          }).join("");
+        }
+        renderSharedWorldTrainingBasicOrbit();
+      };
+
+      const setSharedWorldTrainingBasicSkillsOpen = (open = false) => {
+        if (!worldTrainingBasicSkills) {
+          return;
+        }
+        const self = sharedWorldTrainingControlSelf();
+        const characterKind = sharedWorldCharacterKindFromNode(self && self.node);
+        const isFemaleDefault = characterKind === "female";
+        const isMaleDefault = characterKind === "male";
+        const isScorpio = characterKind === "scorpio";
+        if (worldCard) {
+          worldCard.classList.toggle("has-female-default-training-controls", isFemaleDefault);
+          worldCard.classList.toggle("has-male-default-training-controls", isMaleDefault);
+          worldCard.classList.toggle("has-scorpio-training-controls", isScorpio);
+        }
+        const enabled = isFemaleDefault || isMaleDefault || isScorpio;
+        const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+        const battleOpen = Boolean(battle && clean(battle.status) === "active" && worldBattleModal && worldBattleModal.classList.contains("is-open"));
+        const next = Boolean(open && enabled && (["city", "training"].includes(sharedWorldMapMode) || battleOpen));
+        worldTrainingBasicSkills.hidden = !next;
+        if (next) {
+          renderSharedWorldTrainingBasicSkills();
+        }
+      };
+
+      // Added 2026-08-12: City, Training, and PvP persist one PostgreSQL-backed Basic Skill runtime.
+      const persistSharedWorldBasicSkillRuntime = async (options = {}) => {
+        const body = {};
+        if (Array.isArray(options.loadout)) body.loadout = sharedWorldTrainingNormalizeBasicLoadout(options.loadout);
+        if (clean(options.activeKind)) body.active_kind = clean(options.activeKind);
+        if (!body.loadout && !body.active_kind) return null;
+        const response = await fetchAuthJson("/world/training/loadout", {
+          method: "POST",
+          timeoutMs: 0,
+          body: JSON.stringify(body),
+        });
+        const result = response && response.payload ? response.payload : response;
+        if (result && result.training) {
+          sharedWorldTrainingState = { training: result.training };
+          const arena = result.training.arena && typeof result.training.arena === "object" ? result.training.arena : {};
+          if (Array.isArray(arena.basic_skill_loadout) || Array.isArray(arena.basicSkillLoadout)) {
+            const nextLoadout = sharedWorldTrainingNormalizeBasicLoadout(arena.basic_skill_loadout || arena.basicSkillLoadout);
+            // Do not let a stale empty arena snapshot erase a valid user loadout.
+            if (nextLoadout.some(Boolean) || !sharedWorldTrainingBasicLoadout.some(Boolean)) sharedWorldTrainingBasicLoadout = nextLoadout;
+          }
+          sharedWorldTrainingBasicSkillKind = clean(arena.basic_skill_kind || arena.basicSkillKind || sharedWorldTrainingBasicSkillKind) || sharedWorldTrainingBasicSkillKind;
+          const activeBattle = sharedWorldBattleState && sharedWorldBattleState.battle;
+          if (sharedWorldMapMode === "training" && !(activeBattle && clean(activeBattle.status) === "active")) {
+            renderSharedWorldTraining(result);
+          } else {
+            renderSharedWorldTrainingLoadoutPanel();
+            renderSharedWorldTrainingQuickSkill();
+            renderSharedWorldTrainingBasicOrbit();
+            if (typeof renderSharedWorldTrainingAvatarEnergy === "function") {
+              renderSharedWorldTrainingAvatarEnergy(result.training.stats || {}, arena);
+            }
+            if (activeBattle && clean(activeBattle.status) === "active" && typeof renderSharedWorldBattleCombatHud === "function") {
+              const players = sharedWorldBattlePlayersForView(activeBattle);
+              renderSharedWorldBattleCombatHud(activeBattle, players.self);
+            }
+          }
+        }
+        return result;
+      };
+
+      const chooseSharedWorldTrainingBasicSkill = (kind = "") => {
+        const definition = sharedWorldTrainingBasicSkillDefinitions.find((skill) => skill.kind === clean(kind));
+        if (!definition || definition.disabled) {
+          return;
+        }
+        sharedWorldTrainingBasicSkillKind = definition.kind;
+        const training = sharedWorldTrainingState && sharedWorldTrainingState.training;
+        const arena = training && training.arena && typeof training.arena === "object" ? training.arena : null;
+        if (arena) {
+          arena.basic_skill_kind = definition.kind;
+          arena.basicSkillKind = definition.kind;
+          arena.question = {};
+          (Array.isArray(arena.slimes) ? arena.slimes : []).forEach((slime) => {
+            if (!slime || typeof slime !== "object") return;
+            slime.preferred_kind = definition.kind;
+            slime.preferredKind = definition.kind;
+            slime.question = {};
+          });
+        }
+        renderSharedWorldTrainingBasicSkills();
+        setSharedWorldTrainingBasicSkillsOpen(false);
+        const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+        if (battle && clean(battle.status) === "active" && worldBattleModal && worldBattleModal.classList.contains("is-open")) {
+          if (battle && typeof battle === "object") {
+            battle.preferred_question_kind = definition.kind;
+            battle.basic_skill_loadout = sharedWorldTrainingBasicLoadout.slice();
+          }
+          renderSharedWorldTrainingBasicOrbit();
+          void persistSharedWorldBasicSkillRuntime({
+            activeKind: definition.kind,
+            loadout: sharedWorldTrainingBasicLoadout.slice(),
+          }).then(() => selectSharedWorldBattleBasicSkill(definition.kind)).catch((error) => {
+            setSharedWorldStatus(error && error.message ? error.message : "Could not save the active Basic Skill.", "error");
+          });
+          return;
+        }
+        if (sharedWorldMapMode === "city") {
+          void persistSharedWorldBasicSkillRuntime({ activeKind: definition.kind }).catch((error) => {
+            setSharedWorldStatus(error && error.message ? error.message : "Could not save the active Basic Skill.", "error");
+          });
+        }
+        const selected = worldTrainingSelectedSlime();
+        setSharedWorldStatus(
+          sharedWorldMapMode === "city"
+            ? `${definition.title} selected for every combat map.`
+            : `${definition.title} selected. Choose a Slime to start this question style.`,
+          "ok"
+        );
+        if (sharedWorldMapMode === "training" && selected && clean(selected.id)) {
+          const self = getSharedWorldSelfPosition() || { x: 0.5, y: 0.5 };
+          void postSharedWorldTraining("/world/training/select", {
+            slime_id: clean(selected.id),
+            training_kind: definition.kind,
+            player_x: self.x,
+            player_y: self.y,
+          }, true);
+        }
+      };
+
+      const assignSharedWorldTrainingBasicSlot = (slot = 0, kind = "") => {
+        if (!sharedWorldTrainingBasicLoadoutAssign(slot, kind)) return;
+        renderSharedWorldTrainingBasicSkills();
+        setSharedWorldTrainingBasicSkillsOpen(true);
+        const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+        const battleOpen = Boolean(battle && clean(battle.status) === "active");
+        const traceDrop = (stage, detail = {}) => {
+          const row = {
+            stage,
+            battleId: clean(battle && battle.id || ""),
+            battleOpen,
+            slot: Math.max(0, Math.min(2, Math.floor(Number(slot) || 0))),
+            kind: clean(kind),
+            battleSlimes: worldBattleMap ? worldBattleMap.querySelectorAll(".ft-world-training-slime").length : 0,
+            trainingSlimeHostParent: worldTrainingMapSlimes && worldTrainingMapSlimes.parentElement ? clean(worldTrainingMapSlimes.parentElement.id || worldTrainingMapSlimes.parentElement.className) : "",
+            at: Date.now(),
+            ...detail,
+          };
+          const rows = Array.isArray(window.__ftPvpLoadoutDropTrace) ? window.__ftPvpLoadoutDropTrace : [];
+          rows.push(row);
+          window.__ftPvpLoadoutDropTrace = rows.slice(-24);
+          console.info("[FTG][PvpLoadoutDrop]", row);
+        };
+        traceDrop("drop-assigned", { loadout: sharedWorldTrainingBasicLoadout.slice() });
+        traceDrop("shared-runtime-persist", { mapMode: sharedWorldMapMode, battleOpen });
+        void persistSharedWorldBasicSkillRuntime({
+          loadout: sharedWorldTrainingBasicLoadout.slice(),
+          activeKind: clean(kind),
+        }).then(() => {
+          traceDrop("persisted-shared-runtime", { mapMode: sharedWorldMapMode, battleOpen });
+        }).catch((error) => {
+          traceDrop("persist-error", { message: error && error.message ? error.message : String(error) });
+          setSharedWorldStatus(error && error.message ? error.message : "Could not save Basic Skill slots.", "error");
+        });
+      };
+
+      // Added 2026-08-11: keep the latest training answer visible briefly, then clear the overlay.
+      const hideSharedWorldTrainingHistory = () => {
+        if (sharedWorldTrainingHistoryHideTimer) {
+          window.clearTimeout(sharedWorldTrainingHistoryHideTimer);
+          sharedWorldTrainingHistoryHideTimer = 0;
+        }
+        if (worldTrainingHistory) {
+          worldTrainingHistory.setAttribute("aria-hidden", "true");
+        }
+      };
+
+      const scheduleSharedWorldTrainingHistoryHide = () => {
+        if (sharedWorldTrainingHistoryHideTimer) {
+          window.clearTimeout(sharedWorldTrainingHistoryHideTimer);
+        }
+        sharedWorldTrainingHistoryHideTimer = window.setTimeout(() => {
+          sharedWorldTrainingHistoryHideTimer = 0;
+          hideSharedWorldTrainingHistory();
+        }, 5000);
       };

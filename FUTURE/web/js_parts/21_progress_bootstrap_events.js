@@ -1840,6 +1840,11 @@
           void toggleWorldBattleSpeechInput();
         });
       }
+      if (worldBattleAnswer) {
+        worldBattleAnswer.dataset.vietnameseTypingActive = "0";
+      }
+      attachVietnameseTypingSupport(worldBattleAnswer, worldBattleViToggle, "qm_city_battle_translate_vi");
+      initSpeechInputModeControl(worldBattleSpeechMode, "qm_city_battle_answer", worldBattleSpeechMic);
       const focusTextInputEnd = (input) => {
         if (!input) return;
         try {
@@ -2692,6 +2697,101 @@
           void openSharedWorldInventory();
         });
       }
+      if (worldCharacterButton) {
+        worldCharacterButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void openSharedWorldCharacterPicker();
+        });
+      }
+      [worldAdminToolsButton, worldBattleAdminToolsButton].forEach((button) => {
+        if (!button) return;
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldAdminToolsOpen(!sharedWorldAdminToolsOpen);
+        });
+      });
+      if (worldCharacterClose) {
+        worldCharacterClose.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          closeSharedWorldCharacterPicker();
+        });
+      }
+      if (worldCharacterModal) {
+        worldCharacterModal.addEventListener("click", (event) => {
+          if (event.target === worldCharacterModal) {
+            closeSharedWorldCharacterPicker();
+          }
+        });
+      }
+      if (worldCharacterGrid) {
+        let characterDeckDrag = null;
+        let characterDeckSuppressClickUntil = 0;
+        worldCharacterGrid.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          const targetCard = event.target && event.target.closest ? event.target.closest("[data-character-kind]") : null;
+          characterDeckDrag = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            scrollLeft: worldCharacterGrid.scrollLeft,
+            moved: false,
+            targetKind: targetCard ? targetCard.dataset.characterKind || "" : "",
+          };
+          worldCharacterGrid.classList.add("is-dragging");
+          if (worldCharacterGrid.setPointerCapture) {
+            worldCharacterGrid.setPointerCapture(event.pointerId);
+          }
+        });
+        worldCharacterGrid.addEventListener("pointermove", (event) => {
+          if (!characterDeckDrag || characterDeckDrag.pointerId !== event.pointerId) return;
+          const dx = event.clientX - characterDeckDrag.startX;
+          if (Math.abs(dx) > 4) characterDeckDrag.moved = true;
+          worldCharacterGrid.scrollLeft = characterDeckDrag.scrollLeft - dx;
+          if (characterDeckDrag.moved) event.preventDefault();
+        });
+        const finishCharacterDeckDrag = (event) => {
+          if (!characterDeckDrag || characterDeckDrag.pointerId !== event.pointerId) return;
+          const drag = characterDeckDrag;
+          window.setTimeout(() => { characterDeckDrag = null; }, 0);
+          worldCharacterGrid.classList.remove("is-dragging");
+          if (drag.moved || !drag.targetKind) return;
+          const button = worldCharacterGrid.querySelector(`[data-character-kind="${CSS.escape(drag.targetKind)}"]`);
+          if (!button || button.getAttribute("aria-disabled") === "true") return;
+          characterDeckSuppressClickUntil = Date.now() + 450;
+          event.preventDefault();
+          event.stopPropagation();
+          void chooseSharedWorldCharacter(drag.targetKind || "");
+        };
+        worldCharacterGrid.addEventListener("pointerup", finishCharacterDeckDrag);
+        worldCharacterGrid.addEventListener("pointercancel", finishCharacterDeckDrag);
+        worldCharacterGrid.addEventListener("click", (event) => {
+          if (Date.now() < characterDeckSuppressClickUntil) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          if (characterDeckDrag && characterDeckDrag.moved) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          const button = event.target && event.target.closest ? event.target.closest("[data-character-kind]") : null;
+          if (!button || button.getAttribute("aria-disabled") === "true") return;
+          event.preventDefault();
+          event.stopPropagation();
+          void chooseSharedWorldCharacter(button.dataset.characterKind || "");
+        });
+        worldCharacterGrid.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          const button = event.target && event.target.closest ? event.target.closest("[data-character-kind]") : null;
+          if (!button || button.getAttribute("aria-disabled") === "true") return;
+          event.preventDefault();
+          event.stopPropagation();
+          void chooseSharedWorldCharacter(button.dataset.characterKind || "");
+        });
+      }
       if (worldInventoryClose) {
         worldInventoryClose.addEventListener("click", (event) => {
           event.preventDefault();
@@ -2704,13 +2804,6 @@
           if (event.target === worldInventoryModal) {
             closeSharedWorldInventory();
           }
-        });
-      }
-      if (worldTrainingPortal) {
-        worldTrainingPortal.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          openSharedWorldTraining();
         });
       }
       if (worldTrainingClose) {
@@ -2737,7 +2830,6 @@
             target.closest("[data-slime-id]")
             || target.closest(".ft-world-player")
             || target.closest("#ft-world-training-modal")
-            || target.closest("#ft-world-training-exit-gate")
           )) {
             return;
           }
@@ -2763,6 +2855,34 @@
           event.preventDefault();
           event.stopPropagation();
           submitSharedWorldTrainingAnswer();
+        });
+      }
+      if (worldTrainingChoices) {
+        worldTrainingChoices.addEventListener("click", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-combat-choice]") : null;
+          if (!button || button.disabled) return;
+          const choiceStartedAt = performance.now();
+          event.preventDefault();
+          event.stopPropagation();
+          worldTrainingChoices.querySelectorAll("[data-combat-choice]").forEach((row) => { row.disabled = true; });
+          button.classList.add("is-selected");
+          const selected = worldTrainingSelectedSlime();
+          const question = selected && selected.question && typeof selected.question === "object" ? selected.question : {};
+          const correctIndex = Number(question.client_correct_choice_index ?? question.clientCorrectChoiceIndex);
+          const selectedIndex = Number(button.dataset.combatChoiceIndex);
+          if (Number.isInteger(correctIndex) && Number.isInteger(selectedIndex)) {
+            button.classList.add(selectedIndex === correctIndex ? "is-client-correct" : "is-client-wrong");
+            const correctButton = worldTrainingChoices.querySelector(`[data-combat-choice-index="${correctIndex}"]`);
+            if (correctButton && correctButton !== button) correctButton.classList.add("is-client-correct");
+          }
+          window.__ftTrainingChoiceImmediate = {
+            immediateMs: Math.round((performance.now() - choiceStartedAt) * 1000) / 1000,
+            selectedIndex,
+            correctIndex,
+            at: Date.now(),
+          };
+          console.info("[FTG][TrainingChoiceImmediate]", JSON.stringify(window.__ftTrainingChoiceImmediate));
+          submitSharedWorldTrainingAnswer(button.dataset.combatChoice || "");
         });
       }
       if (worldTrainingQuestion) {
@@ -2820,7 +2940,18 @@
           event.preventDefault();
           event.stopPropagation();
           if (worldTrainingQuickSkill.disabled) {
-            renderSharedWorldTrainingQuickSkill();
+            const activeBattle = sharedWorldBattleState && sharedWorldBattleState.battle;
+            if (activeBattle && clean(activeBattle.status) === "active" && worldBattleModal && worldBattleModal.classList.contains("is-open")) {
+              const players = sharedWorldBattlePlayersForView(activeBattle);
+              renderSharedWorldBattleCombatHud(activeBattle, players.self);
+            } else {
+              renderSharedWorldTrainingQuickSkill();
+            }
+            return;
+          }
+          const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+          if (battle && clean(battle.status) === "active" && worldBattleModal && worldBattleModal.classList.contains("is-open")) {
+            void castSharedWorldBattleSkill("inferno");
             return;
           }
           void castSharedWorldTrainingSkill(worldTrainingQuickSkill.dataset.worldTrainingSkillCast || "earthquake");
@@ -2929,18 +3060,13 @@
           setSharedWorldStatus("Press Run to send this battle invite to the selected learner.", "ok");
         });
       }
-      if (worldInviteAccept) {
-        worldInviteAccept.addEventListener("click", (event) => {
+      if (worldInvitePanel) {
+        worldInvitePanel.addEventListener("click", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-world-invite-action][data-invite-id]") : null;
+          if (!button) return;
           event.preventDefault();
           event.stopPropagation();
-          void respondSharedWorldBattleInvite(true);
-        });
-      }
-      if (worldInviteDecline) {
-        worldInviteDecline.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          void respondSharedWorldBattleInvite(false);
+          void respondSharedWorldBattleInvite(clean(button.dataset.worldInviteAction) === "accept", clean(button.dataset.inviteId));
         });
       }
       if (worldBattleAnswerForm) {
@@ -2948,6 +3074,35 @@
           event.preventDefault();
           event.stopPropagation();
           void submitSharedWorldBattleAnswer();
+        });
+      }
+      if (worldBattleChoices) {
+        worldBattleChoices.addEventListener("click", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-combat-choice]") : null;
+          if (!button || button.disabled) return;
+          const choiceStartedAt = performance.now();
+          event.preventDefault();
+          event.stopPropagation();
+          worldBattleChoices.dataset.combatChoiceLocked = "1";
+          worldBattleChoices.querySelectorAll("[data-combat-choice]").forEach((row) => { row.disabled = true; });
+          button.classList.add("is-selected");
+          const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+          const question = battle && battle.question && typeof battle.question === "object" ? battle.question : {};
+          const correctIndex = Number(question.client_correct_choice_index ?? question.clientCorrectChoiceIndex);
+          const selectedIndex = Number(button.dataset.combatChoiceIndex);
+          if (Number.isInteger(correctIndex) && Number.isInteger(selectedIndex)) {
+            button.classList.add(selectedIndex === correctIndex ? "is-client-correct" : "is-client-wrong");
+            const correctButton = worldBattleChoices.querySelector(`[data-combat-choice-index="${correctIndex}"]`);
+            if (correctButton && correctButton !== button) correctButton.classList.add("is-client-correct");
+          }
+          window.__ftPvpChoiceImmediate = {
+            immediateMs: Math.round((performance.now() - choiceStartedAt) * 1000) / 1000,
+            selectedIndex,
+            correctIndex,
+            at: Date.now(),
+          };
+          console.info("[FTG][PvpChoiceImmediate]", JSON.stringify(window.__ftPvpChoiceImmediate));
+          void submitSharedWorldBattleAnswer(button.dataset.combatChoice || "");
         });
       }
       if (worldBattleAnswer) {
@@ -3023,7 +3178,47 @@
         worldBattleForfeit.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
+          if (sharedWorldBattleDesignerOpen) {
+            closeSharedWorldBattleDesigner();
+            return;
+          }
           void forfeitSharedWorldBattle(false);
+        });
+      }
+      if (worldBattleQuestion) {
+        worldBattleQuestion.addEventListener("click", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-training-audio-play]") : null;
+          if (!button) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const question = selectedSharedWorldBattleQuestion();
+          void playSharedWorldTrainingAudioQuestion(question);
+        });
+      }
+      if (worldBattleBasicOrbit) {
+        worldBattleBasicOrbit.addEventListener("click", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-battle-basic-kind]") : null;
+          if (!button) return;
+          event.preventDefault();
+          event.stopPropagation();
+          void selectSharedWorldBattleBasicSkill(button.dataset.battleBasicKind || "");
+        });
+      }
+      if (worldBattleUltimateSkill) {
+        worldBattleUltimateSkill.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!worldBattleUltimateSkill.disabled) void castSharedWorldBattleSkill("inferno");
+        });
+      }
+      if (worldBattleAvatarButton) {
+        worldBattleAvatarButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+          const { self } = sharedWorldBattlePlayersForView(battle || {});
+          const point = sharedWorldBattleActorPoints.get(sharedWorldBattleUserKey(self));
+          if (point) centerSharedWorldBattleViewportOn(point, true);
         });
       }
       if (worldBattleResultClose) {
@@ -3034,6 +3229,7 @@
         });
       }
       window.addEventListener("pagehide", forfeitSharedWorldBattleOnUnload);
+      document.addEventListener("visibilitychange", handleSharedWorldBattleVisibilityChange);
       if (worldStage) {
         worldStage.addEventListener("pointerdown", beginSharedWorldStagePan);
         worldStage.addEventListener("pointermove", updateSharedWorldStagePan);
@@ -3041,6 +3237,156 @@
         worldStage.addEventListener("pointercancel", endSharedWorldStagePan);
         worldStage.addEventListener("click", handleSharedWorldStageClick);
       }
+      if (worldTrainingAvatarButton) {
+        worldTrainingAvatarButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof hideSharedWorldTrainingHistory === "function") {
+            hideSharedWorldTrainingHistory();
+          }
+          const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+          if (battle && clean(battle.status) === "active" && worldBattleModal && worldBattleModal.classList.contains("is-open")) {
+            const { self } = sharedWorldBattlePlayersForView(battle);
+            const point = sharedWorldBattleActorPoints.get(sharedWorldBattleUserKey(self));
+            if (point) centerSharedWorldBattleViewportOn(point, true);
+            return;
+          }
+          if (typeof centerSharedWorldViewportOn === "function") {
+            const self = typeof getSharedWorldSelfPosition === "function" ? getSharedWorldSelfPosition() : null;
+            if (self) {
+              centerSharedWorldViewportOn(self.x, self.y, true);
+            }
+          }
+        });
+        worldTrainingAvatarButton.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldTrainingBasicSkillsOpen(true);
+        });
+        worldTrainingAvatarButton.addEventListener("pointerdown", (event) => {
+          if (event.button !== 2) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldTrainingBasicSkillsOpen(true);
+        });
+      }
+      if (worldTrainingBasicSkillsClose) {
+        worldTrainingBasicSkillsClose.addEventListener("click", () => setSharedWorldTrainingBasicSkillsOpen(false));
+      }
+      if (worldTrainingBasicSkillsGrid) {
+        let trainingBasicPointerDrag = null;
+        let trainingBasicDragSuppressClickUntil = 0;
+        const trainingBasicDropSlotAt = (x, y) => {
+          const target = document.elementFromPoint(x, y);
+          return target && target.closest ? target.closest("[data-training-basic-slot]") : null;
+        };
+        const clearTrainingBasicPointerDrag = () => {
+          if (!trainingBasicPointerDrag) return;
+          if (trainingBasicPointerDrag.ghost) trainingBasicPointerDrag.ghost.remove();
+          if (trainingBasicPointerDrag.button) trainingBasicPointerDrag.button.classList.remove("is-pointer-dragging");
+          if (worldTrainingBasicSlots) worldTrainingBasicSlots.querySelectorAll(".is-drag-over").forEach((slot) => slot.classList.remove("is-drag-over"));
+          trainingBasicPointerDrag = null;
+        };
+        worldTrainingBasicSkillsGrid.addEventListener("pointerdown", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-training-basic-kind]") : null;
+          if (!button || button.disabled || event.button !== 0 || button.dataset.trainingBasicDraggable !== "true") return;
+          trainingBasicPointerDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, kind: button.dataset.trainingBasicKind || "", button, ghost: null, slot: null };
+          if (button.setPointerCapture) button.setPointerCapture(event.pointerId);
+        });
+        worldTrainingBasicSkillsGrid.addEventListener("pointermove", (event) => {
+          const drag = trainingBasicPointerDrag;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          if (!drag.ghost && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 6) return;
+          if (!drag.ghost) {
+            const icon = drag.button.querySelector(".ft-world-training-basic-skill-icon");
+            drag.ghost = icon ? icon.cloneNode(true) : document.createElement("span");
+            drag.ghost.classList.add("ft-world-training-basic-pointer-ghost");
+            document.body.appendChild(drag.ghost);
+            drag.button.classList.add("is-pointer-dragging");
+            window.__ftTrainingBasicLoadoutTrace = { action: "dragstart", kind: drag.kind, at: Date.now() };
+            console.info("[FTG][TrainingBasicLoadout]", window.__ftTrainingBasicLoadoutTrace);
+          }
+          drag.ghost.style.transform = `translate3d(${Math.round(event.clientX - 29)}px, ${Math.round(event.clientY - 29)}px, 0)`;
+          if (drag.slot) drag.slot.classList.remove("is-drag-over");
+          drag.slot = trainingBasicDropSlotAt(event.clientX, event.clientY);
+          if (drag.slot) drag.slot.classList.add("is-drag-over");
+          event.preventDefault();
+        });
+        const finishTrainingBasicPointerDrag = (event) => {
+          const drag = trainingBasicPointerDrag;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          if (drag.ghost) {
+            const slot = drag.slot || trainingBasicDropSlotAt(event.clientX, event.clientY);
+            trainingBasicDragSuppressClickUntil = Date.now() + 350;
+            if (slot) assignSharedWorldTrainingBasicSlot(slot.dataset.trainingBasicSlot || 0, drag.kind);
+            event.preventDefault();
+          }
+          clearTrainingBasicPointerDrag();
+        };
+        worldTrainingBasicSkillsGrid.addEventListener("pointerup", finishTrainingBasicPointerDrag);
+        worldTrainingBasicSkillsGrid.addEventListener("pointercancel", clearTrainingBasicPointerDrag);
+        // 2026-08-11: Capture release outside the palette when pointer capture/CUA ends over a drop slot.
+        document.addEventListener("pointerup", finishTrainingBasicPointerDrag);
+        document.addEventListener("pointercancel", clearTrainingBasicPointerDrag);
+        window.addEventListener("blur", clearTrainingBasicPointerDrag);
+        const showTrainingBasicGuide = (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-training-basic-kind]") : null;
+          const definition = button ? sharedWorldTrainingBasicDefinition(button.dataset.trainingBasicKind || "") : null;
+          if (definition) renderSharedWorldTrainingBasicSkillGuide(definition);
+        };
+        worldTrainingBasicSkillsGrid.addEventListener("pointerover", showTrainingBasicGuide);
+        worldTrainingBasicSkillsGrid.addEventListener("focusin", showTrainingBasicGuide);
+        worldTrainingBasicSkillsGrid.addEventListener("click", (event) => {
+          if (Date.now() < trainingBasicDragSuppressClickUntil) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          const button = event.target && event.target.closest ? event.target.closest("[data-training-basic-kind]") : null;
+          if (!button || button.disabled) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          chooseSharedWorldTrainingBasicSkill(button.dataset.trainingBasicKind || "");
+        });
+      }
+      if (worldTrainingBasicSlots) {
+        worldTrainingBasicSlots.addEventListener("dragover", (event) => {
+          if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+          event.preventDefault();
+          const slot = event.target && event.target.closest ? event.target.closest("[data-training-basic-slot]") : null;
+          if (slot) slot.classList.add("is-drag-over");
+        });
+        worldTrainingBasicSlots.addEventListener("dragleave", (event) => {
+          const slot = event.target && event.target.closest ? event.target.closest("[data-training-basic-slot]") : null;
+          if (slot) slot.classList.remove("is-drag-over");
+        });
+        worldTrainingBasicSlots.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const slot = event.target && event.target.closest ? event.target.closest("[data-training-basic-slot]") : null;
+          const kind = event.dataTransfer ? event.dataTransfer.getData("text/plain") : "";
+          if (slot && kind) assignSharedWorldTrainingBasicSlot(slot.dataset.trainingBasicSlot || 0, kind);
+        });
+        worldTrainingBasicSlots.addEventListener("click", (event) => {
+          const slot = event.target && event.target.closest ? event.target.closest("[data-training-basic-slot]") : null;
+          if (slot && slot.dataset.trainingBasicKind) chooseSharedWorldTrainingBasicSkill(slot.dataset.trainingBasicKind);
+        });
+      }
+      if (worldTrainingBasicOrbit) {
+        worldTrainingBasicOrbit.addEventListener("click", (event) => {
+          const button = event.target && event.target.closest ? event.target.closest("[data-training-basic-orbit-kind]") : null;
+          if (button) chooseSharedWorldTrainingBasicSkill(button.dataset.trainingBasicOrbitKind || "");
+        });
+      }
+      window.addEventListener("pagehide", () => {
+        if (worldModal && worldModal.classList.contains("is-open")) {
+          writeSharedWorldCheckpoint();
+        }
+      });
+      document.addEventListener("keydown", handleSharedWorldObstacleArrowPan, true);
       if (worldWitch) {
         worldWitch.addEventListener("click", (event) => {
           event.preventDefault();
@@ -3328,6 +3674,181 @@
           void syncLearnerChatVoiceSettings();
         });
       }
+      if (worldPenToggle) {
+        worldPenToggle.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldObstacleMode("draw");
+        });
+      }
+      if (worldPenPortal) {
+        worldPenPortal.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldObstacleMode("portal");
+        });
+      }
+      if (worldPenMap) {
+        worldPenMap.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!sharedWorldObstacleEditorAllowed()) {
+            return;
+          }
+          setSharedWorldObstacleMode("off");
+          if (sharedWorldMapMode === "training") {
+            closeSharedWorldTraining({ placeAtTarget: true, targetPoint: sharedWorldCityDefaultPoint });
+          } else {
+            openSharedWorldTraining({ entryPoint: sharedWorldTrainingDefaultPoint });
+          }
+        });
+      }
+      if (worldPenBattle) {
+        worldPenBattle.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldObstacleMode("off");
+          void openSharedWorldBattleDesigner();
+        });
+      }
+      if (worldPenEraser) {
+        worldPenEraser.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldObstacleMode("erase");
+        });
+      }
+      if (worldPenSize) {
+        worldPenSize.addEventListener("input", () => {
+          renderSharedWorldObstacleEditor();
+        });
+      }
+      if (worldPenClear) {
+        worldPenClear.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const mapLabel = sharedWorldMapMode === "training" ? "Training" : "QM-City";
+          if (!sharedWorldObstacleEditorAllowed() || !window.confirm(`Clear every ${mapLabel} obstacle stroke?`)) {
+            return;
+          }
+          void postSharedWorldObstacle({ action: "clear" }).catch((error) => {
+            setSharedWorldStatus(error && error.message ? error.message : "Could not clear obstacles.", "error");
+          });
+        });
+      }
+      if (worldBattlePen) {
+        worldBattlePen.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldBattleObstacleMode("draw");
+        });
+      }
+      if (worldBattlePortalPen) {
+        worldBattlePortalPen.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldBattleObstacleMode("portal");
+        });
+      }
+      if (worldBattleCityMap) {
+        worldBattleCityMap.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          closeSharedWorldBattleDesigner();
+        });
+      }
+      if (worldBattleMapLabel) {
+        worldBattleMapLabel.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+      }
+      if (worldBattleErase) {
+        worldBattleErase.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSharedWorldBattleObstacleMode("erase");
+        });
+      }
+      if (worldBattlePenSize) {
+        worldBattlePenSize.addEventListener("input", renderSharedWorldBattleDesigner);
+      }
+      if (worldBattleClear) {
+        worldBattleClear.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (sharedWorldObstacleEditorAllowed() && window.confirm("Clear every Battle-map obstacle stroke?")) {
+            void postSharedWorldBattleObstacle({ action: "clear" }).catch((error) => setSharedWorldStatus(error && error.message ? error.message : "Could not clear Battle obstacles.", "error"));
+          }
+        });
+      }
+      if (worldAdminCharacterSelect) {
+        worldAdminCharacterSelect.addEventListener("change", () => {
+          setSharedWorldAdminCharacterPreview(worldAdminCharacterSelect.value || "male");
+        });
+      }
+      if (worldAdminBasicAttack) {
+        worldAdminBasicAttack.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          triggerSharedWorldAdminTrainingAttack(false);
+        });
+      }
+      if (worldAdminUltimateAttack) {
+        worldAdminUltimateAttack.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          triggerSharedWorldAdminTrainingAttack(true);
+        });
+      }
+      if (worldObstacleCanvas) {
+        worldObstacleCanvas.addEventListener("pointerdown", beginSharedWorldObstaclePointer);
+        worldObstacleCanvas.addEventListener("pointermove", moveSharedWorldObstaclePointer);
+        worldObstacleCanvas.addEventListener("pointerup", endSharedWorldObstaclePointer);
+        worldObstacleCanvas.addEventListener("pointercancel", endSharedWorldObstaclePointer);
+        worldObstacleCanvas.addEventListener("contextmenu", configureSharedWorldPortalAtEvent);
+      }
+      if (worldBattleObstacleCanvas) {
+        worldBattleObstacleCanvas.addEventListener("pointerdown", beginSharedWorldBattleObstaclePointer);
+        worldBattleObstacleCanvas.addEventListener("pointermove", moveSharedWorldBattleObstaclePointer);
+        worldBattleObstacleCanvas.addEventListener("pointerup", endSharedWorldBattleObstaclePointer);
+        worldBattleObstacleCanvas.addEventListener("pointercancel", endSharedWorldBattleObstaclePointer);
+      }
+      if (worldBattleMap) {
+        // Viewport owns pointer capture during camera drag; listen there so a tap
+        // on empty map space still becomes a movement click after the capture ends.
+        if (worldBattleViewport) worldBattleViewport.addEventListener("click", handleSharedWorldBattleMapClick);
+        else worldBattleMap.addEventListener("click", handleSharedWorldBattleMapClick);
+      }
+      if (worldBattleViewport) {
+        worldBattleViewport.addEventListener("pointerdown", beginSharedWorldBattleViewportPan);
+        worldBattleViewport.addEventListener("pointermove", moveSharedWorldBattleViewportPan);
+        worldBattleViewport.addEventListener("pointerup", endSharedWorldBattleViewportPan);
+        worldBattleViewport.addEventListener("pointercancel", endSharedWorldBattleViewportPan);
+      }
+      document.addEventListener("keydown", (event) => {
+        if (!worldBattleModal || !worldBattleModal.classList.contains("is-open") || sharedWorldBattleDesignerOpen) return;
+        if (event.target && event.target.closest && event.target.closest("input,textarea,select,[contenteditable='true']")) return;
+        const delta = { ArrowLeft: [-0.025, 0], ArrowRight: [0.025, 0], ArrowUp: [0, -0.035], ArrowDown: [0, 0.035] }[event.key];
+        if (!delta || Date.now() - sharedWorldBattleMoveSyncAt < 110) return;
+        const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
+        if (!battle || clean(battle.status) !== "active") return;
+        event.preventDefault();
+        event.stopPropagation();
+        sharedWorldBattleMoveSyncAt = Date.now();
+        const { self } = sharedWorldBattlePlayersForView(battle);
+        const current = sharedWorldBattleActorPoints.get(sharedWorldBattleUserKey(self)) || { x: 0.22, y: 0.58 };
+        void moveSharedWorldBattlePlayer({ x: current.x + delta[0], y: current.y + delta[1] });
+      }, { capture: true });
+      if (worldPortalTargetMap) {
+        worldPortalTargetMap.addEventListener("change", () => renderSharedWorldPortalTargetRegions(""));
+      }
+      if (worldPortalMenuSave) {
+        worldPortalMenuSave.addEventListener("click", saveSharedWorldPortalMenu);
+      }
+      [worldPortalMenuClose, worldPortalMenuCancel].filter(Boolean).forEach((button) => {
+        button.addEventListener("click", closeSharedWorldPortalMenu);
+      });
       if (clearAudioCacheButton) {
         clearAudioCacheButton.addEventListener("click", async (event) => {
           event.stopPropagation();
