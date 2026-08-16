@@ -4644,6 +4644,14 @@
       transform: translate(-50%, -50%) perspective(900px) rotateY(0deg) scale(1);
     }
 
+    .ft-world-character-pick.is-preview:not(.is-locked) {
+      z-index: 3;
+      opacity: 1;
+      filter:
+        drop-shadow(0 0 16px rgba(255, 209, 102, 0.72))
+        drop-shadow(0 0 30px rgba(70, 240, 215, 0.42));
+    }
+
     .ft-world-character-pick.is-left {
       left: 25%;
       height: 60%;
