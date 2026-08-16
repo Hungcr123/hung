@@ -2733,6 +2733,14 @@
       if (worldCharacterGrid) {
         let characterDeckDrag = null;
         let characterDeckSuppressClickUntil = 0;
+        const traceCharacterDeckClick = (action = "", extra = {}) => {
+          window.__ftCharacterDeckClickTrace = {
+            action,
+            ...extra,
+            at: Date.now(),
+          };
+          console.info("[FTG][CharacterDeckClick]", window.__ftCharacterDeckClickTrace);
+        };
         worldCharacterGrid.addEventListener("pointerdown", (event) => {
           if (event.button !== 0) return;
           const targetCard = event.target && event.target.closest ? event.target.closest("[data-character-kind]") : null;
@@ -2743,6 +2751,7 @@
             moved: false,
             targetKind: targetCard ? targetCard.dataset.characterKind || "" : "",
           };
+          traceCharacterDeckClick("pointer-down", { kind: characterDeckDrag.targetKind });
           worldCharacterGrid.classList.add("is-dragging");
           if (worldCharacterGrid.setPointerCapture) {
             worldCharacterGrid.setPointerCapture(event.pointerId);
@@ -2760,31 +2769,50 @@
           const drag = characterDeckDrag;
           window.setTimeout(() => { characterDeckDrag = null; }, 0);
           worldCharacterGrid.classList.remove("is-dragging");
-          if (drag.moved || !drag.targetKind) return;
+          if (drag.moved || !drag.targetKind) {
+            traceCharacterDeckClick("pointer-up-ignored", { kind: drag.targetKind, moved: Boolean(drag.moved) });
+            return;
+          }
           const button = worldCharacterGrid.querySelector(`[data-character-kind="${CSS.escape(drag.targetKind)}"]`);
-          if (!button || button.getAttribute("aria-disabled") === "true") return;
+          if (!button || button.getAttribute("aria-disabled") === "true") {
+            traceCharacterDeckClick("pointer-up-disabled", { kind: drag.targetKind });
+            return;
+          }
           characterDeckSuppressClickUntil = Date.now() + 450;
           event.preventDefault();
           event.stopPropagation();
+          traceCharacterDeckClick("pointer-up-select", { kind: drag.targetKind });
           void chooseSharedWorldCharacter(drag.targetKind || "");
         };
+        const cancelCharacterDeckDrag = (event) => {
+          if (!characterDeckDrag || characterDeckDrag.pointerId !== event.pointerId) return;
+          traceCharacterDeckClick("pointer-cancel", { kind: characterDeckDrag.targetKind, moved: Boolean(characterDeckDrag.moved) });
+          characterDeckDrag = null;
+          worldCharacterGrid.classList.remove("is-dragging");
+        };
         worldCharacterGrid.addEventListener("pointerup", finishCharacterDeckDrag);
-        worldCharacterGrid.addEventListener("pointercancel", finishCharacterDeckDrag);
+        worldCharacterGrid.addEventListener("pointercancel", cancelCharacterDeckDrag);
         worldCharacterGrid.addEventListener("click", (event) => {
           if (Date.now() < characterDeckSuppressClickUntil) {
             event.preventDefault();
             event.stopPropagation();
+            traceCharacterDeckClick("click-suppressed");
             return;
           }
           if (characterDeckDrag && characterDeckDrag.moved) {
             event.preventDefault();
             event.stopPropagation();
+            traceCharacterDeckClick("click-drag-ignored");
             return;
           }
           const button = event.target && event.target.closest ? event.target.closest("[data-character-kind]") : null;
-          if (!button || button.getAttribute("aria-disabled") === "true") return;
+          if (!button || button.getAttribute("aria-disabled") === "true") {
+            traceCharacterDeckClick("click-disabled", { kind: button ? button.dataset.characterKind || "" : "" });
+            return;
+          }
           event.preventDefault();
           event.stopPropagation();
+          traceCharacterDeckClick("click-select", { kind: button.dataset.characterKind || "" });
           void chooseSharedWorldCharacter(button.dataset.characterKind || "");
         });
         worldCharacterGrid.addEventListener("keydown", (event) => {

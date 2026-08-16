@@ -4503,7 +4503,7 @@
       overflow: visible;
       background: transparent;
       box-shadow: none;
-      pointer-events: auto;
+      pointer-events: none;
       isolation: isolate;
     }
 
@@ -4541,6 +4541,7 @@
       padding: 0;
       border-bottom: 0;
       background: transparent;
+      pointer-events: auto;
     }
 
     .ft-world-character-head > div {
@@ -4575,6 +4576,7 @@
       cursor: pointer;
       font-weight: 950;
       backdrop-filter: blur(2px);
+      pointer-events: auto;
     }
 
     .ft-world-character-grid {
@@ -4592,6 +4594,7 @@
       touch-action: pan-y;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior-x: contain;
+      pointer-events: auto;
     }
 
     .ft-world-character-grid.is-dragging {
