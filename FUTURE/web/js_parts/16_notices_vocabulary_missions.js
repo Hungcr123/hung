@@ -684,6 +684,7 @@
         if (ext === ".space_p" || normalizedSpace === "Space_P") return { label: "P", className: "is-p", name: "Paragraph" };
         if (ext === ".space_s" || normalizedSpace === "Space_S") return { label: "S", className: "is-s", name: "Speaking" };
         if (ext === ".space_l" || normalizedSpace === "Space_L") return { label: "L", className: "is-l", name: "Listening" };
+        if (ext === ".space_test" || normalizedSpace === "Space_Test") return { label: "T", className: "is-test", name: "Test" };
         if (ext === ".pdf" || normalizedSpace === "Space_PDF") return { label: "PDF", className: "is-pdf", name: "PDF" };
         if (isSpacePictureExtension(ext) || normalizedSpace === "Space_Picture") return { label: "PIC", className: "is-pic", name: "Picture" };
         if (ext === ".txt") return { label: "TXT", className: "is-txt", name: "Text" };
@@ -1912,10 +1913,27 @@
         const rect = targetNode.getBoundingClientRect();
         if (!targetNode.isConnected || rect.width <= 0 || rect.height <= 0) return false;
         const before = Number(serverListNode.scrollTop || 0);
+        const listRect = serverListNode.getBoundingClientRect ? serverListNode.getBoundingClientRect() : null;
         try {
           targetNode.scrollIntoView({ block: "center", behavior: restore ? "auto" : "smooth" });
         } catch (error) {
           targetNode.scrollIntoView({ block: "center" });
+        }
+        // Added 2026-08-06: long Lesson Vault folders use an internal scroll container; browser scrollIntoView
+        // can focus the row without moving that container, so center it manually when needed.
+        const afterScrollRect = targetNode.getBoundingClientRect ? targetNode.getBoundingClientRect() : null;
+        const afterListRect = serverListNode.getBoundingClientRect ? serverListNode.getBoundingClientRect() : listRect;
+        const stillOutsideList = Boolean(
+          afterScrollRect && afterListRect && (
+            afterScrollRect.top < afterListRect.top ||
+            afterScrollRect.bottom > afterListRect.bottom
+          )
+        );
+        if (stillOutsideList) {
+          const targetTop = before
+            + (rect.top - (listRect ? listRect.top : 0))
+            - Math.max(0, ((listRect ? listRect.height : serverListNode.clientHeight) - rect.height) / 2);
+          serverListNode.scrollTop = Math.max(0, Math.round(targetTop));
         }
         if (restore) {
           restore.restoreCalls += 1;
@@ -2379,7 +2397,23 @@
         serverRecentFilePopover.setAttribute("aria-hidden", "true");
       };
 
-      const openServerRecentHistoryFile = (pathValue = "") => {
+      // Added 2026-08-06: trace Last/Recent-file focus so runtime can prove row focus and scroll reuse the Space Task path.
+      const publishRecentFileFocusTrace = (stage = "", extra = {}) => {
+        try {
+          const payload = {
+            stage: clean(stage),
+            focused: normalizeServerPathValue(serverBrowserFocusedFilePath || ""),
+            folder: normalizeServerPathValue(serverBrowserPath || ""),
+            scrollTop: serverListNode ? Math.round(Number(serverListNode.scrollTop || 0) || 0) : 0,
+            ...extra,
+          };
+          window.__ftRecentFileFocusTrace = payload;
+          console.info("[FTG][RecentFileFocus]", JSON.stringify(payload));
+        } catch (error) {
+        }
+      };
+
+      const openServerRecentHistoryFile = async (pathValue = "") => {
         const targetPath = normalizeServerPathValue(pathValue);
         if (!targetPath) {
           return;
@@ -2388,9 +2422,59 @@
         setSelectedTaskPath(targetPath);
         rememberServerFile(targetPath, { syncNow: true });
         rememberServerPath(targetParent);
+        window.__ftLessonVaultProgressHydrationPausedUntil = Date.now() + 15000;
+        if (serverBrowser) {
+          serverBrowser.hidden = false;
+          syncServerWorkspaceOpenState();
+        }
+        setServerBrowserPanel("vault");
         setLoadStatus("Locating recent lesson in Lesson Vault...");
-        loadServerDataPath(targetParent, false, "");
-        scheduleServerFileScrollWhenReady({ source: "recent-file-open" });
+        publishRecentFileFocusTrace("start", { path: targetPath, parent: targetParent });
+        try {
+          const payload = await loadServerDataPath(targetParent, false, "", {
+            skipTaskBoardHydrate: true,
+            skipBackgroundVerify: true,
+            skipChildPrefetch: true,
+            skipFolderPersist: true,
+            skipRouteLeaveFlush: true,
+            source: "recent_file_focus",
+          });
+          const selected = typeof selectServerLessonVaultEntryFromPayload === "function"
+            ? selectServerLessonVaultEntryFromPayload(payload || { entries: serverCurrentEntries || [] }, [targetPath], {
+              rememberFile: false,
+              updateRoute: true,
+              skipProgressPrefetch: true,
+              skipFileStats: false,
+              motion: true,
+            })
+            : false;
+          publishRecentFileFocusTrace("selected", {
+            path: targetPath,
+            parent: targetParent,
+            selected: Boolean(selected),
+            entries: Array.isArray(payload && payload.entries) ? payload.entries.length : 0,
+          });
+          scheduleServerFileScrollWhenReady({ source: "recent-file-open" });
+          window.setTimeout(() => {
+            scheduleServerFileScrollWhenReady({ source: "recent-file-open-retry" });
+            const node = serverFileNodeForPaths([targetPath]);
+            publishRecentFileFocusTrace("retry", {
+              path: targetPath,
+              rowFound: Boolean(node),
+              selected: Boolean(node && node.classList.contains("is-selected")),
+              taskFocus: Boolean(node && node.classList.contains("is-task-focus")),
+              burst: Boolean(node && node.classList.contains("is-task-focus-burst")),
+            });
+          }, 120);
+        } catch (error) {
+          publishRecentFileFocusTrace("error", {
+            path: targetPath,
+            parent: targetParent,
+            message: error && error.message ? error.message : String(error || ""),
+          });
+          scheduleServerFileScrollWhenReady({ source: "recent-file-open-error" });
+          setLoadStatus(error && error.message ? error.message : "Could not locate recent lesson in Lesson Vault.", true);
+        }
       };
 
       const renderServerRecentFilePopover = (event = null) => {
@@ -2438,7 +2522,7 @@
               clickEvent.preventDefault();
               clickEvent.stopPropagation();
               hideServerRecentFilePopover();
-              openServerRecentHistoryFile(recent.path);
+              void openServerRecentHistoryFile(recent.path);
             });
             serverRecentFilePopover.appendChild(item);
           });
@@ -2493,7 +2577,7 @@
           if (!targetPath) {
             return;
           }
-          openServerRecentHistoryFile(targetPath);
+          void openServerRecentHistoryFile(targetPath);
         };
         serverRecentFileButton.oncontextmenu = (event) => {
           event.preventDefault();
@@ -5335,6 +5419,9 @@
         if (suffix === ".space_l") {
           return "Space_L";
         }
+        if (suffix === ".space_test") {
+          return "Space_Test";
+        }
         if (suffix === ".pdf" || suffix === ".space_pdf") {
           return "Space_PDF";
         }
@@ -5926,6 +6013,11 @@
           return;
         }
         const items = currentMissionCrystalItemsForDisplay();
+        const inventoryItems = inventoryItemsForDisplay();
+        const receivedByName = new Map(items.map((item) => [
+          clean(canonicalRewardName(item && item.id, item && item.name)).toLowerCase(),
+          Math.max(0, Math.floor(Number(item && item.quantity || 0) || 0)),
+        ]));
         const total = items.reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity || 0) || 0)), 0);
         if (completeCrystalTotalNode) {
           completeCrystalTotalNode.textContent = total.toLocaleString("en-US");
@@ -5957,6 +6049,50 @@
           card.append(gem, body);
           completeCrystalGrid.appendChild(card);
         });
+        if (!completeInventoryGrid) {
+          return;
+        }
+        const inventoryTotal = inventoryItems.reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity || 0) || 0)), 0);
+        if (completeInventoryTotalNode) {
+          completeInventoryTotalNode.textContent = inventoryTotal.toLocaleString("en-US");
+        }
+        completeInventoryGrid.innerHTML = "";
+        inventoryItems
+          .slice()
+          .sort((a, b) => {
+            const gainedA = receivedByName.get(clean(canonicalRewardName(a && a.id, a && a.name)).toLowerCase()) || 0;
+            const gainedB = receivedByName.get(clean(canonicalRewardName(b && b.id, b && b.name)).toLowerCase()) || 0;
+            return gainedB - gainedA;
+          })
+          .forEach((item, index) => {
+            const name = canonicalRewardName(item && item.id, item && item.name);
+            const gained = receivedByName.get(clean(name).toLowerCase()) || 0;
+            const slot = document.createElement("article");
+            slot.className = "ft-complete-inventory-slot";
+            slot.style.setProperty("--inventory-index", String(index));
+            if (gained > 0) {
+              slot.classList.add("is-gained");
+            }
+            const tone = inventoryCrystalToneForId(item.id);
+            const gem = document.createElement("span");
+            gem.className = `ft-inventory-gem ft-complete-inventory-gem ${tone ? `is-${tone}` : ""}`;
+            gem.setAttribute("aria-hidden", "true");
+            const owned = document.createElement("strong");
+            owned.className = "ft-complete-inventory-owned";
+            owned.textContent = `x${Math.max(0, Math.floor(Number(item.quantity || 0) || 0)).toLocaleString("en-US")}`;
+            const label = document.createElement("span");
+            label.className = "ft-complete-inventory-name";
+            label.textContent = name;
+            slot.append(gem, owned, label);
+            if (gained > 0) {
+              const gain = document.createElement("span");
+              gain.className = "ft-complete-inventory-gain";
+              gain.textContent = `\u2191 +${gained.toLocaleString("en-US")}`;
+              gain.setAttribute("aria-label", `Increased by ${gained}`);
+              slot.appendChild(gain);
+            }
+            completeInventoryGrid.appendChild(slot);
+          });
       }
 
       function openQuestionInventoryPopup() {
@@ -7489,50 +7625,78 @@
           const rankReward = (reward.ranks && (reward.ranks[rank] || reward.ranks[String(rank)])) || { badge: rank === 1, rare: 0, easy: 0, space_q: 0, space_q_silver: 0, space_p: 0, space_p_silver: 0, space_s: 0, space_s_silver: 0, space_w: 0, space_w_silver: 0, space_l: 0, space_l_silver: 0, space_v: 0 };
           const card = document.createElement("article");
           card.className = `ft-cup-reward-rank is-rank-${rank}`;
+          if (safeScope === "week" && rank === 1) {
+            card.classList.add("is-week-scorpio");
+          }
           const title = document.createElement("div");
           title.className = "ft-cup-reward-rank-title";
           title.textContent = row ? `Rank #${rank} | ${row.displayName}` : `Rank #${rank}`;
           const items = document.createElement("div");
           items.className = "ft-cup-reward-items";
+          let rewardList = items;
+          if (safeScope === "week" && rank === 1) {
+            const feature = document.createElement("section");
+            feature.className = "ft-cup-reward-character-feature";
+            const art = document.createElement("div");
+            art.className = "ft-cup-reward-character-art";
+            const img = document.createElement("img");
+            img.alt = "";
+            img.src = "/future-assets/character_scorpio_card.png";
+            art.appendChild(img);
+            const copy = document.createElement("div");
+            copy.className = "ft-cup-reward-character-copy";
+            const rarity = document.createElement("span");
+            rarity.textContent = "5-Star Character Card";
+            const name = document.createElement("strong");
+            name.textContent = "Scorpio";
+            const use = document.createElement("small");
+            use.textContent = "Unlocks Scorpio in QM-City, Training Field, and Battle PvP.";
+            copy.append(rarity, name, use);
+            feature.append(art, copy);
+            items.appendChild(feature);
+            rewardList = document.createElement("div");
+            rewardList.className = "ft-cup-reward-list";
+            items.appendChild(rewardList);
+          }
           if (rankReward.badge) {
-            items.appendChild(makeCupRewardItem("badge", `${reward.title || cupScopeLabel(safeScope)} badge`, null));
+            rewardList.appendChild(makeCupRewardItem("badge", `${reward.title || cupScopeLabel(safeScope)} badge`, null));
           }
           const goldenAxeCount = Math.max(0, Number(rankReward.rare || 0) || 0) + Math.max(0, Number(rankReward.space_v || 0) || 0);
           if (goldenAxeCount > 0) {
-            items.appendChild(makeCupRewardItem("space-v", "Golden Axe", goldenAxeCount));
+            rewardList.appendChild(makeCupRewardItem("space-v", "Golden Axe", goldenAxeCount));
           }
           if (Number(rankReward.easy || 0) > 0) {
-            items.appendChild(makeCupRewardItem("easy", "Silver Axe", rankReward.easy));
+            rewardList.appendChild(makeCupRewardItem("easy", "Silver Axe", rankReward.easy));
           }
           if (Number(rankReward.space_q || 0) > 0) {
-            items.appendChild(makeCupRewardItem("bookgold", "Golden Magic Book", rankReward.space_q));
+            rewardList.appendChild(makeCupRewardItem("bookgold", "Golden Magic Book", rankReward.space_q));
           }
           if (Number(rankReward.space_q_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("booksilver", "Silver Magic Book", rankReward.space_q_silver));
+            rewardList.appendChild(makeCupRewardItem("booksilver", "Silver Magic Book", rankReward.space_q_silver));
           }
           if (Number(rankReward.space_p || 0) > 0) {
-            items.appendChild(makeCupRewardItem("bowgold", "Golden Magic Bow", rankReward.space_p));
+            rewardList.appendChild(makeCupRewardItem("bowgold", "Golden Magic Bow", rankReward.space_p));
           }
           if (Number(rankReward.space_p_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("bowsilver", "Silver Magic Bow", rankReward.space_p_silver));
+            rewardList.appendChild(makeCupRewardItem("bowsilver", "Silver Magic Bow", rankReward.space_p_silver));
           }
           if (Number(rankReward.space_s || 0) > 0) {
-            items.appendChild(makeCupRewardItem("saxgold", "Golden Devil Wings", rankReward.space_s));
+            rewardList.appendChild(makeCupRewardItem("saxgold", "Golden Devil Wings", rankReward.space_s));
           }
           if (Number(rankReward.space_s_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("saxsilver", "Silver Devil Wings", rankReward.space_s_silver));
+            rewardList.appendChild(makeCupRewardItem("saxsilver", "Silver Devil Wings", rankReward.space_s_silver));
           }
           if (Number(rankReward.space_w || 0) > 0) {
-            items.appendChild(makeCupRewardItem("cupgold", "Golden Mastery Cup", rankReward.space_w));
+            rewardList.appendChild(makeCupRewardItem("cupgold", "Golden Mastery Cup", rankReward.space_w));
           }
           if (Number(rankReward.space_w_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("cupiron", "Silver Practice Cup", rankReward.space_w_silver));
+            rewardList.appendChild(makeCupRewardItem("cupiron", "Silver Practice Cup", rankReward.space_w_silver));
           }
           if (Number(rankReward.space_l || 0) > 0) {
-            items.appendChild(makeCupRewardItem("swordgold", "Golden Great Sword", rankReward.space_l));
+            rewardList.appendChild(makeCupRewardItem("swordgold", "Golden Great Sword", rankReward.space_l));
           }
           if (Number(rankReward.space_l_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("swordsilver", "Silver Great Sword", rankReward.space_l_silver));
+            rewardList.appendChild(makeCupRewardItem("swordsilver", "Silver Great Sword", rankReward.space_l_silver));
           }
           card.append(title, items);
           grid.appendChild(card);

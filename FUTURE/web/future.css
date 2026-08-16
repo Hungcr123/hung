@@ -5264,6 +5264,7 @@
       z-index: 1;
       display: grid;
       gap: 14px;
+      min-height: 0;
       max-height: calc(92vh - 98px);
       overflow: auto;
       padding: 0 24px 24px;
@@ -5322,8 +5323,9 @@
 
     .ft-cup-reward-grid {
       display: grid;
-      grid-template-columns: minmax(520px, 42vw) repeat(2, minmax(220px, 1fr));
+      grid-template-columns: minmax(0, 1.85fr) repeat(2, minmax(190px, 0.8fr));
       gap: 12px;
+      min-height: 0;
     }
 
     .ft-cup-reward-rank {
@@ -5337,6 +5339,10 @@
         linear-gradient(145deg, rgba(70, 240, 215, 0.1), transparent 42%),
         rgba(4, 14, 18, 0.72);
       box-shadow: inset 0 0 24px rgba(70, 240, 215, 0.07);
+    }
+
+    .ft-cup-reward-rank > * {
+      min-width: 0;
     }
 
     .ft-cup-reward-rank.is-rank-1 {
@@ -5358,6 +5364,8 @@
       display: grid;
       gap: 8px;
       margin-top: 12px;
+      min-width: 0;
+      min-height: 0;
     }
 
     .ft-cup-reward-character-feature {
@@ -5414,13 +5422,18 @@
     }
 
     .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-items {
-      grid-template-columns: minmax(240px, 20vw) minmax(0, 1fr);
+      grid-template-columns: minmax(260px, 390px) minmax(220px, 1fr);
       align-items: start;
-      min-height: min(680px, 72vh);
+      gap: 10px;
+      height: calc(min(900px, 92vh) - 176px);
+      max-height: 690px;
+      overflow: hidden;
     }
 
     .ft-cup-reward-rank.is-week-scorpio {
-      min-height: min(760px, 80vh);
+      min-height: 0;
+      height: 100%;
+      padding: 14px;
     }
 
     .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-character-feature {
@@ -5428,12 +5441,15 @@
       align-self: stretch;
       grid-template-columns: 1fr;
       grid-template-rows: minmax(0, 1fr) auto;
-      min-height: min(680px, 72vh);
+      min-height: 0;
+      height: 100%;
+      padding: 10px;
+      overflow: hidden;
     }
 
     .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-character-art {
-      width: min(20vw, 390px);
-      height: min(80vh, 650px);
+      width: 100%;
+      height: 100%;
       max-width: 100%;
       aspect-ratio: auto;
       justify-self: center;
@@ -5443,8 +5459,50 @@
       object-fit: contain;
     }
 
-    .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-item {
+    .ft-cup-reward-list {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-list {
       grid-column: 2;
+      align-self: stretch;
+      overflow: auto;
+      padding-right: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 209, 102, 0.48) rgba(255, 255, 255, 0.05);
+    }
+
+    .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-item-name {
+      overflow-wrap: anywhere;
+    }
+
+    .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-list .ft-cup-reward-item {
+      max-width: 100%;
+    }
+
+    @media (max-width: 1180px) {
+      .ft-cup-reward-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(180px, 0.58fr) minmax(180px, 0.58fr);
+      }
+
+      .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-items {
+        grid-template-columns: minmax(220px, 320px) minmax(180px, 1fr);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .ft-cup-reward-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-items {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+      }
     }
 
     @media (max-width: 720px) {
@@ -5454,11 +5512,12 @@
       }
 
       .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-character-feature,
-      .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-item {
+      .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-list {
         grid-column: 1;
       }
 
       .ft-cup-reward-rank.is-week-scorpio .ft-cup-reward-character-feature {
+        height: min(74vh, 560px);
         min-height: 420px;
       }
     }
@@ -19048,6 +19107,26 @@
       text-indent: -9999px;
       overflow: hidden;
       pointer-events: auto;
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.34));
+      transform: translateZ(0);
+      transition: filter 180ms ease, transform 180ms ease;
+    }
+
+    .ft-world-character-button:hover,
+    .ft-world-character-button:focus-visible {
+      filter:
+        drop-shadow(0 10px 18px rgba(0, 0, 0, 0.38))
+        drop-shadow(0 0 14px rgba(70, 240, 215, 0.5));
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .ft-world-character-button.is-active {
+      filter:
+        drop-shadow(0 12px 18px rgba(0, 0, 0, 0.38))
+        drop-shadow(0 0 16px rgba(70, 240, 215, 0.78))
+        drop-shadow(0 0 28px rgba(255, 209, 102, 0.72));
+      transform: translateY(-1px) scale(1.04);
     }
 
     .ft-world-admin-tools-button {

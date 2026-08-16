@@ -20733,6 +20733,10 @@
           worldCharacterModal.classList.add("is-open");
           worldCharacterModal.setAttribute("aria-hidden", "false");
         }
+        if (worldCharacterButton) {
+          worldCharacterButton.classList.add("is-active");
+          worldCharacterButton.setAttribute("aria-pressed", "true");
+        }
         await loadSharedWorldInventory();
         renderSharedWorldCharacterCards();
       };
@@ -20743,6 +20747,10 @@
         if (worldCharacterModal) {
           worldCharacterModal.classList.remove("is-open");
           worldCharacterModal.setAttribute("aria-hidden", "true");
+        }
+        if (worldCharacterButton) {
+          worldCharacterButton.classList.remove("is-active");
+          worldCharacterButton.setAttribute("aria-pressed", "false");
         }
       };
 
@@ -87771,6 +87779,7 @@
           title.textContent = row ? `Rank #${rank} | ${row.displayName}` : `Rank #${rank}`;
           const items = document.createElement("div");
           items.className = "ft-cup-reward-items";
+          let rewardList = items;
           if (safeScope === "week" && rank === 1) {
             const feature = document.createElement("section");
             feature.className = "ft-cup-reward-character-feature";
@@ -87791,46 +87800,49 @@
             copy.append(rarity, name, use);
             feature.append(art, copy);
             items.appendChild(feature);
+            rewardList = document.createElement("div");
+            rewardList.className = "ft-cup-reward-list";
+            items.appendChild(rewardList);
           }
           if (rankReward.badge) {
-            items.appendChild(makeCupRewardItem("badge", `${reward.title || cupScopeLabel(safeScope)} badge`, null));
+            rewardList.appendChild(makeCupRewardItem("badge", `${reward.title || cupScopeLabel(safeScope)} badge`, null));
           }
           const goldenAxeCount = Math.max(0, Number(rankReward.rare || 0) || 0) + Math.max(0, Number(rankReward.space_v || 0) || 0);
           if (goldenAxeCount > 0) {
-            items.appendChild(makeCupRewardItem("space-v", "Golden Axe", goldenAxeCount));
+            rewardList.appendChild(makeCupRewardItem("space-v", "Golden Axe", goldenAxeCount));
           }
           if (Number(rankReward.easy || 0) > 0) {
-            items.appendChild(makeCupRewardItem("easy", "Silver Axe", rankReward.easy));
+            rewardList.appendChild(makeCupRewardItem("easy", "Silver Axe", rankReward.easy));
           }
           if (Number(rankReward.space_q || 0) > 0) {
-            items.appendChild(makeCupRewardItem("bookgold", "Golden Magic Book", rankReward.space_q));
+            rewardList.appendChild(makeCupRewardItem("bookgold", "Golden Magic Book", rankReward.space_q));
           }
           if (Number(rankReward.space_q_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("booksilver", "Silver Magic Book", rankReward.space_q_silver));
+            rewardList.appendChild(makeCupRewardItem("booksilver", "Silver Magic Book", rankReward.space_q_silver));
           }
           if (Number(rankReward.space_p || 0) > 0) {
-            items.appendChild(makeCupRewardItem("bowgold", "Golden Magic Bow", rankReward.space_p));
+            rewardList.appendChild(makeCupRewardItem("bowgold", "Golden Magic Bow", rankReward.space_p));
           }
           if (Number(rankReward.space_p_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("bowsilver", "Silver Magic Bow", rankReward.space_p_silver));
+            rewardList.appendChild(makeCupRewardItem("bowsilver", "Silver Magic Bow", rankReward.space_p_silver));
           }
           if (Number(rankReward.space_s || 0) > 0) {
-            items.appendChild(makeCupRewardItem("saxgold", "Golden Devil Wings", rankReward.space_s));
+            rewardList.appendChild(makeCupRewardItem("saxgold", "Golden Devil Wings", rankReward.space_s));
           }
           if (Number(rankReward.space_s_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("saxsilver", "Silver Devil Wings", rankReward.space_s_silver));
+            rewardList.appendChild(makeCupRewardItem("saxsilver", "Silver Devil Wings", rankReward.space_s_silver));
           }
           if (Number(rankReward.space_w || 0) > 0) {
-            items.appendChild(makeCupRewardItem("cupgold", "Golden Mastery Cup", rankReward.space_w));
+            rewardList.appendChild(makeCupRewardItem("cupgold", "Golden Mastery Cup", rankReward.space_w));
           }
           if (Number(rankReward.space_w_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("cupiron", "Silver Practice Cup", rankReward.space_w_silver));
+            rewardList.appendChild(makeCupRewardItem("cupiron", "Silver Practice Cup", rankReward.space_w_silver));
           }
           if (Number(rankReward.space_l || 0) > 0) {
-            items.appendChild(makeCupRewardItem("swordgold", "Golden Great Sword", rankReward.space_l));
+            rewardList.appendChild(makeCupRewardItem("swordgold", "Golden Great Sword", rankReward.space_l));
           }
           if (Number(rankReward.space_l_silver || 0) > 0) {
-            items.appendChild(makeCupRewardItem("swordsilver", "Silver Great Sword", rankReward.space_l_silver));
+            rewardList.appendChild(makeCupRewardItem("swordsilver", "Silver Great Sword", rankReward.space_l_silver));
           }
           card.append(title, items);
           grid.appendChild(card);
@@ -134819,6 +134831,10 @@
         worldCharacterButton.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
+          if (sharedWorldCharacterPickerOpen) {
+            closeSharedWorldCharacterPicker();
+            return;
+          }
           void openSharedWorldCharacterPicker();
         });
       }

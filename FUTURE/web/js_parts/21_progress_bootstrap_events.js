@@ -2701,6 +2701,10 @@
         worldCharacterButton.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
+          if (sharedWorldCharacterPickerOpen) {
+            closeSharedWorldCharacterPicker();
+            return;
+          }
           void openSharedWorldCharacterPicker();
         });
       }

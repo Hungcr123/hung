@@ -8606,6 +8606,10 @@
           worldCharacterModal.classList.add("is-open");
           worldCharacterModal.setAttribute("aria-hidden", "false");
         }
+        if (worldCharacterButton) {
+          worldCharacterButton.classList.add("is-active");
+          worldCharacterButton.setAttribute("aria-pressed", "true");
+        }
         await loadSharedWorldInventory();
         renderSharedWorldCharacterCards();
       };
@@ -8616,6 +8620,10 @@
         if (worldCharacterModal) {
           worldCharacterModal.classList.remove("is-open");
           worldCharacterModal.setAttribute("aria-hidden", "true");
+        }
+        if (worldCharacterButton) {
+          worldCharacterButton.classList.remove("is-active");
+          worldCharacterButton.setAttribute("aria-pressed", "false");
         }
       };
 
