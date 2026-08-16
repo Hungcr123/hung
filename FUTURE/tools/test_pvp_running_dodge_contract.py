@@ -77,6 +77,13 @@ def main():
     assert "shared_world_battle_roll_running_dodge(battle, opponent, \"ultimate\")" in source
     assert "running_until_epoch" in source and "distance_px" in source
     assert "impact_offset_side" in frontend and "ft-world-battle-character-impact" in frontend
+    assert "correct: true," in frontend and "preview_only: Boolean(missed)" in frontend
+    assert "triggerSharedWorldBattleProjectile(attackerNode, targetNode, attackerGender, ultimateCast, delay, true, missMeta)" not in frontend
+    assert "sharedWorldBattleMissPoint" in frontend and "showSharedWorldBattleMissLabelAtPoint" in frontend
+    assert 'hitTarget && !(event.missed || event.dodged || event.dodge)' in frontend
+    assert 'target && !(event.missed || event.dodged || event.dodge)' in frontend
+    assert 'triggerSharedWorldTrainingEarthquake(trainingEvent)' in frontend
+    assert 'triggerSharedWorldTrainingSkill(trainingEvent, targetNode, () => {' in frontend
     print("pvp_running_dodge_contract=ok basic=50 ultimate=20 hp_unchanged miss_offset=server")
 
 

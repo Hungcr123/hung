@@ -1027,6 +1027,7 @@
 
       const sharedWorldTrainingEventTargetPoint = (event = {}, target = null) => {
         if (sharedWorldTrainingCombatOverride && sharedWorldTrainingCombatOverride.mode === "pvp" && target && target.isConnected) {
+          if (sharedWorldBattleMissMeta(event)) return sharedWorldBattleTargetAbdomenPoint(target);
           return sharedWorldBattleDamageHudPoint(target);
         }
         let liveTarget = target && target.isConnected ? target : null;
@@ -1083,7 +1084,7 @@
         const sprite = target.querySelector(".ft-world-battle-character-sprite, .ft-world-character-sprite, .ft-world-character, .ft-world-training-slime-core") || target;
         const hostRect = size.host.getBoundingClientRect();
         const spriteRect = sprite.getBoundingClientRect();
-        return {
+        const point = {
           x: Math.max(0, Math.min(size.width, spriteRect.left + spriteRect.width * 0.5 - hostRect.left)),
           y: Math.max(0, Math.min(size.height, spriteRect.bottom - hostRect.top)),
           targetRect: {
@@ -1093,6 +1094,7 @@
             height: spriteRect.height,
           },
         };
+        return sharedWorldBattleMissPoint(point, target);
       };
 
       // Added 2026-08-13: aim PvP basic projectiles at the rendered opponent's abdomen.
@@ -1104,7 +1106,7 @@
         const sprite = target.querySelector(".ft-world-battle-character-sprite") || target;
         const hostRect = size.host.getBoundingClientRect();
         const spriteRect = sprite.getBoundingClientRect();
-        return {
+        const point = {
           x: Math.max(0, Math.min(size.width, spriteRect.left + spriteRect.width * 0.5 - hostRect.left)),
           y: Math.max(0, Math.min(size.height, spriteRect.top + spriteRect.height * 0.55 - hostRect.top)),
           spriteRect: {
@@ -1114,6 +1116,50 @@
             height: spriteRect.height,
           },
         };
+        return sharedWorldBattleMissPoint(point, target);
+      };
+
+      const sharedWorldBattleMissMeta = (event = {}) => {
+        const override = sharedWorldTrainingCombatOverride && sharedWorldTrainingCombatOverride.mode === "pvp"
+          ? sharedWorldTrainingCombatOverride
+          : null;
+        const source = event && (event.missed || event.dodged || event.dodge) ? event : (override && override.missed ? override.missMeta || {} : {});
+        return source && (source.missed || source.dodged || source.dodge || (override && override.missed)) ? source : null;
+      };
+
+      const sharedWorldBattleMissPoint = (point = {}, target = null, event = {}) => {
+        const meta = sharedWorldBattleMissMeta(event);
+        if (!meta || !point) return point;
+        const size = sharedWorldTrainingEffectSize();
+        const side = clean(meta.impact_offset_side || meta.impactOffsetSide || meta.side || "").toLowerCase();
+        const direction = side === "left" ? -1 : 1;
+        const offsetX = Number(meta.impact_offset_x != null ? meta.impact_offset_x : meta.impactOffsetX);
+        const offsetY = Number(meta.impact_offset_y != null ? meta.impact_offset_y : meta.impactOffsetY);
+        const rect = point.spriteRect || point.targetRect || (target && target.getBoundingClientRect ? target.getBoundingClientRect() : null) || {};
+        const nearX = Number.isFinite(offsetX) && Math.abs(offsetX) > 0.001
+          ? Math.max(66, Math.min(132, Math.abs(offsetX) * Math.max(size.width, 1)))
+          : Math.max(76, Number(rect.width || 0) * 0.62);
+        const nearY = Number.isFinite(offsetY)
+          ? offsetY * Math.max(size.height, 1)
+          : -Math.max(22, Number(rect.height || 0) * 0.12);
+        return {
+          ...point,
+          x: Math.max(0, Math.min(size.width, Number(point.x || 0) + direction * nearX)),
+          y: Math.max(0, Math.min(size.height, Number(point.y || 0) + nearY)),
+          missOffset: true,
+          missSide: side || (direction < 0 ? "left" : "right"),
+        };
+      };
+
+      const showSharedWorldBattleMissLabelAtPoint = (point = {}) => {
+        if (!worldBattleCard || !point) return;
+        const miss = document.createElement("span");
+        miss.className = "ft-world-battle-miss-label";
+        miss.textContent = "MISS";
+        miss.style.left = `${Math.max(0, Number(point.x || 0))}px`;
+        miss.style.top = `${Math.max(0, Number(point.y || 0) - 44)}px`;
+        worldBattleCard.appendChild(miss);
+        queueSharedWorldBattleVisualTimeout(() => miss.remove(), 860);
       };
 
       // Added 2026-07-08: makes hits push slimes away from the caster and briefly stun strong hits.
@@ -2359,7 +2405,7 @@
               targetFound: Boolean(hitTarget),
               damage: Math.max(0, Math.floor(Number(row && row.damage || event.damage || 0) || 0)),
             });
-            if (hitTarget) {
+            if (hitTarget && !(event.missed || event.dodged || event.dodge)) {
               hitTarget.classList.add("is-hit");
               animateSharedWorldUltimateDamageTarget(hitTarget);
               applySharedWorldTrainingSlimeImpactPhysics(hitTarget, row, { stun: true, power: 36 });
@@ -2739,7 +2785,7 @@
                 : sharedWorldTrainingNodePoint(hitTarget, 0.32))
               : sharedWorldTrainingEventTargetPoint(row, hitTarget);
             window.setTimeout(() => {
-              if (hitTarget) {
+              if (hitTarget && !(event.missed || event.dodged || event.dodge)) {
                 hitTarget.classList.add("is-hit");
                 animateSharedWorldUltimateDamageTarget(hitTarget);
                 applySharedWorldTrainingSlimeImpactPhysics(hitTarget, row, { stun: true, power: 42 });
@@ -2837,7 +2883,7 @@
             burn.style.setProperty("--scorpio-ultimate-burn-x", `${point.x}px`);
             burn.style.setProperty("--scorpio-ultimate-burn-y", `${point.y}px`);
             effectHost.appendChild(burn);
-            if (target) {
+            if (target && !(event.missed || event.dodged || event.dodge)) {
               target.classList.add("is-hit");
               animateSharedWorldUltimateDamageTarget(target);
               applySharedWorldTrainingSlimeImpactPhysics(target, row, { stun: true, power: 34 });
@@ -2964,16 +3010,18 @@
           });
           const point = sharedWorldTrainingEventTargetPoint(row, target);
           window.setTimeout(() => {
-            if (target) {
+            if (target && !(event.missed || event.dodged || event.dodge)) {
               target.classList.add("is-hit");
               animateSharedWorldUltimateDamageTarget(target);
               applySharedWorldTrainingSlimeImpactPhysics(target, row, { stun: true, power: 28 });
               window.setTimeout(() => target.classList.remove("is-hit"), 720);
             }
             showSharedWorldTrainingImpactBurst(point, "critical");
-            showSharedWorldTrainingDamageFloatAtPoint(point, `-${damage} HP`, "critical", { y: -18 });
-            if (row && (row.slime_defeated || row.slimeDefeated)) {
-              showSharedWorldTrainingDamageFloatAtPoint(point, "SLIME DOWN", "defeat", { y: -58 });
+            if (!event.preview_only && !event.previewOnly && !(event.missed || event.dodged || event.dodge)) {
+              showSharedWorldTrainingDamageFloatAtPoint(point, `-${damage} HP`, "critical", { y: -18 });
+              if (row && (row.slime_defeated || row.slimeDefeated)) {
+                showSharedWorldTrainingDamageFloatAtPoint(point, "SLIME DOWN", "defeat", { y: -58 });
+              }
             }
           }, 280 + index * 70);
         });
@@ -6348,23 +6396,33 @@
         const attackerGender = attackerNode.classList.contains("is-character-female-default")
           ? "female"
           : (attackerNode.classList.contains("is-character-scorpio") ? "scorpio" : "male");
-        const combatOverride = { sourceNode: attackerNode, targetNode, targetHost: worldBattleMap, effectParent: worldBattleCard, mode: "pvp" };
+        const combatOverride = { sourceNode: attackerNode, targetNode, targetHost: worldBattleMap, effectParent: worldBattleCard, mode: "pvp", missed: Boolean(missed), missMeta: missMeta || {} };
         sharedWorldTrainingCombatOverride = combatOverride;
         queueSharedWorldBattleVisualTimeout(() => {
           if (sharedWorldTrainingCombatOverride === combatOverride) sharedWorldTrainingCombatOverride = null;
         }, 4200);
         const trainingEvent = {
-          correct: !missed,
+          correct: true,
+          missed: Boolean(missed),
+          dodged: Boolean(missed && (missMeta && (missMeta.dodged || missMeta.dodge))),
+          preview_only: Boolean(missed),
+          previewOnly: Boolean(missed),
           critical: ultimateCast,
           criticalHit: ultimateCast,
-          damage: Math.max(0, Math.round(Number(damage) || 0)),
+          damage: missed ? 0 : Math.max(0, Math.round(Number(damage) || 0)),
           slime_id: clean(target),
           primary_slime_id: clean(target),
           slime_x: targetPoint.x,
           slime_y: targetPoint.y,
+          impact_offset_side: missMeta && (missMeta.impact_offset_side || missMeta.impactOffsetSide || missMeta.side || ""),
+          impactOffsetSide: missMeta && (missMeta.impact_offset_side || missMeta.impactOffsetSide || missMeta.side || ""),
+          impact_offset_x: missMeta && (missMeta.impact_offset_x != null ? missMeta.impact_offset_x : missMeta.impactOffsetX),
+          impactOffsetX: missMeta && (missMeta.impact_offset_x != null ? missMeta.impact_offset_x : missMeta.impactOffsetX),
+          impact_offset_y: missMeta && (missMeta.impact_offset_y != null ? missMeta.impact_offset_y : missMeta.impactOffsetY),
+          impactOffsetY: missMeta && (missMeta.impact_offset_y != null ? missMeta.impact_offset_y : missMeta.impactOffsetY),
           skill_id: ultimateCast ? (attackerGender === "female" ? "female-ultimate" : attackerGender === "scorpio" ? "scorpio-ultimate" : "male-ultimate") : "basic-attack",
           skill: { id: ultimateCast ? "ultimate" : "fireball", tone: ultimateCast ? "ultimate" : "fireball" },
-          affected: [{ slime_id: clean(target), slime_x: targetPoint.x, slime_y: targetPoint.y, damage: Math.max(0, Math.round(Number(damage) || 0)), slime_defeated: Number((battle.hp || {})[target] || 0) <= 0 }],
+          affected: [{ slime_id: clean(target), slime_x: targetPoint.x, slime_y: targetPoint.y, damage: missed ? 0 : Math.max(0, Math.round(Number(damage) || 0)), slime_defeated: !missed && Number((battle.hp || {})[target] || 0) <= 0 }],
         };
         faceSharedWorldTrainingCastSource(trainingEvent, targetNode, attackerNode, "pvp");
         traceSharedWorldPvpTrainingRuntime("combat-dispatch", {
@@ -6372,26 +6430,29 @@
           trainingFunction: ultimateCast ? "triggerSharedWorldTrainingEarthquake" : "triggerSharedWorldTrainingSkill",
         });
         triggerSharedWorldBattleSpeech(attacker, sharedWorldBattleMoveLabel(effectKey, damage), ultimateCast ? 2300 : 1900);
-        if (missed) {
-          const delay = ultimateCast ? 820 : 520;
-          triggerSharedWorldBattleProjectile(attackerNode, targetNode, attackerGender, ultimateCast, delay, true, missMeta);
-          sharedWorldBattleFinalImpactAt = Math.max(sharedWorldBattleFinalImpactAt, performance.now() + delay + (ultimateCast ? 900 : 620));
-          return delay;
-        }
         if (ultimateCast) {
           triggerSharedWorldTrainingEarthquake(trainingEvent);
+          if (missed) {
+            const missPoint = sharedWorldTrainingTargetFootPoint(targetNode);
+            queueSharedWorldBattleVisualTimeout(() => showSharedWorldBattleMissLabelAtPoint(missPoint), attackerGender === "female" ? 1660 : attackerGender === "scorpio" ? 780 : 1080);
+          }
           // Female cast normally finishes in ~2.8s (9 frames + homing flight + impact); keep only a small safety margin.
           sharedWorldBattleFinalImpactAt = Math.max(sharedWorldBattleFinalImpactAt, performance.now() + (attackerGender === "female" ? 3100 : attackerGender === "scorpio" ? 2550 : 2250));
           return attackerGender === "female" ? 1450 : attackerGender === "scorpio" ? 1050 : 1100;
         }
         triggerSharedWorldTrainingSkill(trainingEvent, targetNode, () => {
           if (attackerGender === "female") {
+            if (missed) showSharedWorldBattleMissLabelAtPoint(sharedWorldTrainingTargetFootPoint(targetNode));
             if (typeof onImpact === "function") onImpact();
             return;
           }
           const impactPoint = sharedWorldBattleTargetAbdomenPoint(targetNode);
           showSharedWorldMaleBasicEnemyExplosion(impactPoint, attackerNode, () => {
-            if (typeof onImpact === "function") onImpact();
+            if (missed) {
+              showSharedWorldBattleMissLabelAtPoint(impactPoint);
+            } else if (typeof onImpact === "function") {
+              onImpact();
+            }
             flushSharedWorldTrainingImpactRender();
           });
           return "defer-render";
