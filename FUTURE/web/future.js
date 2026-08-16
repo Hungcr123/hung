@@ -13434,7 +13434,7 @@
         etags: new Map(),
       };
 
-      const SHARED_WORLD_CHARACTER_SELECT_FRAME_URL = "/future-assets/character_select_frame.png";
+      const SHARED_WORLD_CHARACTER_SELECT_FRAME_URL = "/future-assets/character_select_frame_2.png";
       const SHARED_WORLD_CHARACTER_CHANGE_BUTTON_URL = "/future-assets/character_change_button.png";
       const SHARED_WORLD_CHARACTER_MALE_CARD_URL = "/future-assets/character_male_default_card.png";
       const SHARED_WORLD_CHARACTER_FEMALE_CARD_URL = "/future-assets/character_female_default_card.png";
@@ -13445,8 +13445,11 @@
         [SHARED_WORLD_CHARACTER_FEMALE_CARD_URL, "--qm-female-card"],
         [SHARED_WORLD_CHARACTER_SCORPIO_CARD_URL, "--qm-scorpio-card"],
       ];
+      const SHARED_WORLD_CHARACTER_CARD_REVALIDATE_MS = 5 * 60 * 1000;
       let sharedWorldCharacterSelectFramePromise = null;
       let sharedWorldCharacterCardDeckPromise = null;
+      let sharedWorldCharacterCardDeckHydratePromise = null;
+      let sharedWorldCharacterCardDeckRevalidatedAt = 0;
 
       const sharedWorldCharacterAssets = [
         ["/future-assets/map_loading.png", "--qm-map-loading"],
@@ -13649,6 +13652,66 @@
         return { url, mode, etag, source };
       };
 
+      // Added 2026-08-17: paint the character deck from durable IndexedDB before any ETag revalidation.
+      const hydrateSharedWorldCharacterAssetFromIdb = async ([url, cssVariable], trace = null) => {
+        if (sharedWorldCharacterAssetState.objectUrls.has(url)) {
+          const source = sharedWorldCharacterAssetState.objectUrls.get(url);
+          if (cssVariable && source) {
+            document.documentElement.style.setProperty(cssVariable, `url("${source}")`);
+          }
+          if (Array.isArray(trace)) {
+            trace.push({ url, mode: "memory", etag: clean(sharedWorldCharacterAssetState.etags.get(url) || "") });
+            window.__ftQmCityCharacterCardHydrateTrace = trace.slice();
+          }
+          return { url, mode: "memory", source };
+        }
+        const cached = await readSharedWorldCharacterAsset(url);
+        if (!cached || !(cached.blob instanceof Blob)) {
+          if (Array.isArray(trace)) {
+            trace.push({ url, mode: "miss", etag: "" });
+            window.__ftQmCityCharacterCardHydrateTrace = trace.slice();
+          }
+          return { url, mode: "miss", source: url };
+        }
+        const source = URL.createObjectURL(cached.blob);
+        sharedWorldCharacterAssetState.objectUrls.set(url, source);
+        const etag = clean(cached.etag || "");
+        if (etag) {
+          sharedWorldCharacterAssetState.etags.set(url, etag);
+        }
+        if (cssVariable) {
+          document.documentElement.style.setProperty(cssVariable, `url("${source}")`);
+        }
+        if (Array.isArray(trace)) {
+          trace.push({ url, mode: "idb-hydrate", etag });
+          window.__ftQmCityCharacterCardHydrateTrace = trace.slice();
+        }
+        return { url, mode: "idb-hydrate", etag, source };
+      };
+
+      const hydrateSharedWorldCharacterCardDeckFromIdb = () => {
+        if (sharedWorldCharacterCardDeckHydratePromise) {
+          return sharedWorldCharacterCardDeckHydratePromise;
+        }
+        const trace = [];
+        sharedWorldCharacterCardDeckHydratePromise = (async () => {
+          for (const asset of SHARED_WORLD_CHARACTER_CARD_ASSETS) {
+            await hydrateSharedWorldCharacterAssetFromIdb(asset, trace);
+          }
+          window.__ftQmCityCharacterCardHydrateTrace = trace.slice();
+          console.info("[FTG][QMCityCharacterCardHydrate]", JSON.stringify({
+            assets: trace.length,
+            modes: trace.reduce((result, row) => {
+              result[row.mode] = (result[row.mode] || 0) + 1;
+              return result;
+            }, {}),
+          }));
+        })().finally(() => {
+          sharedWorldCharacterCardDeckHydratePromise = null;
+        });
+        return sharedWorldCharacterCardDeckHydratePromise;
+      };
+
       const preloadSharedWorldCharacterSelectFrame = () => {
         if (sharedWorldCharacterSelectFramePromise) {
           return sharedWorldCharacterSelectFramePromise;
@@ -13664,11 +13727,16 @@
         if (sharedWorldCharacterCardDeckPromise) {
           return sharedWorldCharacterCardDeckPromise;
         }
+        if (Date.now() - sharedWorldCharacterCardDeckRevalidatedAt < SHARED_WORLD_CHARACTER_CARD_REVALIDATE_MS) {
+          return hydrateSharedWorldCharacterCardDeckFromIdb();
+        }
         const trace = [];
         sharedWorldCharacterCardDeckPromise = (async () => {
+          await hydrateSharedWorldCharacterCardDeckFromIdb();
           for (const asset of SHARED_WORLD_CHARACTER_CARD_ASSETS) {
             await loadSharedWorldCharacterAssetRow(asset, trace);
           }
+          sharedWorldCharacterCardDeckRevalidatedAt = Date.now();
           window.__ftQmCityCharacterCardCacheTrace = trace.slice();
           console.info("[FTG][QMCityCharacterCardCache]", JSON.stringify({
             assets: trace.length,
@@ -20765,7 +20833,7 @@
 
       const openSharedWorldCharacterPicker = async () => {
         setSharedWorldCloseMenuOpen(false);
-        await preloadSharedWorldCharacterCardDeck();
+        await hydrateSharedWorldCharacterCardDeckFromIdb();
         sharedWorldCharacterPickerOpen = true;
         sharedWorldCharacterCarouselKind = sharedWorldCurrentCharacterKind();
         renderSharedWorldCharacterCards();
@@ -20777,6 +20845,11 @@
           worldCharacterButton.classList.add("is-active");
           worldCharacterButton.setAttribute("aria-pressed", "true");
         }
+        void preloadSharedWorldCharacterCardDeck().then(() => {
+          if (sharedWorldCharacterPickerOpen) {
+            renderSharedWorldCharacterCards();
+          }
+        });
         await loadSharedWorldInventory();
         renderSharedWorldCharacterCards();
       };
