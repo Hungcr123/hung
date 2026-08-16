@@ -6044,10 +6044,11 @@
       };
 
       // Added 2026-08-11: fly the supplied default-character attack art between the two live PvP actors.
-      const triggerSharedWorldBattleProjectile = (attackerNode, targetNode, gender = "male", ultimate = false, impactDelay = 720, missed = false) => {
+      const triggerSharedWorldBattleProjectile = (attackerNode, targetNode, gender = "male", ultimate = false, impactDelay = 720, missed = false, missMeta = {}) => {
         if (!worldBattleCard || !attackerNode || !targetNode) {
           return;
         }
+        const visualGender = gender === "scorpio" ? "male" : gender;
         const source = attackerNode.querySelector(".ft-world-battle-character-sprite") || attackerNode;
         const target = targetNode.querySelector(".ft-world-battle-character-sprite") || targetNode;
         const cardRect = worldBattleCard.getBoundingClientRect();
@@ -6057,14 +6058,23 @@
         const startY = sourceRect.top - cardRect.top + (sourceRect.height * 0.46);
         const targetX = targetRect.left - cardRect.left + (targetRect.width / 2);
         const targetY = targetRect.top - cardRect.top + (targetRect.height * 0.44);
-        const missDirection = targetX >= startX ? 1 : -1;
-        const endX = missed ? targetX + (missDirection * Math.max(90, targetRect.width * 0.72)) : targetX;
-        const endY = missed ? targetY - Math.max(70, targetRect.height * 0.3) : targetY;
+        const missSide = clean(missMeta && (missMeta.impact_offset_side || missMeta.impactOffsetSide || missMeta.side || "")).toLowerCase();
+        const missDirection = missSide === "left" ? -1 : (missSide === "right" ? 1 : (targetX >= startX ? 1 : -1));
+        const offsetX = Number(missMeta && (missMeta.impact_offset_x != null ? missMeta.impact_offset_x : missMeta.impactOffsetX));
+        const offsetY = Number(missMeta && (missMeta.impact_offset_y != null ? missMeta.impact_offset_y : missMeta.impactOffsetY));
+        const nearMissX = Number.isFinite(offsetX) && Math.abs(offsetX) > 0.001
+          ? Math.max(66, Math.min(132, Math.abs(offsetX) * Math.max(cardRect.width, 1)))
+          : Math.max(76, targetRect.width * 0.62);
+        const nearMissY = Number.isFinite(offsetY)
+          ? offsetY * Math.max(cardRect.height, 1)
+          : -Math.max(24, targetRect.height * 0.16);
+        const endX = missed ? targetX + (missDirection * nearMissX) : targetX;
+        const endY = missed ? targetY + nearMissY : targetY;
         const dx = endX - startX;
         const dy = endY - startY;
         const angle = Math.atan2(dy, dx) * 180 / Math.PI;
         const shot = document.createElement("span");
-        shot.className = `ft-world-battle-character-shot is-${gender}${ultimate ? " is-ultimate" : " is-basic"}`;
+        shot.className = `ft-world-battle-character-shot is-${visualGender}${ultimate ? " is-ultimate" : " is-basic"}`;
         shot.style.left = `${startX}px`;
         shot.style.top = `${startY}px`;
         shot.style.setProperty("--battle-shot-dx", `${dx}px`);
@@ -6078,11 +6088,19 @@
             return;
           }
           const impact = document.createElement("span");
-          impact.className = missed ? "ft-world-battle-miss-label" : `ft-world-battle-character-impact is-${gender}${ultimate ? " is-ultimate" : " is-basic"}`;
-          if (missed) impact.textContent = "MISS";
+          impact.className = `ft-world-battle-character-impact is-${visualGender}${ultimate ? " is-ultimate" : " is-basic"}${missed ? " is-miss" : ""}`;
           impact.style.left = `${endX}px`;
           impact.style.top = `${endY}px`;
           worldBattleCard.appendChild(impact);
+          if (missed) {
+            const miss = document.createElement("span");
+            miss.className = "ft-world-battle-miss-label";
+            miss.textContent = "MISS";
+            miss.style.left = `${endX}px`;
+            miss.style.top = `${endY - Math.max(34, targetRect.height * 0.26)}px`;
+            worldBattleCard.appendChild(miss);
+            queueSharedWorldBattleVisualTimeout(() => miss.remove(), 860);
+          }
           queueSharedWorldBattleVisualTimeout(() => impact.remove(), ultimate ? 1180 : 760);
         }, impactDelay);
       };
@@ -6319,7 +6337,7 @@
         }
       };
 
-      const triggerSharedWorldBattleCast = (attacker = "", target = "", effect = "basic_attack", damage = 0, missed = false, onImpact = null) => {
+      const triggerSharedWorldBattleCast = (attacker = "", target = "", effect = "basic_attack", damage = 0, missed = false, onImpact = null, missMeta = {}) => {
         const battle = sharedWorldBattleState && sharedWorldBattleState.battle;
         const attackerNode = sharedWorldBattleNodeForUser(attacker, battle || {});
         const targetNode = sharedWorldBattleNodeForUser(target, battle || {});
@@ -6355,15 +6373,10 @@
         });
         triggerSharedWorldBattleSpeech(attacker, sharedWorldBattleMoveLabel(effectKey, damage), ultimateCast ? 2300 : 1900);
         if (missed) {
-          const missPoint = sharedWorldTrainingNodePoint(targetNode, 0.34);
-          const miss = document.createElement("span");
-          miss.className = "ft-world-battle-miss-label";
-          miss.textContent = "MISS";
-          miss.style.left = `${missPoint.x}px`;
-          miss.style.top = `${missPoint.y - 70}px`;
-          worldBattleCard.appendChild(miss);
-          queueSharedWorldBattleVisualTimeout(() => miss.remove(), 760);
-          return 0;
+          const delay = ultimateCast ? 820 : 520;
+          triggerSharedWorldBattleProjectile(attackerNode, targetNode, attackerGender, ultimateCast, delay, true, missMeta);
+          sharedWorldBattleFinalImpactAt = Math.max(sharedWorldBattleFinalImpactAt, performance.now() + delay + (ultimateCast ? 900 : 620));
+          return delay;
         }
         if (ultimateCast) {
           triggerSharedWorldTrainingEarthquake(trainingEvent);
@@ -6525,7 +6538,7 @@
         if (!effect && (/inferno/i.test(text) || damage >= 30)) {
           effect = "inferno";
         }
-        return { attacker, target, effect: effect || "basic_attack", damage, loot, missed: Boolean(row.missed) };
+        return { attacker, target, effect: effect || "basic_attack", damage, loot, missed: Boolean(row.missed), missMeta: row };
       };
 
       const sharedWorldBattleLatestLogKey = (battle = {}) => {
@@ -6573,8 +6586,8 @@
               }, Math.max(0, Math.round(Number(impactDelay) || 0)));
             }
           } else if (clean(last.type) === "miss") {
-            const { attacker, target, effect, damage } = sharedWorldBattleHitEventFromLog(last);
-            if (!optimisticRecord) triggerSharedWorldBattleCast(attacker, target, effect, damage, true);
+            const { attacker, target, effect, damage, missMeta } = sharedWorldBattleHitEventFromLog(last);
+            if (!optimisticRecord || last.dodged || last.dodge) triggerSharedWorldBattleCast(attacker, target, effect, damage, true, null, missMeta);
             const manaGain = Math.max(0, Math.round(Number(last.mana_gain || last.manaGain) || 0));
             const manaTarget = clean(last.mana_target || last.manaTarget || target);
             const manaNode = sharedWorldBattleNodeForUser(manaTarget, battle);

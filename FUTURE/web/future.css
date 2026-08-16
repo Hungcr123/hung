@@ -21452,6 +21452,13 @@
     }
     .ft-world-battle-character-impact.is-male { background-image: var(--qm-male-ultimate-burn, url("/future-assets/character_male_default_ultimate_burn_enemy.png")); }
     .ft-world-battle-character-impact.is-female { background-image: var(--qm-female-ranged-impact, url("/future-assets/character_female_default_ranged_attack_impact.png")); }
+    .ft-world-battle-character-impact.is-miss {
+      opacity: 0.9;
+      filter:
+        saturate(1.15)
+        hue-rotate(-10deg)
+        drop-shadow(0 0 18px rgba(255, 209, 102, 0.58));
+    }
     .ft-world-battle-character-impact.is-ultimate.is-male { width: 260px; height: 150px; animation-duration: 1100ms; }
     .ft-world-battle-character-impact.is-ultimate.is-female {
       width: 280px;
