@@ -8640,12 +8640,13 @@
 
       const sharedWorldCharacterCarouselSlot = (cards = [], kind = "", activeKind = "") => {
         const rows = Array.isArray(cards) ? cards : [];
-        if (rows.length !== 3) return "";
         const index = rows.findIndex((card) => card && card.kind === kind);
         const activeIndex = rows.findIndex((card) => card && card.kind === activeKind);
         if (index < 0 || activeIndex < 0) return "";
+        if (rows.length <= 1) return "center";
         const delta = (index - activeIndex + rows.length) % rows.length;
         if (delta === 0) return "center";
+        if (rows.length === 2) return "right";
         if (delta === 1) return "right";
         return "left";
       };
