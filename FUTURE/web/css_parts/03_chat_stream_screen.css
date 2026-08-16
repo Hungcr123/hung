@@ -4652,6 +4652,13 @@
         drop-shadow(0 0 30px rgba(70, 240, 215, 0.42));
     }
 
+    .ft-world-character-grid.has-locked-preview .ft-world-character-pick.is-active:not(.is-center) {
+      opacity: 1;
+      filter:
+        drop-shadow(0 0 12px rgba(255, 209, 102, 0.62))
+        drop-shadow(0 0 22px rgba(70, 240, 215, 0.34));
+    }
+
     .ft-world-character-pick.is-left {
       left: 25%;
       height: 60%;

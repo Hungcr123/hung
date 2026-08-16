@@ -8665,6 +8665,8 @@
         const focusKind = sharedWorldCurrentCharacterKind();
         const actualKind = sharedWorldActualCharacterKind();
         const cards = sharedWorldAvailableCharacterCards();
+        const focusCard = cards.find((card) => card && card.kind === focusKind) || null;
+        worldCharacterGrid.classList.toggle("has-locked-preview", Boolean(focusCard && !focusCard.owned));
         const liveKinds = new Set(cards.map((card) => card.kind));
         worldCharacterGrid.querySelectorAll("[data-character-kind]").forEach((node) => {
           if (!liveKinds.has(node.dataset.characterKind || "")) node.remove();
