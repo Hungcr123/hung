@@ -20840,6 +20840,39 @@
       transform: scaleX(-1) scale(var(--scorpio-character-scale));
     }
 
+    /* Added 2026-08-17: Scorpio draws the weapon-ready motion set in
+       Training/Battle only; QM-City keeps the original non-weapon walk. */
+    .ft-world-card.is-training-map .ft-world-player.is-character-scorpio:not(.is-moving):not(.is-training-cast) .ft-world-character,
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio:not(.is-moving):not(.is-training-cast) .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-stand, url("/future-assets/character_scorpio_weapon_stand_atlas.png"));
+      background-size: 300% 100%;
+      background-position-y: 0;
+      animation: none;
+    }
+
+    .ft-world-card.is-training-map .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-down .ft-world-character,
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-down .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-run-down, url("/future-assets/character_scorpio_weapon_run_down_atlas.png"));
+      background-size: 600% 100%;
+      transform: scale(var(--scorpio-character-scale));
+      animation: ftWorldCharacterScorpioRunSix 780ms steps(5, end) infinite;
+    }
+
+    .ft-world-card.is-training-map .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-up .ft-world-character,
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-up .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-run-up, url("/future-assets/character_scorpio_weapon_run_up_atlas.png"));
+      background-size: 800% 100%;
+      transform: scale(var(--scorpio-character-scale));
+      animation: ftWorldCharacterScorpioRunEight 1040ms steps(7, end) infinite;
+    }
+
+    .ft-world-card.is-training-map .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast):is(.is-facing-left, .is-facing-right) .ft-world-character,
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast):is(.is-facing-left, .is-facing-right) .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-run-side, url("/future-assets/character_scorpio_weapon_run_side_atlas.png"));
+      background-size: 600% 100%;
+      animation: ftWorldCharacterScorpioRunSix 780ms steps(5, end) infinite;
+    }
+
     .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-scorpio-basic-cast .ft-world-character,
     .ft-world-player.is-character-scorpio.is-scorpio-basic-cast .ft-world-character {
       --scorpio-basic-scale: 1.62;
@@ -20970,6 +21003,7 @@
 
     @keyframes ftWorldCharacterScorpioRunSix { from { background-position-x: 0; } to { background-position-x: 100%; } }
     @keyframes ftWorldCharacterScorpioRunFive { from { background-position-x: 0; } to { background-position-x: 100%; } }
+    @keyframes ftWorldCharacterScorpioRunEight { from { background-position-x: 0; } to { background-position-x: 100%; } }
     @keyframes ftWorldCharacterScorpioBasicEight { from { background-position-x: 0; } to { background-position-x: 100%; } }
     @keyframes ftWorldCharacterScorpioBasicSix { from { background-position-x: 0; } to { background-position-x: 100%; } }
     @keyframes ftWorldCharacterScorpioBasicSeven { from { background-position-x: 0; } to { background-position-x: 100%; } }
@@ -22751,9 +22785,10 @@
       height: 128px;
       transform-origin: 50% 100%;
     }
-    /* Updated 2026-08-16: lock every Scorpio idle direction after Battle's generic sprite overrides. */
+    /* Updated 2026-08-17: lock every Scorpio idle direction after Battle's
+       generic sprite overrides, using the weapon-ready PvP atlas. */
     .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio:not(.is-moving):not(.is-training-cast) .ft-world-character {
-      background-image: var(--qm-scorpio-stand, url("/future-assets/character_scorpio_stand_atlas.png"));
+      background-image: var(--qm-scorpio-weapon-stand, url("/future-assets/character_scorpio_weapon_stand_atlas.png"));
       background-size: 300% 100%;
       background-position-y: 0;
       animation: none;
@@ -22773,6 +22808,32 @@
     .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio:not(.is-moving):not(.is-training-cast).is-facing-up .ft-world-character {
       background-position-x: 100%;
       transform: scale(var(--scorpio-character-scale));
+    }
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-down .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-run-down, url("/future-assets/character_scorpio_weapon_run_down_atlas.png"));
+      background-size: 600% 100%;
+      background-position-y: 0;
+      transform: scale(var(--scorpio-character-scale));
+      animation: ftWorldCharacterScorpioRunSix 780ms steps(5, end) infinite;
+    }
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-up .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-run-up, url("/future-assets/character_scorpio_weapon_run_up_atlas.png"));
+      background-size: 800% 100%;
+      background-position-y: 0;
+      transform: scale(var(--scorpio-character-scale));
+      animation: ftWorldCharacterScorpioRunEight 1040ms steps(7, end) infinite;
+    }
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast):is(.is-facing-left, .is-facing-right) .ft-world-character {
+      background-image: var(--qm-scorpio-weapon-run-side, url("/future-assets/character_scorpio_weapon_run_side_atlas.png"));
+      background-size: 600% 100%;
+      background-position-y: 0;
+      animation: ftWorldCharacterScorpioRunSix 780ms steps(5, end) infinite;
+    }
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-right .ft-world-character {
+      transform: scale(var(--scorpio-character-scale));
+    }
+    .ft-world-battle-card.is-live-battle .ft-world-player.is-character-scorpio.is-moving:not(.is-training-cast).is-facing-left .ft-world-character {
+      transform: scaleX(-1) scale(var(--scorpio-character-scale));
     }
     /* Keep the Battle basic cast cell identical to City/Training dimensions.
        Ultimate/ranged variants below intentionally override this size. */
